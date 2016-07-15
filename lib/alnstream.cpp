@@ -117,7 +117,7 @@ uint64_t oAlnStream::open(std::string fname) {
 
 // writes a read alignment to the output Alignment file. 
 // Buffering is handled internally
-uint64_t oAlnStream::write_alignment(ReadAlignment & al) {
+uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
   if ( (!ofile && (format == 0 || format == 2)) || (ozfile == Z_NULL && format == 1) ){
     throw std::runtime_error("Could not write alignment to file. File handle not valid.");
   }
@@ -125,7 +125,7 @@ uint64_t oAlnStream::write_alignment(ReadAlignment & al) {
     throw std::length_error("Could not write alignment to file. All alignments were already written.");
   }
 
-  std::vector<char> data = al.serialize();
+  std::vector<char> data = al->serialize();
   uint64_t al_size = data.size();
 
   // first, write the size of the serialized alignment (uint32_t = 4 bytes)
@@ -324,7 +324,7 @@ uint64_t iAlnStream::open(std::string fname) {
 
 
 
-ReadAlignment iAlnStream::get_alignment() {
+ReadAlignment* iAlnStream::get_alignment() {
 
   if ( (format==0 && !ifile) || (format==1 && izfile == Z_NULL) ){
     throw std::runtime_error("Could not load alignment from file. File handle not valid.");
@@ -400,8 +400,9 @@ ReadAlignment iAlnStream::get_alignment() {
   }
 
   // finally, deserialize the alignment
-  ReadAlignment ra (rlen);
-  ra.deserialize(data.data());
+  ReadAlignment* ra = new ReadAlignment();
+  ra->set_rlen(rlen);
+  ra->deserialize(data.data());
   
   num_loaded++;
 
@@ -435,6 +436,18 @@ bool iAlnStream::close() {
 //-------------------------------------------------------------------//
 //------  The StreamedAlignment class  ------------------------------//
 //-------------------------------------------------------------------//
+
+StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) {
+  if(&other == this)
+    return *this;
+  
+  lane = other.lane;
+  tile = other.tile;
+  root = other.root;
+  rlen = other.rlen;
+  
+  return *this;
+}
 
 std::string StreamedAlignment::get_bcl_file(uint16_t cycle) {
   std::ostringstream path_stream;
@@ -503,8 +516,10 @@ void StreamedAlignment::init_alignment(AlignmentSettings* settings) {
 
   // write empty read alignments for each read
   for (uint32_t i = 0; i < num_reads; ++i) {
-    ReadAlignment ra (rlen);
+    ReadAlignment * ra = new ReadAlignment();
+    ra->set_rlen(rlen);
     output.write_alignment(ra);
+    delete ra;
   }
 
   if(!output.close()) {
@@ -570,25 +585,26 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
   //-------------------------------------------------
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
-    ReadAlignment ra = input.get_alignment();
+    ReadAlignment* ra = input.get_alignment();
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
       if(filters.next()) {
-	ra.extend_alignment(basecalls.next(), index, settings);
-	num_seeds += ra.seeds.size();
+        ra->extend_alignment(basecalls.next(), index, settings);
+        num_seeds += ra->seeds.size();
       }
       else {
-	basecalls.next();
-	ra.disable();
+        basecalls.next();
+        ra->disable();
       }
     }
     // filter file was not found -> treat every alignment as valid
     else {
-      ra.extend_alignment(basecalls.next(), index, settings);
-      num_seeds += ra.seeds.size();
+      ra->extend_alignment(basecalls.next(), index, settings);
+      num_seeds += ra->seeds.size();
     }
 
     output.write_alignment(ra);
+    delete ra;
   }
 
   // 6. Close files
@@ -607,6 +623,91 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
 }
 
 
+
+// extend an existing alignment from cycle <MAX-1> to <MAX>. returns the number of seeds
+uint64_t StreamedAlignment::extend_last_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings, BAMOut* bamfile) {
+    
+    // 1. Open the input file
+    //-----------------------
+    std::string in_fname = get_alignment_file(cycle-1, settings->temp_dir);
+    std::string bcl_fname = get_bcl_file(cycle);
+    std::string filter_fname = get_filter_file();
+    
+    iAlnStream input ( settings->block_size, settings->compression_format );
+    input.open(in_fname);
+    assert(input.get_cycle() == cycle-1);
+    assert(input.get_lane() == lane);
+    assert(input.get_tile() == tile);
+    assert(input.get_root() == root);
+    assert(input.get_rlen() == rlen);
+    
+    uint32_t num_reads = input.get_num_reads();
+    
+    
+    // 2. Read the full BCL file (this is not too much)
+    //-------------------------------------------------
+    BclParser basecalls;
+    basecalls.open(bcl_fname);
+    
+    // extract the number of reads from the BCL file
+    uint32_t num_base_calls = basecalls.size();
+    assert(num_base_calls == num_reads);
+    
+    
+    // 3. Load the filter flags if filter file is available
+    // ----------------------------------------------------
+    FilterParser filters;
+    if (file_exists(filter_fname)) {
+        filters.open(filter_fname);
+        // extract the number of reads from the filter file
+        uint32_t num_reads_filter = filters.size();
+        
+        if (num_reads != num_reads_filter){
+            std::string msg = std::string("Number of reads in filter file (") + std::to_string(num_reads_filter) + ") does not match the number of reads in the BCL file (" + std::to_string(num_reads) + ").";
+            throw std::length_error(msg.c_str());
+        }
+    }
+    
+    // 4. Extend alignments 1 by 1
+    //-------------------------------------------------
+    uint64_t num_seeds = 0;
+    for (uint64_t i = 0; i < num_reads; ++i) {
+        ReadAlignment * ra = input.get_alignment();
+        
+        if (filters.size() > 0 && filters.has_next()) {
+            // filter file was found -> apply filter
+            if(filters.next()) {
+                ra->extend_alignment(basecalls.next(), index, settings);
+                num_seeds += ra->seeds.size();
+                bamfile->write(ra, lane, tile, i, nullptr);
+            }
+            else {
+                basecalls.next();
+                ra->disable();
+            }
+        }
+        // filter file was not found -> treat every alignment as valid
+        else {
+            ra->extend_alignment(basecalls.next(), index, settings);
+            num_seeds += ra->seeds.size();
+            bamfile->write(ra, lane, tile, i, nullptr);
+        }
+    }
+    
+    // 5. Close files
+    //-------------------------------------------------
+    if (! input.close() ) {
+        std::cerr << "Could not finish alignment!" << std::endl;
+    }
+    
+    // 7. Delete old alignment file, if requested
+    //-------------------------------------------
+    if ( ! settings->keep_aln_files ) {
+        std::remove(in_fname.c_str());
+    }
+    
+    return num_seeds;
+}
 
 
 
@@ -675,30 +776,30 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
 
   // read alignments and write to SAM
   for (uint64_t i = 0; i < num_reads; ++i) {
-    ReadAlignment ra = input.get_alignment();
+    ReadAlignment * ra = input.get_alignment();
     // if either: filter file is open and all filter flags were loaded and the filter flag is > 0
     //    or: the filter file is not available
     if ((filters.size()>0 && filters.next()) || filters.size() == 0) {
-      num_alignments += ra.seeds.size();
+      num_alignments += ra->seeds.size();
       std::stringstream readname;
 	// Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
       //readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
       readname << "lane." << ln << "|tile." << tl << "|read." << i;
-      for (uint64_t s = 0; s < ra.seeds.size(); s++) {
+      for (uint64_t s = 0; s < ra->seeds.size(); s++) {
 	std::stringstream aln;
 	// write the SAM compliant alignment information
 	// Read name
 	aln << readname.str() << "\t";
 	// Flag
-	aln << ra.get_SAM_flags(s) << "\t";
+    aln << ra->get_SAM_flags(s) << "\t";
 	// Reference name
-	aln << index->get_name(ra.seeds[s]->gid) << "\t";
+    aln << index->get_name(ra->seeds[s]->gid) << "\t";
 	// Position
-	aln << ra.get_SAM_start_pos(s) << "\t";
+    aln << ra->get_SAM_start_pos(s) << "\t";
 	// Mapping Quality
-	aln << ra.get_SAM_quality(s) << "\t";
+    aln << ra->get_SAM_quality(s) << "\t";
 	// CIGAR string
-	Seed sd = *(ra.seeds[s]);
+    Seed sd = *(ra->seeds[s]);
 	aln << CIGAR(sd) << "\t";
 	// RNEXT field is unavailable
 	aln << "*\t";

@@ -13,15 +13,6 @@
 //------  The Seed data structure  ----------------------------------//
 //-------------------------------------------------------------------//
 
-struct CigarElement {
-  CountType length;
-  DiffType offset;
-  CigarElement (CountType l, DiffType o): length(l), offset(o) {};
-  CigarElement (): length(0), offset(NO_MATCH) {};
-};
-
-
-typedef std::vector<CigarElement> CigarVector;
 
 // a Seed stores the alignment of a read to a target genome
 struct Seed {
@@ -32,8 +23,6 @@ struct Seed {
   // number of matches
   CountType num_matches;
 
-  // list of all observed matches
-  //std::vector<DiffType> matches;
   // Information about matches/mismatches (similar to CIGAR). The last element is the current one
   CigarVector cigar_data;
 
@@ -68,7 +57,7 @@ typedef SeedVec::iterator SeedVecIt;
 class ReadAlignment {
  private:
   // read length
-  const CountType rlen;
+  CountType rlen;
 
   // Create new seeds from a list of kmer positions and add to current seeds
   void add_new_seeds(GenomePosListType& pos);
@@ -92,8 +81,14 @@ class ReadAlignment {
   SeedVec seeds;
 
   // Create a new read alignment given a certain read length
-  ReadAlignment(CountType rl): rlen(rl), last_kmer(0), last_invalid(0), cycle(0) {seeds.clear();};
-
+  //ReadAlignment(CountType rl): rlen(rl), last_kmer(0), last_invalid(0), cycle(0) {seeds.clear();};
+  
+  // assignment operator for deep copying
+  //ReadAlignment& operator=(const ReadAlignment& other);
+  
+  // set the read_length
+  void set_rlen(CountType r);
+  
   // get the size of the serialized object
   uint64_t serialize_size();
 
@@ -104,7 +99,7 @@ class ReadAlignment {
   uint64_t deserialize(char* d);
 
   // extend the alignment by one basecall using reference database index
-  std::vector<std::chrono::high_resolution_clock::duration> extend_alignment(char bc, KixRun* index, AlignmentSettings* settings);
+  void extend_alignment(char bc, KixRun* index, AlignmentSettings* settings);
 
   // disable this alignment
   void disable();

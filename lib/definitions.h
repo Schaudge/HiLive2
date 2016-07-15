@@ -8,17 +8,19 @@
 // bit representation of A/C/G/T.
 #define twobit_repr(ch) ((toupper(ch)) == 'A' ? 0LL : \
                          (toupper(ch)) == 'C' ? 1LL : \
-			 (toupper(ch)) == 'G' ? 2LL : 3LL)
+                         (toupper(ch)) == 'G' ? 2LL : 3LL)
 
 // complement bit representation of A/C/G/T.
 #define twobit_comp(ch) ((toupper(ch)) == 'A' ? 3LL : \
                          (toupper(ch)) == 'C' ? 2LL : \
-			 (toupper(ch)) == 'G' ? 1LL : 0LL)
+                         (toupper(ch)) == 'G' ? 1LL : 0LL)
 
 // bit representation to character
 #define revtwobit_repr(n) ((n) == 0 ? 'A' : \
                            (n) == 1 ? 'C' : \
-			   (n) == 2 ? 'G' : 'T')
+                           (n) == 2 ? 'G' : 'T')
+
+
 
 
 // Allowed characters in sequence
@@ -33,7 +35,7 @@ const HashIntoType MASK = HashIntoType(pow(4,K))-1;
 
 
 // identifiers for genome sequences
-typedef uint16_t GenomeIdType;
+typedef uint32_t GenomeIdType;
 const GenomeIdType TRIMMED = std::numeric_limits<GenomeIdType>::max();
 
 // list of genome identifiers
@@ -88,6 +90,17 @@ const DiffType NO_MATCH = std::numeric_limits<DiffType>::max();
 const DiffType TRIMMED_MATCH = std::numeric_limits<DiffType>::max()-1;
 
 
+// one element in Cigar vector containing match/mismatch information about consecutive k-mers
+struct CigarElement {
+    CountType length;
+    DiffType offset;
+    CigarElement (CountType l, DiffType o): length(l), offset(o) {};
+    CigarElement (): length(0), offset(NO_MATCH) {};
+};
+
+// CigarVector containing CIGAR string like information about the alignments
+typedef std::vector<CigarElement> CigarVector;
+
 
 // all user parameters are stored in the alignment settings
 struct AlignmentSettings {
@@ -131,7 +144,7 @@ struct AlignmentSettings {
   uint64_t block_size = 64*1024*1024; /* 64 MB */
 
   // PARAMETER: Compression format for alignment files
-  uint8_t compression_format = 0;
+  uint8_t compression_format = 2;
 
   // initialize with default values
   AlignmentSettings() : min_qual(1), 
@@ -147,7 +160,7 @@ struct AlignmentSettings {
                         sam_dir(""),
                         keep_aln_files(true),
                         block_size(64*1024*1024),
-                        compression_format(0) {};
+                        compression_format(2) {};
 
 };
 

@@ -112,8 +112,31 @@ uint16_t Seed::deserialize(char* d) {
 }
 
 
+/*
+ReadAlignment& ReadAlignment::operator=(const ReadAlignment& other) {
+    if(&other == this)
+        return *this;
+    
+    rlen = other.rlen;
+    last_kmer = other.last_kmer;
+    last_invalid = other.last_invalid;
+    cycle = other.cycle;
+    
+    // deep copy of seeds
+    seeds.clear();
+    seeds.reserve(other.seeds.size());
+    for (auto sit = other.seeds.begin(); sit != other.seeds.end(); ++sit) {
+        USeed s (new Seed);
+        *s = **sit;
+        seeds.push_back(std::move(s));
+    }
+    return *this;
+}*/
 
 
+void ReadAlignment::set_rlen(CountType r) {
+    rlen = r;
+}
 
 
 uint64_t ReadAlignment::serialize_size() {
@@ -254,13 +277,7 @@ void ReadAlignment::add_new_seeds(GenomePosListType& pos) {
 
 
 
-std::vector<std::chrono::high_resolution_clock::duration> ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* settings) {
-  // time stuff
-  std::chrono::high_resolution_clock::duration d_vec = std::chrono::high_resolution_clock::duration::zero();
-  std::chrono::high_resolution_clock::duration d_seed = std::chrono::high_resolution_clock::duration::zero();
-  std::chrono::high_resolution_clock::duration d_add = std::chrono::high_resolution_clock::duration::zero();
-  std::chrono::high_resolution_clock::duration d_rem = std::chrono::high_resolution_clock::duration::zero();
-  std::chrono::high_resolution_clock::duration d_sort = std::chrono::high_resolution_clock::duration::zero();
+void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* settings) {
 
   // q-gram-lemma: seeds added after last_new_seed have at least more than min_errors errors
   CountType last_new_seed = K*(settings->min_errors+1); 
@@ -282,35 +299,30 @@ std::vector<std::chrono::high_resolution_clock::duration> ReadAlignment::extend_
   // update the alignments
   if ( last_invalid+K-1 < cycle ) {
 
-    std::chrono::high_resolution_clock::time_point tv1 = std::chrono::high_resolution_clock::now();
     // get all occurrences of last_kmer (fwd & rc) from index
     GenomePosListType pos = index->retrieve_positions(last_kmer);
 
     // pos MUST be sorted. However, pos is sorted as long as the index is sorted (should be by default)
+    // DEPRECATED
     if (settings->sort_positions) {
       std::sort(pos.begin(),pos.end(),gp_compare);
     }
     
-    std::chrono::high_resolution_clock::time_point tv2 = std::chrono::high_resolution_clock::now();
-    d_vec = tv2 - tv1;
-
-
-    std::chrono::high_resolution_clock::time_point tl1 = std::chrono::high_resolution_clock::now();
-
+    // maximum number of k-mer matches in seeds
     CountType max_num_matches = 0;
     
     // check if the current k-mer was trimmed in the index
     if ( (pos.size() == 1) && (pos[0].gid == TRIMMED) ) {
-      // clear the pos list such that nothing bad happens in the next steps
+      // clear the pos list so nothing bad happens in the next steps
       pos.clear();
       
       // pretend that all existing seeds could be extended
       for (auto sd = seeds.begin() ; sd!=seeds.end(); ++sd ) {
-	(*sd)->cigar_data.back().length += 1;
-	if ((*sd)->cigar_data.back().offset != NO_MATCH) {
-	  (*sd)->num_matches += 1;
-	  max_num_matches = std::max(max_num_matches, (*sd)->num_matches);
-	}
+        (*sd)->cigar_data.back().length += 1;
+        if ((*sd)->cigar_data.back().offset != NO_MATCH) {
+          (*sd)->num_matches += 1;
+          max_num_matches = std::max(max_num_matches, (*sd)->num_matches);
+        }
       }
     }
     // not trimmed in the index --> try to extend existing seeds
@@ -322,111 +334,157 @@ std::vector<std::chrono::high_resolution_clock::duration> ReadAlignment::extend_
       auto wSeed2 = seeds.begin(); // end of the sliding window
       
       for (auto cSeed = seeds.begin(); cSeed!=seeds.end(); ++cSeed ) {
-	PositionType seed_pos = (*cSeed)->start_pos + cycle -K;
-	
-	// adjust the window in the position list
-	while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - settings->window) ){
-	  ++cPos1;
-	}
-	while( (cPos2!=pos.end()) && (cPos2->pos < seed_pos + settings->window) ){
-	  ++cPos2;
-	}
-	
-	// adjust the neighboring seeds window
-	while( (wSeed1!=seeds.end()) && ((*wSeed1)->start_pos < (*cSeed)->start_pos - 2*settings->window) ){
-	  ++wSeed1;
-	}
-	while( (wSeed2!=seeds.end()) && ((*wSeed2)->start_pos < (*cSeed)->start_pos + 2*settings->window) ){
-	  ++wSeed2;
-	}
-	
-	// search all positions in the window for the best matching extension of the seed
-	DiffType best_distance = settings->window+1;  // set larger than search window
-	GenomePosListIt best_match = cPos2; // set behind the last element of the window
-	for(GenomePosListIt win=cPos1; win!=cPos2; ++win){
-	  if (win->gid == (*cSeed)->gid){
-	    int dist = seed_pos - win->pos; 
-	    if ((best_match==cPos2)||(abs(dist) < abs(best_distance))) {
-	      best_match = win;
-	      best_distance = dist;
-	    }
-	  }
-	}
-	
-	// assign best position to the seed
-	if (best_match != cPos2) {
-	  // find the best seed from the perspective of best_match
-	  DiffType best_sdist = 2*settings->window+1;  // set larger than search window
-	  auto best_seed = wSeed2;   // set behind the last element of the window
-	  for(auto win=wSeed1; win!=wSeed2; ++win){
-	    if ((*win)->gid == best_match->gid){
-	      int dist = best_match->pos - ((*win)->start_pos+cycle-K); 
-	      if ((best_seed==wSeed2)||(abs(dist) < abs(best_sdist))) {
-		best_seed = win;
-		best_sdist = dist;
-	      }
-	    }
-	  }
-	  
-	  if (best_seed == cSeed) {
-	    //(*cSeed)->matches.push_back(best_distance);
-	    (*cSeed)->num_matches += 1;
-	    if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
-	      // start a new match area. 1 matching k-mer = K matches
-	      (*cSeed)->cigar_data.emplace_back(K,best_distance);
-	    }
-	    else {
-	      // continue existing match area
-	      (*cSeed)->cigar_data.back().length += 1;
-	    }
-	    max_num_matches = std::max(max_num_matches, (*cSeed)->num_matches);
-	    // remove assigned position from the list
-	    if(best_match == cPos1){
-	      cPos1 = pos.erase(best_match);
-	    }
-	    else {
-	      pos.erase(best_match);
-	    }
-	    --cPos2; // 
-	  }
-	  else{
-	    // best match has another favourite
-	    if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
-	      // continue existing mismatch area
-	      (*cSeed)->cigar_data.back().length += 1;
-	    }
-	    else {
-	      // start new mismatch area
-	      (*cSeed)->cigar_data.emplace_back(1,NO_MATCH);
-	    }
-	    //(*cSeed)->matches.push_back(NO_MATCH);
-	  }
-	}
-	else{
-	  // no position found to extend the current seed
-	  if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
-	    // continue existing mismatch area
-	    (*cSeed)->cigar_data.back().length += 1;
-	  }
-	  else {
-	    // start new mismatch area
-	    (*cSeed)->cigar_data.emplace_back(1,NO_MATCH);
-	  }
-	  //(*cSeed)->matches.push_back(NO_MATCH);
-	}
+        PositionType seed_pos = (*cSeed)->start_pos + cycle -K;
+        
+        // adjust the window in the position list
+        while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - settings->window) ){
+          ++cPos1;
+        }
+        while( (cPos2!=pos.end()) && (cPos2->pos < seed_pos + settings->window) ){
+          ++cPos2;
+        }
+        
+        // adjust the neighboring seeds window
+        while( (wSeed1!=seeds.end()) && ((*wSeed1)->start_pos < (*cSeed)->start_pos - 2*settings->window) ){
+          ++wSeed1;
+        }
+        while( (wSeed2!=seeds.end()) && ((*wSeed2)->start_pos < (*cSeed)->start_pos + 2*settings->window) ){
+          ++wSeed2;
+        }
+        
+        // search all positions in the window for the best matching extension of the seed
+        DiffType best_distance = settings->window+1;  // set larger than search window
+        GenomePosListIt best_match = cPos2; // set behind the last element of the window
+        for(GenomePosListIt win=cPos1; win!=cPos2; ++win){
+          if (win->gid == (*cSeed)->gid){
+            int dist = seed_pos - win->pos; 
+            if ((best_match==cPos2)||(abs(dist) < abs(best_distance))) {
+              best_match = win;
+              best_distance = dist;
+            }
+          }
+        }
+        
+        // check if a best match was found for this seed
+        if (best_match != cPos2) {
+          // find the best seed from the perspective of best_match
+          DiffType best_sdist = 2*settings->window+1;  // set larger than search window
+          auto best_seed = wSeed2;   // set behind the last element of the window
+          for(auto win=wSeed1; win!=wSeed2; ++win){
+            if ((*win)->gid == best_match->gid){
+              int dist = best_match->pos - ((*win)->start_pos+cycle-K); 
+              if ((best_seed==wSeed2)||(abs(dist) < abs(best_sdist))) {
+                best_seed = win;
+                best_sdist = dist;
+              }
+            }
+          }
+        
+          if (best_seed == cSeed) {
+            // the current seed is the best extension
+            
+            if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
+              // Before starting a new matching area check if the match is valid
+              // A match after a NO_MATCH area is valid if:
+              //  - offset change == 0 and NO_MATCH length >= K (mismatch)
+              //  - offset change > 0 and NO_MATCH length >= Offset change + K - 1 (insertion in read)
+              //  - offset change < 0 and NO_MATCH length >= K - 1 (deletion in read)
+              if ((*cSeed)->cigar_data.size() > 1) { 
+                int offset_change = best_distance - ((*cSeed)->cigar_data.rbegin() + 1)->offset;
+                if ( ((offset_change == 0) && ((*cSeed)->cigar_data.back().length >= K))
+                    || ((offset_change > 0) && ((*cSeed)->cigar_data.back().length >= offset_change + K - 1))
+                    || ((offset_change < 0) && ((*cSeed)->cigar_data.back().length > K - 1 )) ) {
+                  // criteria fulfilled. Start a new match area. 1 matching k-mer = K matches
+                  (*cSeed)->cigar_data.emplace_back(K,best_distance);  
+                  (*cSeed)->num_matches += 1;
+                  
+                  // remove assigned position from the list of possible matches
+                  if(best_match == cPos1){
+                    cPos1 = pos.erase(best_match);
+                  }
+                  else {
+                    pos.erase(best_match);
+                  }
+                  --cPos2; 
+                }
+                else {
+                  // continue existing mismatch area
+                  (*cSeed)->cigar_data.back().length += 1;
+                }
+              }
+              else {
+                // start a new match area. 1 matching k-mer = K matches
+                (*cSeed)->cigar_data.emplace_back(K,best_distance);
+                (*cSeed)->num_matches += 1;
+                
+                // remove assigned position from the list of possible matches
+                if(best_match == cPos1){
+                  cPos1 = pos.erase(best_match);
+                }
+                else {
+                  pos.erase(best_match);
+                }
+                --cPos2; 
+              }
+            }
+            else {
+              // continue existing match area
+              (*cSeed)->cigar_data.back().length += 1;
+              (*cSeed)->num_matches += 1;
+              
+              // remove assigned position from the list of possible matches
+              if(best_match == cPos1){
+                cPos1 = pos.erase(best_match);
+              }
+              else {
+                pos.erase(best_match);
+              }
+              --cPos2; 
+            }
+            max_num_matches = std::max(max_num_matches, (*cSeed)->num_matches);
+
+          }
+          else{
+            // best match has another favourite, don't extend this seed
+            if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
+              // continue existing mismatch area
+              (*cSeed)->cigar_data.back().length += 1;
+            }
+            else {
+              // start new mismatch area
+              (*cSeed)->cigar_data.emplace_back(1,NO_MATCH);
+            }
+          }
+        }
+        else{
+          // no position found to extend the current seed
+          if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
+            // continue existing mismatch area
+            (*cSeed)->cigar_data.back().length += 1;
+          }
+          else {
+            // start new mismatch area
+            (*cSeed)->cigar_data.emplace_back(1,NO_MATCH);
+          }
+        }
       } // END: for(seeds...)
     } // END: not trimmed
-    std::chrono::high_resolution_clock::time_point tl2 = std::chrono::high_resolution_clock::now();
-    d_seed = tl2 - tl1;
 
+    
+    // get the num_matches of the N'th best seed
+    // seed list gets partially sorted (and sorted back later). Noone ever said it will be fast...
+    CountType nth_best_matches = 0;
+    if ( settings->best_n_mode && (settings->best_n > 0) && (seeds.size() >= settings->best_n) ) {
+      std::nth_element(seeds.begin(), seeds.begin()+seeds.size()-settings->best_n , seeds.end(), seed_compare_num_matches);
+      nth_best_matches = (*(seeds.begin()+seeds.size()-settings->best_n))->num_matches;
+    }
 
-    std::chrono::high_resolution_clock::time_point ta1 = std::chrono::high_resolution_clock::now();
     // set the last_new_seed cycle according to the mapping mode
     if ( settings->best_hit_mode ) {
       last_new_seed = std::min(CountType(rlen-max_num_matches+1),last_new_seed);
     }
-    if ( settings->best_n_mode ) {
-      //TODO: last_new_seed = std::min(CountType(rlen-max_num_matches+1),last_new_seed);
+    else if ( settings->best_n_mode ) {
+      last_new_seed = std::min(CountType(rlen-nth_best_matches+1),last_new_seed);
     }
 
     // create new seed candidates for each k-mer match that was not used to extend a seed
@@ -435,22 +493,9 @@ std::vector<std::chrono::high_resolution_clock::duration> ReadAlignment::extend_
       add_new_seeds(pos);
 
       if (pos.begin() != pos.end()) {
-	max_num_matches = std::max(max_num_matches, (CountType)1);
+        max_num_matches = std::max(max_num_matches, (CountType)1);
       }
 
-    }
-    std::chrono::high_resolution_clock::time_point ta2 = std::chrono::high_resolution_clock::now();
-    d_add = ta2 - ta1;
-
-    
-    std::chrono::high_resolution_clock::time_point tr1 = std::chrono::high_resolution_clock::now();
-
-    // get the num_matches of the N'th best seed
-    // seed list gets partially sorted (and sorted back later). Noone ever said it will be fast...
-    CountType nth_best_match = 0;
-    if ( settings->best_n_mode && (settings->best_n > 0) && (seeds.size() >= settings->best_n) ) {
-      std::nth_element(seeds.begin(), seeds.begin()+seeds.size()-settings->best_n , seeds.end(), seed_compare_num_matches);
-      nth_best_match = (*(seeds.begin()+seeds.size()-settings->best_n))->num_matches;
     }
 
     // define a lambda function implementing all discard criteria.
@@ -458,30 +503,30 @@ std::vector<std::chrono::high_resolution_clock::duration> ReadAlignment::extend_
     auto crit = [&] (USeed & s) {
       // don't filter seeds that were extended in this cycle
       if (s->cigar_data.back().offset != NO_MATCH) {
-	return false;
+        return false;
       }
 
       // 1. remove one-hit-wonders
       if ( settings->discard_ohw && (cycle>settings->start_ohw)&&(s->num_matches<=1) ) {
-	return true;
+        return true;
       }
 
       // 2. remove according to q-gram lemma
       if ( cycle > (K*(settings->min_errors+1) + s->num_matches) ) {
-	return true;
+        return true;
       }
 
       // 3. remove according Best-Hit-criteria
       if ( settings->best_hit_mode ) {
-	if (cycle > (rlen - max_num_matches + s->num_matches)) {
-	  return true;
-	}
+        if (cycle > (rlen - max_num_matches + s->num_matches)) {
+          return true;
+        }
       }
       // 4. remove according Best-N-criteria
       else if ( settings->best_n_mode ) {
-	if ( cycle > (rlen - nth_best_match + s->num_matches) ) {
-	  return true;
-	}
+        if ( cycle > (rlen - nth_best_matches + s->num_matches) ) {
+          return true;
+        }
       }
 
       // get the number of mismatches since the last match
@@ -489,22 +534,15 @@ std::vector<std::chrono::high_resolution_clock::duration> ReadAlignment::extend_
 
       // 5. heuristic criterium
       if ((since_last_match >= K+10)&&(s->num_matches < (int)(std::sqrt(cycle-K+1)))){
-	return true;
+        return true;
       }
 
       return false;
     };
 
     seeds.erase(std::remove_if(seeds.begin(),seeds.end(),crit) , seeds.end());
-    std::chrono::high_resolution_clock::time_point tr2 = std::chrono::high_resolution_clock::now();
-    d_rem = tr2 - tr1;
 
-
-
-    std::chrono::high_resolution_clock::time_point tso1 = std::chrono::high_resolution_clock::now();
     std::sort(seeds.begin(), seeds.end(), seed_compare_pos);
-    std::chrono::high_resolution_clock::time_point tso2 = std::chrono::high_resolution_clock::now();
-    d_sort = tso2 - tso1;
 
   } // END: if ( last_invalid+K-1 < cycle ) ...
   else {
@@ -512,27 +550,19 @@ std::vector<std::chrono::high_resolution_clock::duration> ReadAlignment::extend_
     // write a NO_MATCH if cycle > K-1
     if ( cycle > K-1 ) {
       for (auto sit = seeds.begin(); sit != seeds.end(); ++sit){
-	//(*sit)->matches.push_back(NO_MATCH);
-	if ( (*sit)->cigar_data.back().offset == NO_MATCH ) {
-	  // continue existing mismatch area
-	  (*sit)->cigar_data.back().length += 1;
-	}
-	else {
-	  // start new mismatch area
-	  (*sit)->cigar_data.emplace_back(1,NO_MATCH);
-	}
+        if ( (*sit)->cigar_data.back().offset == NO_MATCH ) {
+          // continue existing mismatch area
+          (*sit)->cigar_data.back().length += 1;
+        }
+        else {
+          // start new mismatch area
+          (*sit)->cigar_data.emplace_back(1,NO_MATCH);
+        }
       }
     }
-  
   }
 
-  std::vector<std::chrono::high_resolution_clock::duration> dur;
-  dur.push_back(d_vec);
-  dur.push_back(d_seed);
-  dur.push_back(d_add);
-  dur.push_back(d_rem);
-  dur.push_back(d_sort);
-  return dur;
+  return ;
 }
 
 

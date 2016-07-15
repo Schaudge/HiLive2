@@ -25,6 +25,11 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids) {
 
   while(getline(infile, line)) {
     if (line.length() == 0) {continue;};
+    
+    if (line[line.length()-1] == '\r'){
+      // check for Windows newline characters (just in case the fasta comes from Windows --> thanks Simon)
+      line.erase(line.length()-1);
+    }
 
     if (line[0] == '>') { // header line
       // initialize a new sequence
@@ -33,11 +38,10 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids) {
       num_seq += 1;
       seq_id = num_seq - 1;
       last_invalid = K+1;
-      if (line.find(" ") != std::string::npos) {
-	seq_name = line.substr(0,line.find(" "));
-      } else {
-	seq_name = line;
-      }
+
+      std::replace( line.begin(), line.end(), '_', ' '); 
+      seq_name = line.substr(1,line.length()-1);
+
       added_ids.push_back(seq_id);
       seq_names.push_back(seq_name);
       seq_lengths.push_back(0);
@@ -46,51 +50,55 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids) {
     else { // sequence line
       const char * lstr = line.c_str(); 
       if (pos==1) { // beginning of a sequence
-	last_invalid = hash_fw(lstr, fw); // hash the first k-mer
-	seq_lengths.back()+=1;
+        if (line.length() < K) {
+          // ignore sequences shorter than K
+          continue;
+        }
+        last_invalid = hash_fw(lstr, fw); // hash the first k-mer
+        seq_lengths.back()+=1;
 
-	if (last_invalid > K) {
-	  add_kmer(fw,seq_id,pos);
-	}
+        if (last_invalid > K) {
+          add_kmer(fw,seq_id,pos);
+        }
 
-	for (unsigned int i = K; i < line.length(); i++) {
-	  pos = i - K + 1 + 1; // use 1-based positions (to allow for negative positions)
-	  seq_lengths.back()+=1;
+        for (unsigned int i = K; i < line.length(); i++) {
+          pos = i - K + 1 + 1; // use 1-based positions (to allow for negative positions)
+          seq_lengths.back()+=1;
 
-	  if ( seq_chars.find(lstr[i]) == std::string::npos ) {
-	    last_invalid = 1;
-	    continue;
-	  } else {
-	    last_invalid += 1;
-	  }
+          if ( seq_chars.find(lstr[i]) == std::string::npos ) {
+            last_invalid = 1;
+            continue;
+          } else {
+            last_invalid += 1;
+          }
 
-	  update_kmer(fw, twobit_repr(lstr[i]));
+          update_kmer(fw, twobit_repr(lstr[i]));
 	
-	  // add k-mer to database
-	  if (last_invalid > K) {
-	    add_kmer(fw,seq_id,pos);
-	  }
-	}
+          // add k-mer to database
+          if (last_invalid > K) {
+            add_kmer(fw,seq_id,pos);
+          }
+        }
       }
       else { // continue a sequence
-	for (unsigned int i = 0; i < line.length(); i++) {
-	  pos++;
-	  seq_lengths.back()+=1;
-	
-	  if ( seq_chars.find(lstr[i]) == std::string::npos ) {
-	    last_invalid = 1;
-	    continue;
-	  } else {
-	    last_invalid += 1;
-	  }
+        for (unsigned int i = 0; i < line.length(); i++) {
+          pos++;
+          seq_lengths.back()+=1;
 
-	  update_kmer(fw, twobit_repr(lstr[i]));
+          if ( seq_chars.find(lstr[i]) == std::string::npos ) {
+            last_invalid = 1;
+            continue;
+          } else {
+            last_invalid += 1;
+          }
 
-	  // add k-mer to database
-	  if (last_invalid > K) {
-	    add_kmer(fw,seq_id,pos);
-	  }
-	}
+          update_kmer(fw, twobit_repr(lstr[i]));
+
+          // add k-mer to database
+          if (last_invalid > K) {
+            add_kmer(fw,seq_id,pos);
+          }
+        }
       }
     }
     
@@ -256,7 +264,7 @@ std::vector<char> KixBuild::serialize() {
   // database entries
   for (auto it = db.begin(); it != db.end(); ++it) {
     // number of positions
-    uint32_t num_positions = (*it).size();
+    uint32_t num_positions = (*it).size(); //db is an array of GenomePosType structs
     memcpy(d,&num_positions,sizeof(uint32_t));
     d += sizeof(uint32_t);
 

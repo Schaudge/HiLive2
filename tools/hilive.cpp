@@ -6,6 +6,7 @@
 #include "../lib/kindex.h"
 #include "../lib/alnstream.h"
 #include "../lib/parallel.h"
+#include "../lib/bamout.h"
 
 
 namespace po = boost::program_options;
@@ -28,7 +29,7 @@ std::string license =
 
 
 // the worker function for the threads
-void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, AlignmentSettings* settings, KixRun* idx, bool & surrender ) {
+void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, BAMOut * bamfile, AlignmentSettings* settings, KixRun* idx, bool & surrender ) {
 
   // loop that keeps on running until the surrender flag is set
   while ( !surrender ) {
@@ -38,25 +39,32 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, Alignm
       // Execute the task
       bool success = true;
       try {
-	StreamedAlignment s (t.lane, t.tile, t.root, t.rlen);
-	uint64_t num_seeds = s.extend_alignment(t.cycle,idx,settings);
-	std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+        StreamedAlignment s (t.lane, t.tile, t.root, t.rlen);
+        uint64_t num_seeds;
+        if (t.cycle < t.rlen) {
+            num_seeds = s.extend_alignment(t.cycle,idx,settings);
+        }
+        else {
+            num_seeds = s.extend_last_alignment(t.cycle,idx,settings,bamfile);
+        }
+        
+        std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
       }
       catch (const std::exception &e) {
-	std::cerr << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
-	success = false;
+        std::cerr << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
+        success = false;
       }
       if (success) {
-	finished.push(t);
+        finished.push(t);
       }
       else {
-	failed.push(t);
+        failed.push(t);
       }
 
     }
     else {
       // send this thread to sleep for a second
-      std::this_thread::sleep_for (std::chrono::seconds(1));
+      std::this_thread::sleep_for (std::chrono::milliseconds(100));
     }
   }  
 
@@ -96,7 +104,8 @@ int main(int argc, char* argv[]) {
   parameters.add_options()
     ("BC_DIR", po::value<std::string>()->required(), "Illumina BaseCalls directory")
     ("INDEX", po::value<std::string>()->required(), "Path to k-mer index")
-    ("CYCLES", po::value<CountType>()->required(), "Number of cycles");
+    ("CYCLES", po::value<CountType>()->required(), "Number of cycles")
+    ("OUT", po::value<std::string>()->required(), "Output BAM file name");
 
   po::options_description io_settings("IO settings");
   io_settings.add_options()
@@ -109,8 +118,9 @@ int main(int argc, char* argv[]) {
   po::options_description alignment("Alignment settings");
   alignment.add_options()
     ("min-errors,e", po::value<CountType>()->default_value(2), "Number of errors tolerated in read alignment")
-    ("best-hit,H", "Report only the best alignmnet(s) for each read")
+    ("best-hit,H", "Report only the best alignmnet(s) for each read (default)")
     ("best-n,N", po::value<CountType>()->default_value(2), "Report the N best alignmnets for each read")
+    ("all-hits,A", "Report all valid alignments for each read")
     ("disable-ohw-filter", "Disable the One-Hit Wonder filter")
     ("start-ohw", po::value<CountType>()->default_value(K+5), "First cycle to apply One-Hit Wonder filter")
     ("window,w", po::value<DiffType>()->default_value(5), "Set the window size to search for alignment continuation, i.e. maximum insertion/deletion size")
@@ -139,7 +149,8 @@ int main(int argc, char* argv[]) {
   help_message << "Usage: " << std::string(argv[0]) << " [options] BC_DIR INDEX CYCLES" << std::endl;
   help_message << "  BC_DIR       Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
   help_message << "  INDEX        Path to k-mer index file (*.kix)" << std::endl;
-  help_message << "  CYCLES       Total number of cycles for read 1" << std::endl << std::endl;
+  help_message << "  CYCLES       Total number of cycles for read 1" << std::endl;
+  help_message << "  OUT          Output BAM file name" << std::endl << std::endl;
   help_message << visible_options << std::endl;
 
 
@@ -147,6 +158,7 @@ int main(int argc, char* argv[]) {
   p.add("BC_DIR", 1);
   p.add("INDEX", 1);
   p.add("CYCLES", 1);
+  p.add("OUT", 1);
 
   po::variables_map vm;
   try {
@@ -183,6 +195,7 @@ int main(int argc, char* argv[]) {
   std::string root = vm["BC_DIR"].as<std::string>();
   std::string index_fname = vm["INDEX"].as<std::string>();
   CountType rlen = vm["CYCLES"].as<CountType>();
+  std::string outfile = vm["OUT"].as<std::string>();
 
   std::vector<uint16_t> lanes;
   std::vector<uint16_t> tiles;
@@ -228,10 +241,20 @@ int main(int argc, char* argv[]) {
   else
     settings.min_errors = 2;
 
-  settings.best_hit_mode = (vm.count("best-hit") > 0);
-  if (vm.count("best-hit") == 0 && vm.count("best-n") > 0 ) {
+  if (vm.count("all-hits")) {
+    // all hits: disable other modes
+    settings.best_hit_mode = false;
+    settings.best_n_mode = false;
+  } else if (vm.count("best-n")) {
+    // enable best-n mode and get parameter
     settings.best_n_mode = true;
     settings.best_n = vm["best-n"].as<CountType>();
+  }
+
+  if (vm.count("best-hit")) {
+    // enable best-hit mode in all other cases, overwrite other parameters
+    settings.best_hit_mode = true;
+    settings.best_n_mode = false;
   }
   
   settings.discard_ohw = (vm.count("disable-ohw-filter") == 0);
@@ -267,11 +290,15 @@ int main(int argc, char* argv[]) {
   else
     settings.compression_format = 2;
 
-  int num_threads;
+  int num_threads = 1;
   if (vm.count("num-threads")) 
     num_threads = vm["num-threads"].as<int>();
-  else
-    num_threads = 1;
+  else {
+    uint32_t n_cpu = std::thread::hardware_concurrency();
+    if (n_cpu > 1){
+      num_threads = n_cpu;
+    }
+  }
 
 
   // check paths and file names
@@ -344,9 +371,9 @@ int main(int argc, char* argv[]) {
   // prepare the alignment
   std::cout << "Initializing Alignment files. Waiting for the first cycle to finish." << std::endl;
   bool first_cycle_available = false;
-  int wait = 0;
-  int max_wait = 3600;
-  while ( !first_cycle_available && wait < max_wait ) {
+
+  // wait for the first cycle to be written. Attention - this loop will wait infinitely long if no first cycle is found
+  while ( !first_cycle_available ) {
     // check for new BCL files and update the agenda status
     agenda.update_status();
 
@@ -361,18 +388,10 @@ int main(int argc, char* argv[]) {
     }
     
     // take a small break
-    std::this_thread::sleep_for (std::chrono::milliseconds(1000));
-    wait+=1;
+    std::this_thread::sleep_for(std::chrono::milliseconds(1000));
   }
 
-  if (wait >= max_wait) {
-    std::cerr << "Program aborted. No BCL files found." << std::endl;
-    return -1;
-  }
-  else {
-    std::cout << "First cycle complete. Starting alignment." << std::endl;
-  }
-
+  std::cout << "First cycle complete. Starting alignment." << std::endl;
   
   // write empty alignment file for each tile
   for (uint16_t ln : lanes) {
@@ -392,13 +411,16 @@ int main(int argc, char* argv[]) {
   TaskQueue toDoQ;
   TaskQueue finishedQ;
   TaskQueue failedQ;
+  
+  // Open the BAM file for output
+  BAMOut bamfile (outfile, index);
 
   // Create the threads
   std::cout << "Creating " << num_threads << " threads." << std::endl;
   bool surrender = false;
   std::vector<std::thread> workers;
   for (int i = 0; i < num_threads; i++) {
-    workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), &settings, index, std::ref(surrender)));
+    workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), &bamfile, &settings, index, std::ref(surrender)));
   }
   
   // Process all tasks on the agenda
@@ -410,7 +432,7 @@ int main(int argc, char* argv[]) {
     while(true) {
       Task t = agenda.get_task();
       if (t == NO_TASK)
-	break;
+        break;
       toDoQ.push(t);
       agenda.set_status(t,RUNNING);
     }
@@ -419,7 +441,7 @@ int main(int argc, char* argv[]) {
     while(true) {
       Task t = finishedQ.pop();
       if (t == NO_TASK)
-	break;
+        break;
       agenda.set_status(t,FINISHED);
     }
 
@@ -427,20 +449,20 @@ int main(int argc, char* argv[]) {
     while(true) {
       Task t = failedQ.pop();
       if (t == NO_TASK)
-	break;
+        break;
       if (agenda.get_status(t) == RUNNING) {
-	// give it one more chance
-	agenda.set_status(t,RETRY);
-	toDoQ.push(t);
+        // give it one more chance
+        agenda.set_status(t,RETRY);
+        toDoQ.push(t);
       }
       else {
-	agenda.set_status(t,FAILED);
-	std::cout << "Task failed! " << t << std::endl;
+        agenda.set_status(t,FAILED);
+        std::cout << "Task failed! " << t << std::endl;
       }
     }
 
     // take a small break
-    std::this_thread::sleep_for (std::chrono::seconds(1));
+    std::this_thread::sleep_for (std::chrono::milliseconds(100));
   }  
   
   // Halt the threads

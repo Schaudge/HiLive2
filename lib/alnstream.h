@@ -7,6 +7,7 @@
 #include "tools.h"
 #include "alnread.h"
 #include "illumina_parsers.h"
+#include "bamout.h"
 
 // Output alignment stream: write alignments to file one by one
 class oAlnStream {
@@ -52,7 +53,7 @@ class oAlnStream {
 
   // writes a read alignment to the output Alignment file. 
   // Buffering is handled internally
-  uint64_t write_alignment(ReadAlignment & al);
+  uint64_t write_alignment(ReadAlignment * al);
   
   // checks if the correct number of alignments was written and closes the Alignment file
   bool close();
@@ -104,7 +105,7 @@ class iAlnStream {
 
   // loads a read alignment from the input Alignment file. 
   // Buffering is handled internally
-  ReadAlignment get_alignment();
+  ReadAlignment* get_alignment();
   
   // checks if the correct number of alignments was loaded and closes the Alignment file
   bool close();
@@ -153,6 +154,8 @@ class StreamedAlignment {
  public:
   StreamedAlignment(uint16_t ln, uint16_t tl, std::string rt, CountType rl): lane(ln), tile(tl), root(rt), rlen(rl) {};  
 
+  StreamedAlignment& operator=(const StreamedAlignment& other);
+  
   // create directories required to store the alignment files (only if not stored in root)
   void create_directories(AlignmentSettings* settings);
 
@@ -162,6 +165,8 @@ class StreamedAlignment {
   // extend an existing alignment from cycle <cycle-1> to <cycle>
   uint64_t extend_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings);
 
+  // extend an existing alignment from cycle <MAX-1> to <MAX>. Alignment is written to BAM file instead of align file
+  uint64_t extend_last_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings, BAMOut* bamfile);
 }; /* END class StreamedAlignment */
 
 

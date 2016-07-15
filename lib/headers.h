@@ -21,4 +21,5 @@
 #include <mutex>
 #include <chrono>
 #include <stdexcept>
+#include <utility>
 #include <boost/filesystem.hpp>
