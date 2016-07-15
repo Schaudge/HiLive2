@@ -1,5 +1,10 @@
 #include "tools.h"
 
+// compares two genome positions by position (not by genome id)
+bool gp_compare (GenomePosType i,GenomePosType j) { 
+  return (i.pos < j.pos); 
+}
+
 // reads a binary file from hdd and stores its raw content in a char vector
 std::vector<char> read_binary_file(const std::string &fname) {
   
@@ -108,24 +113,6 @@ uint32_t num_reads_from_bcl(std::string bcl) {
   return num_reads;
 }
 
-
-
-// Update an existing kmer by left-shifting all nucleotides and appending new nucleotide
-void update_kmer(HashIntoType &kmer, HashIntoType nuc) {
-  
-  // left-shift the previous k-mer
-  kmer = kmer << 2;
-  
-  // 'or' in the current nucleotide
-  // only use the last 2 bits
-  kmer |= (nuc & 3);
-  
-  // mask off the 2 bits we shifted over.
-  kmer &= MASK;
-  
-}
-
-
 /* get the size (in bytes) of a file */
 std::ifstream::pos_type get_filesize(const std::string &fname)
 {
@@ -136,21 +123,23 @@ std::ifstream::pos_type get_filesize(const std::string &fname)
 
 /* calculates the first forward and reverse complement k-mer in the 
    string <kmer> and returns the canonical representation. */
-HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
+HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r, AlignmentSettings & settings)
 {
-  assert(strlen(kmer) >= K);
+  assert(strlen(kmer) >= settings.kmer_span);
 
   HashIntoType h = 0, r = 0;
 
   h |= twobit_repr(kmer[0]);
-  r |= twobit_comp(kmer[K-1]);
+  r |= twobit_comp(kmer[settings.kmer_span-1]);
 
-  for (unsigned int i = 1, j = K - 2; i < K; i++, j--) {
-    h = h << 2;
-    r = r << 2;
-
-    h |= twobit_repr(kmer[i]);
-    r |= twobit_comp(kmer[j]);
+  for (unsigned int i = 1, j = settings.kmer_span-2; i < settings.kmer_span; i++, j--) {
+    // if i not gap position
+    if (std::find(settings.kmer_gaps.begin(), settings.kmer_gaps.end(), i+1) == settings.kmer_gaps.end()) {
+      h = h << 2;
+      h |= twobit_repr(kmer[i]);
+      r = r << 2;
+      r |= twobit_comp(kmer[j]);
+    }
   }
 
   _h = h;
@@ -160,47 +149,44 @@ HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
 }
 
 /* calculates the first forward k-mer in the string <kmer> */
-HashIntoType hash_fw(const char * kmer, HashIntoType& _h)
+std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h, AlignmentSettings & settings)
 {
-  assert(strlen(kmer) >= K);
-
+  assert(it+settings.kmer_span-1 < end);
   HashIntoType h = 0;
-  HashIntoType last_invalid = K+1;
+  std::string::const_iterator last_invalid = it-1;
 
-  h |= twobit_repr(kmer[0]);
+  h |= twobit_repr(*it);
 
-  for (unsigned int i = 1; i < K; i++) {
+  std::string::const_iterator kmerEnd = it+settings.kmer_span;
+  ++it;
+  int positionInKmer = 2;
+  for (; it != kmerEnd; ++it, ++positionInKmer) {
+    if (std::find(settings.kmer_gaps.begin(), settings.kmer_gaps.end(), positionInKmer) != settings.kmer_gaps.end())
+        continue;
     h = h << 2;
-    h |= twobit_repr(kmer[i]);
-    if ( seq_chars.find(kmer[i]) == std::string::npos ) {
-      last_invalid = K+1-i;
+    h |= twobit_repr(*it);
+    if ( seq_chars.find(*it) == std::string::npos ) {
+      last_invalid = it+settings.kmer_span-1;
     }
   }
 
   _h = h;
-
   return last_invalid;
 }
 
 
-/* returns the reverse complement of a k-mer */
-HashIntoType rc(HashIntoType fw)
+/* returns the sequence of a k-mer */
+std::string unhash(HashIntoType myHash, unsigned hashLen)
 {
+	std::string kmer = "";
 
-  HashIntoType rc = 0;
-
-  // Illumina uses
-  // A = 0b00
-  // C = 0b01
-  // G = 0b10
-  // T = 0b11
-  // so, inverting bits produces the rc: rc(A) = ~A
-
-  for (unsigned int i = 0; i < 2*K; i+=2) {
-    rc |= (~(fw >> i) & 3) << (2*K - i - 2);
-  }
-
-  return rc;
+	unsigned mask = 3;
+	for (unsigned i = 1; i<pow(2,2*hashLen); i *= 4) {
+		kmer.push_back(revtwobit_repr(myHash & mask));
+		myHash = myHash >> 2;
+	}
+	std::reverse(kmer.begin(), kmer.end());
+	return kmer;
 }
 
 
@@ -223,16 +209,22 @@ std::string alignment_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl
 }
 
 // construct tile-wise SAM file name from: root, lane, tile
-std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl) {
+std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, bool write_bam) {
   std::ostringstream path_stream;
-  path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".sam";
+  if (write_bam)
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".bam";
+  else
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".sam";
   return path_stream.str();
 }
 
 // construct lane-wise SAM file name from: root, lane
-std::string sam_lane_name(std::string rt, uint16_t ln) {
+std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam) {
   std::ostringstream path_stream;
-  path_stream << rt << "/L00" << ln << "/s_"<< ln << ".sam";
+  if (write_bam)
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << ".bam";
+  else
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << ".sam";
   return path_stream.str();
 }
 
@@ -249,5 +241,3 @@ std::string position_name(std::string rt, uint16_t ln, uint16_t tl) {
   path_stream << rt << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
   return path_stream.str();
 }
-
-

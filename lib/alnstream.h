@@ -7,7 +7,9 @@
 #include "tools.h"
 #include "alnread.h"
 #include "illumina_parsers.h"
-#include "bamout.h"
+#include <seqan/basic.h>
+#include <seqan/sequence.h>
+#include <seqan/bam_io.h>
 
 // Output alignment stream: write alignments to file one by one
 class oAlnStream {
@@ -164,9 +166,6 @@ class StreamedAlignment {
   
   // extend an existing alignment from cycle <cycle-1> to <cycle>
   uint64_t extend_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings);
-
-  // extend an existing alignment from cycle <MAX-1> to <MAX>. Alignment is written to BAM file instead of align file
-  uint64_t extend_last_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings, BAMOut* bamfile);
 }; /* END class StreamedAlignment */
 
 

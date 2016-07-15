@@ -7,7 +7,7 @@
 namespace po = boost::program_options;
 
 std::string license =
-"Copyright (c) 2015, Martin S. Lindner, marzin at mail-lindner.de\n"
+"Copyright (c) 2015-2016, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info.\n"
 "All rights reserved.\n"
 "\n"
 "Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n"
@@ -24,6 +24,11 @@ std::string license =
 
 
 int main(int argc, char* argv[]) {
+
+  unsigned trim;
+  bool do_not_convert_spaces;
+  bool trim_ids;
+
   // setting up the command line interface
   po::options_description general("General");
   general.add_options()
@@ -37,7 +42,9 @@ int main(int argc, char* argv[]) {
   po::options_description options("Options");
   options.add_options()
     ("outfile,o", po::value<std::string>(), "Set output file name [Default: INPUT.kix]")
-    ("trim,t", po::value<uint32_t>(), "Ignore k-mers with more than t occurrences. [Default: no limit]");
+    ("trim,t", po::value<unsigned>(&trim)->default_value(0), "Ignore k-mers with more than t occurrences. [Default: no limit]")
+    ("do-not-convert-spaces", po::bool_switch(&do_not_convert_spaces)->default_value(false), "Do not convert all spaces in reference ids to underscores [Default: converting is on]")
+    ("trim-after-space", po::bool_switch(&trim_ids)->default_value(false), "Trim all reference ids after first space [Default: false]");
 
   po::options_description cmdline_options;
   cmdline_options.add(general).add(parameters).add(options);
@@ -50,7 +57,7 @@ int main(int argc, char* argv[]) {
   help_message << "Index creation tool for HiLive - Realtime Alignment of Illumina Reads" << std::endl;
   help_message << "Copyright (c) 2015, Martin S. Lindner" << std::endl;
   help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-  help_message << "Fixed k-mer size: " << K << std::endl << std::endl;
+  help_message << "Fixed k-mer size: " << K_HiLive << std::endl << std::endl;
   help_message << "Usage: " << std::string(argv[0]) << " [options] INPUT" << std::endl;
   help_message << "  INPUT       Reference genomes in (multi-) FASTA format" << std::endl;
 
@@ -101,16 +108,10 @@ int main(int argc, char* argv[]) {
     index_name = fasta_name + std::string(".kix");    
   }
 
-  // get k-mer trimming
-  int trim = 0;
-  if (vm.count("trim")) {
-    trim = vm["trim"].as<uint32_t>();
-  }
-
-
-  std::cout << "Creating index with K=" << K << " from file " << fasta_name << std::endl; 
+  std::cout << "Creating index with K_HiLive=" << K_HiLive << " from file " << fasta_name << std::endl; 
   KixBuild* index = new KixBuild();
-  index->add_fasta(fasta_name);
+  AlignmentSettings settings; // for hard coded gapped kmer structure
+  index->add_fasta(fasta_name, settings, !do_not_convert_spaces, trim_ids);
 
   if (trim > 0) {
     uint64_t trimmed = index->trim(trim);

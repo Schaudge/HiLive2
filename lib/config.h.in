@@ -1,5 +1,5 @@
 // the k-mer length
-#define K @HiLive_K@
+#define K_HiLive @HiLive_K@
 
 // the HiLive Version Number
 #define HiLive_VERSION_MAJOR @HiLive_VERSION_MAJOR@

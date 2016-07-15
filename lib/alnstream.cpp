@@ -23,7 +23,7 @@ uint64_t oAlnStream::lz4write(const char* source, uint64_t size) {
   // write the block size
   if ( !fwrite(&compressed_size, 1, sizeof(uint32_t), ofile) )
     throw std::runtime_error("Error writing block size to file while compressing data with LZ4.");
-  
+
   // write the data chunk
   if ( !fwrite(buf.data(), 1, compressed_size, ofile) )
     throw std::runtime_error("Error writing data to file while compressing with LZ4.");
@@ -286,10 +286,11 @@ uint64_t iAlnStream::open(std::string fname) {
       // root directory name size
       bytes += fread(&root_size,sizeof(uint16_t),1,ifile);
       // root name
-      char tmp[root_size+1];
+      char * tmp = new char[root_size+1];
       bytes += fread(tmp,1,root_size,ifile);
       tmp[root_size] = 0; // make the string null-terminated
       root = tmp;
+      delete tmp;
       // read the read length
       bytes += fread(&rlen,sizeof(CountType),1,ifile);
       // read the number of reads
@@ -307,10 +308,11 @@ uint64_t iAlnStream::open(std::string fname) {
       // root directory name size
       bytes += gzread(izfile,&root_size,sizeof(uint16_t));
       // root name
-      char tmp[root_size+1];
+      char * tmp = new char[root_size+1];
       bytes += gzread(izfile,tmp,root_size);
       tmp[root_size] = 0; // make the string null-terminated
       root = tmp;
+      delete tmp;
       // read the read length
       bytes += gzread(izfile,&rlen,sizeof(CountType));
       // read the number of reads
@@ -490,13 +492,11 @@ void StreamedAlignment::create_directories(AlignmentSettings* settings) {
 
   boost::filesystem::create_directories(path_stream.str());
 
-  if (settings->sam_dir != "") {
-    std::ostringstream sam_stream;
-    sam_stream << settings->sam_dir;
-    sam_stream << "/L00" << lane;
-    
-    boost::filesystem::create_directories(sam_stream.str());
-  }
+  std::ostringstream sam_stream;
+  sam_stream << settings->out_dir;
+  sam_stream << "/L00" << lane;
+  
+  boost::filesystem::create_directories(sam_stream.str());
 }
 
 
@@ -535,7 +535,6 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
   // 1. Open the input file
   //-----------------------
   std::string in_fname = get_alignment_file(cycle-1, settings->temp_dir);
-  std::string out_fname = get_alignment_file(cycle, settings->temp_dir);
   std::string bcl_fname = get_bcl_file(cycle);
   std::string filter_fname = get_filter_file();
 
@@ -552,6 +551,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
 
   // 2. Open output stream
   //----------------------------------------------------------
+  std::string out_fname = get_alignment_file(cycle, settings->temp_dir);
   oAlnStream output (lane, tile, cycle, root, rlen, num_reads, settings->block_size, settings->compression_format);
   output.open(out_fname);
 
@@ -594,7 +594,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
       }
       else {
         basecalls.next();
-        ra->disable();
+        ra->disable(*settings);
       }
     }
     // filter file was not found -> treat every alignment as valid
@@ -622,95 +622,6 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
   return num_seeds;
 }
 
-
-
-// extend an existing alignment from cycle <MAX-1> to <MAX>. returns the number of seeds
-uint64_t StreamedAlignment::extend_last_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings, BAMOut* bamfile) {
-    
-    // 1. Open the input file
-    //-----------------------
-    std::string in_fname = get_alignment_file(cycle-1, settings->temp_dir);
-    std::string bcl_fname = get_bcl_file(cycle);
-    std::string filter_fname = get_filter_file();
-    
-    iAlnStream input ( settings->block_size, settings->compression_format );
-    input.open(in_fname);
-    assert(input.get_cycle() == cycle-1);
-    assert(input.get_lane() == lane);
-    assert(input.get_tile() == tile);
-    assert(input.get_root() == root);
-    assert(input.get_rlen() == rlen);
-    
-    uint32_t num_reads = input.get_num_reads();
-    
-    
-    // 2. Read the full BCL file (this is not too much)
-    //-------------------------------------------------
-    BclParser basecalls;
-    basecalls.open(bcl_fname);
-    
-    // extract the number of reads from the BCL file
-    uint32_t num_base_calls = basecalls.size();
-    assert(num_base_calls == num_reads);
-    
-    
-    // 3. Load the filter flags if filter file is available
-    // ----------------------------------------------------
-    FilterParser filters;
-    if (file_exists(filter_fname)) {
-        filters.open(filter_fname);
-        // extract the number of reads from the filter file
-        uint32_t num_reads_filter = filters.size();
-        
-        if (num_reads != num_reads_filter){
-            std::string msg = std::string("Number of reads in filter file (") + std::to_string(num_reads_filter) + ") does not match the number of reads in the BCL file (" + std::to_string(num_reads) + ").";
-            throw std::length_error(msg.c_str());
-        }
-    }
-    
-    // 4. Extend alignments 1 by 1
-    //-------------------------------------------------
-    uint64_t num_seeds = 0;
-    for (uint64_t i = 0; i < num_reads; ++i) {
-        ReadAlignment * ra = input.get_alignment();
-        
-        if (filters.size() > 0 && filters.has_next()) {
-            // filter file was found -> apply filter
-            if(filters.next()) {
-                ra->extend_alignment(basecalls.next(), index, settings);
-                num_seeds += ra->seeds.size();
-                bamfile->write(ra, lane, tile, i, nullptr);
-            }
-            else {
-                basecalls.next();
-                ra->disable();
-            }
-        }
-        // filter file was not found -> treat every alignment as valid
-        else {
-            ra->extend_alignment(basecalls.next(), index, settings);
-            num_seeds += ra->seeds.size();
-            bamfile->write(ra, lane, tile, i, nullptr);
-        }
-    }
-    
-    // 5. Close files
-    //-------------------------------------------------
-    if (! input.close() ) {
-        std::cerr << "Could not finish alignment!" << std::endl;
-    }
-    
-    // 7. Delete old alignment file, if requested
-    //-------------------------------------------
-    if ( ! settings->keep_aln_files ) {
-        std::remove(in_fname.c_str());
-    }
-    
-    return num_seeds;
-}
-
-
-
 //-------------------------------------------------------------------//
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
@@ -718,32 +629,21 @@ uint64_t StreamedAlignment::extend_last_alignment(uint16_t cycle, KixRun* index,
 uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, KixRun* index, AlignmentSettings* settings) {
   // set the file names
   std::string temp;
-  if (settings->temp_dir == "") {
+  if (settings->temp_dir == "")
     temp = rt;
-  }
-  else {
+  else
     temp = settings->temp_dir;
-  }
-  std::string sam_dir;
-  if (settings->sam_dir == "") {
-    sam_dir = temp;
-  }
-  else {
-    sam_dir = settings->sam_dir;
-  }
+
+  std::string sam_dir = settings->out_dir;
   std::string filter_fname = filter_name(rt, ln, tl);
-  std::string position_fname = position_name(rt, ln, tl);
   std::string alignment_fname = alignment_name(temp, ln, tl, rl);
-  std::string sam_fname = sam_tile_name(sam_dir, ln, tl);
+  std::string sam_fname = sam_tile_name(sam_dir, ln, tl, settings->write_bam);
 
   // check if files exist
-  if ( !file_exists(alignment_fname) ) {
+  if ( !file_exists(alignment_fname) )
     throw std::runtime_error(std::string("Could not create SAM file. Alignment file not found: ")+ alignment_fname);
-  }
-  if ( !file_exists(filter_fname) ) {
+  if ( !file_exists(filter_fname) )
     std::cerr << "Could not find .filter file: " <<  filter_fname << std::endl;
-  }
-
 
   // open the alignment file
   iAlnStream input ( settings->block_size, settings->compression_format );
@@ -764,59 +664,145 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
   }
 
 
-  // open the positions file, if applicable
- 
+  /////////////////////////////////////////////
+  // generate sam file
 
-  // open the SAM file and write header
-  std::ofstream samfile;
-  samfile.open(sam_fname);
-  samfile << index->get_SAM_header();
+  // set BamFileOut object
+  seqan::CharString samFileName = sam_fname;
+  seqan::BamFileOut samFileOut(seqan::toCString(samFileName));
+  seqan::StringSet<seqan::CharString> referenceNames;
+  for (unsigned i=0; i<seqan::length(index->seq_names); i++) {
+      seqan::appendValue(referenceNames, index->seq_names[i]);
+  }
+  seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
+  seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
+  samFileOut.context = bamIOContext;
 
+
+  /////////////////
+  // set SAM header
+  seqan::BamHeaderRecord headerRecord;
+  
+  // @HD header.
+  seqan::clear(headerRecord);
+  headerRecord.type = seqan::BAM_HEADER_FIRST;
+  seqan::resize(headerRecord.tags, 2);
+  headerRecord.tags[0].i1 = "VN";
+  headerRecord.tags[0].i2 = "1.5";
+  headerRecord.tags[1].i1 = "GO";
+  headerRecord.tags[1].i2 = "query";
+  seqan::writeHeader(samFileOut, headerRecord);
+  
+  // @SQ header.
+  std::stringstream ss;
+  for ( uint64_t i = 0; i < index->seq_names.size(); i++  ) {
+    ss.str(std::string()); // clear string stream
+    seqan::clear(headerRecord);
+    headerRecord.type = seqan::BAM_HEADER_REFERENCE;
+    seqan::resize(headerRecord.tags, 2);
+  	headerRecord.tags[0].i1 = "SN";
+  	headerRecord.tags[0].i2 = index->seq_names[i];
+
+  	headerRecord.tags[1].i1 = "LN";
+  	ss << index->seq_lengths[i];
+  	headerRecord.tags[1].i2 = ss.str();
+
+    seqan::writeHeader(samFileOut, headerRecord);
+  }
+  
+  // @PG header.
+  seqan::clear(headerRecord);
+  headerRecord.type = seqan::BAM_HEADER_PROGRAM;
+  seqan::resize(headerRecord.tags, 3);
+  headerRecord.tags[0].i1 = "ID";
+  headerRecord.tags[0].i2 = "hilive";
+  headerRecord.tags[1].i1 = "PN";
+  headerRecord.tags[1].i2 = "HiLive";
+  headerRecord.tags[2].i1 = "VN";
+  ss.str(std::string());
+  ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
+  headerRecord.tags[2].i2 = ss.str();
+  seqan::writeHeader(samFileOut, headerRecord);
+  
+
+  /////////////////
+  // prepare sam entries
   uint64_t num_alignments = 0;
 
-  // read alignments and write to SAM
   for (uint64_t i = 0; i < num_reads; ++i) {
     ReadAlignment * ra = input.get_alignment();
+	
     // if either: filter file is open and all filter flags were loaded and the filter flag is > 0
     //    or: the filter file is not available
-    if ((filters.size()>0 && filters.next()) || filters.size() == 0) {
-      num_alignments += ra->seeds.size();
-      std::stringstream readname;
-	// Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
-      //readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
-      readname << "lane." << ln << "|tile." << tl << "|read." << i;
-      for (uint64_t s = 0; s < ra->seeds.size(); s++) {
-	std::stringstream aln;
-	// write the SAM compliant alignment information
-	// Read name
-	aln << readname.str() << "\t";
-	// Flag
-    aln << ra->get_SAM_flags(s) << "\t";
-	// Reference name
-    aln << index->get_name(ra->seeds[s]->gid) << "\t";
-	// Position
-    aln << ra->get_SAM_start_pos(s) << "\t";
-	// Mapping Quality
-    aln << ra->get_SAM_quality(s) << "\t";
-	// CIGAR string
-    Seed sd = *(ra->seeds[s]);
-	aln << CIGAR(sd) << "\t";
-	// RNEXT field is unavailable
-	aln << "*\t";
-	// PNEXT field is unavailable
-	aln << "0\t";
-	// TLEN field is unavailable
-	aln << "0\t";
-	// Sequence is only added on request
-	aln << "*\t";
-	// Qualities are only added on request
-	aln << "*\n";
-	samfile << aln.str();
-      }
+    // then proceed else skip
+    if (!((filters.size()>0 && filters.next()) || filters.size() == 0))
+        continue;
+
+    num_alignments += ra->seeds.size();
+
+    // Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
+    //readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
+    std::stringstream readname;
+    readname << "lane." << ln << "|tile." << tl << "|read." << i;
+
+    /////////////////
+    // set sam entries
+    seqan::BamAlignmentRecord record;
+    for (SeedVecIt it = ra->seeds.begin(); it != ra->seeds.end(); ++it) {
+        seqan::clear(record);
+
+        record.qName = readname.str();
+
+        record.rID = (*it)->gid;
+
+        record.beginPos = ra->get_SAM_start_pos(*it, *settings)-1; // seqan expects 0-based positions, but in HiLive we use 1-based
+        if (record.beginPos < 0)
+            continue;
+
+        record.cigar = (*it)->returnSeqanCigarString();
+
+        // flag and seq
+        record.flag = 0;
+        record.seq = ra->getSequenceString(*settings);
+        if ((*it)->start_pos < 0) { // if read matched reverse complementary
+            seqan::reverseComplement(record.seq);
+            record.flag |= 16;
+        }
+        if (it != ra->seeds.begin()) { // if current seed is secondary alignment
+            record.flag |= 256;
+            seqan::clear(record.seq);
+            record.qual = "*";
+        }
+
+
+        // check if cigar string sums up to read length
+        unsigned cigarElemSum = 0;
+        unsigned deletionSum = 0;
+        for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
+            if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X')) 
+                cigarElemSum += elem->count;
+            if (elem->operation == 'D')
+                deletionSum += elem->count;
+        }
+        if (cigarElemSum != settings->seqlen) {
+            std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << ra->get_SAM_start_pos(*it, *settings) << " because its cigar vector had length " << cigarElemSum << std::endl;
+            continue;
+        }
+
+        // tags
+        seqan::BamTagsDict dict;
+        seqan::appendTagValue(dict, "AS", (*it)->num_matches);
+        if (settings->seqlen < settings->rlen) // if demultiplexing is on
+            seqan::appendTagValue(dict, "BC", ra->getBarcodeString(*settings));
+        seqan::appendTagValue(dict, "NM", deletionSum + settings->seqlen - (*it)->num_matches);
+        record.tags = seqan::host(dict);
+
+
+        // write record to disk
+        seqan::writeRecord(samFileOut, record);
     }
   }
-  samfile.close();
-
+  
   std::ofstream statsfile;
   statsfile.open(sam_fname+".stats");
   statsfile << "Number of reads\t" << num_reads << std::endl;
@@ -825,4 +811,3 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
 
   return 0;
 }
-

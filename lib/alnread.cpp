@@ -1,19 +1,74 @@
-#include <time.h>
-#include <chrono>
-
 #include "alnread.h"
 
 
-bool seed_compare (Seed i,Seed j) { 
-  return (i.start_pos < j.start_pos); 
-}
+seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
+	typedef seqan::String<seqan::CigarElement<> > TSeqanCigarString;
+	TSeqanCigarString seqanCigarString;
+	seqan::CigarElement<> cigarElem;
+	int last_offset = 0;
+	for (CigarVector::const_iterator it = cigar_data.begin(); it != cigar_data.end(); ++it) { // for every element in cigar_data
+		if (it == cigar_data.begin() && (*it).offset==NO_MATCH) { // Alignment begins with NO_MATCH region => Softclipped start 
+			cigarElem.operation='S';
+			cigarElem.count=(*it).length;
+			seqan::appendValue(seqanCigarString, cigarElem);
+			continue;
+		}
+		if (it == --cigar_data.end() && (*it).offset==NO_MATCH) { // Alignment ends with NO_MATCH region => Softclipped end 
+			cigarElem.operation='S';
+			cigarElem.count=(*it).length;
+			seqan::appendValue(seqanCigarString, cigarElem);
+			continue;
+		}
+		if ((*it).offset==NO_MATCH) { // ??? -> Mismatch
+			cigarElem.operation='M';
+			cigarElem.count=(*it).length;
+			seqan::appendValue(seqanCigarString, cigarElem);
+			continue;
+		}
+		if ((*it).offset!=NO_MATCH) { // ??? -> Match
+            if (last_offset == (*it).offset) { // no offset change
+                cigarElem.operation='M';
+                cigarElem.count=(*it).length;
+                seqan::appendValue(seqanCigarString, cigarElem);
+                last_offset = (*it).offset;
+                continue;
+			}
+			if (last_offset < (*it).offset) { // offset gets bigger => reference in alignment is longer than read => deletion in read (and thereby cigar string)
+				cigarElem.operation='D';
+				cigarElem.count=(*it).offset - last_offset;
+				seqan::appendValue(seqanCigarString, cigarElem);
+				cigarElem.operation='M';
+				cigarElem.count=(*it).length;
+				seqan::appendValue(seqanCigarString, cigarElem);
+                last_offset = (*it).offset;
+				continue;
+			}
+			if (last_offset > (*it).offset) { // offset gets smaller => reference in alignment is smaller than read => insertion in read (and thereby cigar string)
+				cigarElem.operation='I';
+				cigarElem.count=last_offset - (*it).offset;
+				seqan::appendValue(seqanCigarString, cigarElem);
+				cigarElem.operation='M';
+				cigarElem.count=(*it).length;
+				seqan::appendValue(seqanCigarString, cigarElem);
+                last_offset = (*it).offset;
+				continue;
+			}
+		}
+	}
 
-bool seed_compare_pos (const USeed & i, const USeed & j) { 
-  return (i->start_pos < j->start_pos); 
-}
-
-bool seed_compare_num_matches (const USeed & i, const USeed & j) { 
-  return (i->num_matches < j->num_matches); 
+    // collapse Neighboring match regions
+	for (unsigned k = 1; k<length(seqanCigarString); k++)
+		if ((seqanCigarString[k-1].operation == 'M') && (seqanCigarString[k].operation == 'M')) {
+			unsigned temp = seqanCigarString[k].count;
+			erase(seqanCigarString, k);
+			seqanCigarString[k-1].count += temp;
+			k--;
+		}
+	
+	// reverse Cigar String if seed maps reverse
+    if (start_pos < 0)
+        seqan::reverse(seqanCigarString);
+    return seqanCigarString;
 }
 
 uint16_t Seed::serialize_size() {
@@ -29,7 +84,6 @@ uint16_t Seed::serialize_size() {
   uint8_t cigar_len = cigar_data.size();
   total_size += sizeof(uint8_t); // the size of the cigar information 
   total_size += cigar_len*(sizeof(CountType) + sizeof(DiffType)); // the cigar information itself
-  
   return total_size;
 }
 
@@ -96,7 +150,6 @@ uint16_t Seed::deserialize(char* d) {
 
   // read the cigar elements
   cigar_data.clear();
-  cigar_data.reserve(cigar_len);
   for (uint8_t i = 0; i < cigar_len; ++i) {
     CigarElement cig;
     memcpy(&(cig.length),d+bytes,sizeof(CountType));
@@ -105,33 +158,11 @@ uint16_t Seed::deserialize(char* d) {
     memcpy(&(cig.offset),d+bytes,sizeof(DiffType));
     bytes += sizeof(DiffType);
 
-    cigar_data.push_back(cig);
+    cigar_data.emplace_back(cig);
   }
 
   return bytes;  
 }
-
-
-/*
-ReadAlignment& ReadAlignment::operator=(const ReadAlignment& other) {
-    if(&other == this)
-        return *this;
-    
-    rlen = other.rlen;
-    last_kmer = other.last_kmer;
-    last_invalid = other.last_invalid;
-    cycle = other.cycle;
-    
-    // deep copy of seeds
-    seeds.clear();
-    seeds.reserve(other.seeds.size());
-    for (auto sit = other.seeds.begin(); sit != other.seeds.end(); ++sit) {
-        USeed s (new Seed);
-        *s = **sit;
-        seeds.push_back(std::move(s));
-    }
-    return *this;
-}*/
 
 
 void ReadAlignment::set_rlen(CountType r) {
@@ -143,9 +174,11 @@ uint64_t ReadAlignment::serialize_size() {
   // calculate total size first
   uint64_t total_size = 0;
   total_size += 1; // the flag
-  total_size += sizeof(HashIntoType); // the last k-mer
   total_size += sizeof(CountType); // the cycle number
   total_size += sizeof(CountType); // the last_invalid cycle
+  
+  total_size += sizeof(CountType); // the sequence length
+  total_size += sequenceStoreVector.size()*(sizeof(uint8_t)); // the sequence information itself
 
   // total number of seeds
   total_size += sizeof(uint32_t);
@@ -157,6 +190,7 @@ uint64_t ReadAlignment::serialize_size() {
   
   return total_size;
 }
+
 
 std::vector<char> ReadAlignment::serialize() {
   // get the total size of the serialization
@@ -171,10 +205,6 @@ std::vector<char> ReadAlignment::serialize() {
   memcpy(d,&flags,1);
   d++;
 
-  // write the last k-mer
-  memcpy(d,&last_kmer,sizeof(HashIntoType));
-  d += sizeof(HashIntoType);
-
   // write the cycle
   memcpy(d,&cycle,sizeof(CountType));
   d += sizeof(CountType);
@@ -182,6 +212,16 @@ std::vector<char> ReadAlignment::serialize() {
   // write the last invalid cycle
   memcpy(d,&last_invalid,sizeof(CountType));
   d += sizeof(CountType);
+
+  // write the sequence length
+  memcpy(d,&sequenceLen,sizeof(CountType));
+  d += sizeof(CountType);
+
+  // write the sequenceStoreVector
+  for (auto it = sequenceStoreVector.begin(); it != sequenceStoreVector.end(); ++it) {
+    memcpy(d,&(*it),sizeof(uint8_t));
+    d += sizeof(uint8_t);
+  }
 
   // write the number of seeds
   memcpy(d,&num_seeds,sizeof(uint32_t));
@@ -212,10 +252,6 @@ uint64_t ReadAlignment::deserialize(char* d) {
   memcpy(&flags,d,1);
   bytes++;
 
-  // read the last k-mer
-  memcpy(&last_kmer,d+bytes,sizeof(HashIntoType));
-  bytes += sizeof(HashIntoType);
-
   // read the cycle
   memcpy(&cycle,d+bytes,sizeof(CountType));
   bytes += sizeof(CountType);
@@ -224,6 +260,22 @@ uint64_t ReadAlignment::deserialize(char* d) {
   memcpy(&last_invalid,d+bytes,sizeof(CountType));
   bytes += sizeof(CountType);
 
+  // read the sequence length
+  sequenceLen = 0;
+  memcpy(&sequenceLen,d+bytes,sizeof(CountType));
+  bytes += sizeof(CountType);
+
+  // read the sequence
+  unsigned seqVec_size = (unsigned) std::ceil((float) sequenceLen / 4.0);
+  sequenceStoreVector.clear();
+  sequenceStoreVector.reserve(seqVec_size);
+  for (unsigned i = 0; i <seqVec_size; ++i) {
+    uint8_t elem;
+    memcpy(&(elem),d+bytes,sizeof(uint8_t));
+    bytes += sizeof(uint8_t);
+    sequenceStoreVector.push_back(elem);
+  }
+
   // read the number of seeds
   uint32_t num_seeds = 0;
   memcpy(&num_seeds,d+bytes,sizeof(uint32_t));
@@ -231,7 +283,6 @@ uint64_t ReadAlignment::deserialize(char* d) {
 
   // read the seeds
   seeds.clear();
-  seeds.reserve(num_seeds);
   for (uint32_t i = 0; i < num_seeds; ++i) {
     uint16_t seed_size = 0;
     memcpy(&seed_size,d+bytes,sizeof(uint16_t));
@@ -244,6 +295,8 @@ uint64_t ReadAlignment::deserialize(char* d) {
     USeed s (new Seed);
     s->deserialize(seed_data.data());
 
+    // insert into sorted list. The data read in is already sorted!!!
+    // therefore I only push back
     seeds.push_back(std::move(s));
   }
 
@@ -251,603 +304,487 @@ uint64_t ReadAlignment::deserialize(char* d) {
 }
 
 
+// convert and return sequence of the seed as string
+std::string ReadAlignment::getSequenceString(AlignmentSettings & settings) {
+    std::string seq = "";
+    // append one 4 base block at a time
+    for (unsigned i = 0; i<sequenceStoreVector.size(); i++)
+        seq.append(unhash(sequenceStoreVector[i], 4)); // 4 because 4 nucleotides fit in one element of sequenceStoreVector, namely a uint8_t
+
+    // delete last few bases, because sequence is only len long
+    for (unsigned i = sequenceLen; i<4*sequenceStoreVector.size(); ++i)
+        seq.pop_back();
+
+    // return sequence without barcode
+    return seq.substr(0,settings.seqlen);
+}
+
+
+// convert and return barcode
+std::string ReadAlignment::getBarcodeString(AlignmentSettings & settings) {
+    std::string seq = "";
+    // append one 4 base block at a time
+    for (unsigned i = 0; i<sequenceStoreVector.size(); i++)
+        seq.append(unhash(sequenceStoreVector[i], 4)); // 4 because 4 nucleotides fit in one element of sequenceStoreVector, namely a uint8_t
+
+    // delete last few bases, because sequence is only len long
+    for (unsigned i = sequenceLen; i<4*sequenceStoreVector.size(); ++i)
+        seq.pop_back();
+
+    // return only barcode of sequence
+    return seq.substr(settings.seqlen);
+}
+
+
+// append one nucleotide to sequenceStoreVector
+void ReadAlignment::appendNucleotideToSequenceStoreVector(char nuc) {
+    // check if all bits from sequenceStoreVector are used
+    if (sequenceLen % 4 == 0) { // yes, all used => new 8 Bit block needs to be created
+        uint8_t newBlock = twobit_repr(nuc);
+        newBlock = newBlock << 6; // 'empty' bits are on the right side
+        sequenceStoreVector.push_back(newBlock);
+        ++sequenceLen;
+    }
+    else { // not all bits are used. At least the last two are unoccupied
+        // append new 2 bits to the right of the old bits
+        if (sequenceLen % 4 == 1) // 6 bits empty
+            sequenceStoreVector.back() = sequenceStoreVector.back() >> 4;
+        if (sequenceLen % 4 == 2) // 4 bits empty
+            sequenceStoreVector.back() = sequenceStoreVector.back() >> 2;
+        sequenceStoreVector.back() = sequenceStoreVector.back() | twobit_repr(nuc);
+        ++sequenceLen;
+        // shift used bits until they are left aligned
+        if (sequenceLen % 4 == 2) // 4 bits empty
+            sequenceStoreVector.back() = sequenceStoreVector.back() << 4;
+        if (sequenceLen % 4 == 3) // 2 bits empty
+            sequenceStoreVector.back() = sequenceStoreVector.back() << 2;
+    }
+}
+
+
+// helper function for add_new_seeds
+bool seed_compare_pos (const USeed & i, const USeed & j) { 
+  return (i->start_pos < j->start_pos); 
+}
+
 
 // Create new seeds from a list of kmer positions and add to current seeds
-void ReadAlignment::add_new_seeds(GenomePosListType& pos) {
+void ReadAlignment::add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension, AlignmentSettings & settings) {
+  SeedVecIt sit = seeds.begin();
 
-  seeds.reserve(seeds.size() + pos.size());
-  
   for(GenomePosListIt it = pos.begin(); it != pos.end(); ++it) {
-
+    if (posWasUsedForExtension[it - pos.begin()]) // if current reference hit was used at least once for seed extension
+        continue;
     USeed s (new Seed);
 
     s->gid = it->gid;
-    s->start_pos = it->pos - (cycle-K);
-    s->num_matches = 1;
+    s->start_pos = it->pos - (cycle-settings.kmer_span);
+    s->num_matches = K_HiLive;
     s->cigar_data.clear();
-    if (cycle-K > 0)
-      s->cigar_data.emplace_back(cycle-K,NO_MATCH);
-    s->cigar_data.emplace_back(K,0);
+    if (cycle-settings.kmer_span > 0)
+      s->cigar_data.emplace_back(cycle-settings.kmer_span,NO_MATCH);
 
-    seeds.push_back(std::move(s));
+    // set correct matches and mismatches depending on kmer mask
+    std::vector<unsigned> gapVec = settings.kmer_gaps;
+    gapVec.push_back(settings.kmer_span+1);
+    unsigned lastProcessedGapPosition = 0;
+    for (unsigned gapIndex = 0, nextGap; gapIndex < gapVec.size(); ++gapIndex) {
+        nextGap = gapVec[gapIndex];
+        if (nextGap - lastProcessedGapPosition - 1 > 0)
+            s->cigar_data.emplace_back(nextGap - lastProcessedGapPosition - 1,0);
+        lastProcessedGapPosition = nextGap;
+        s->cigar_data.emplace_back(1,NO_MATCH);
+    }
+    s->cigar_data.pop_back(); // remove tailing NO_MATCH from the for-loop
 
+    // insert seed into sorted list of seeds
+    while (sit != seeds.end() && seed_compare_pos(*sit, s)) // if seed exists and elem has larger starting position than (*sit)
+        ++sit;
+    sit = seeds.insert(sit, std::move(s));
   }
+}
 
+
+// Extend or create a placeholder seed for read with only trimmed matches
+void ReadAlignment::create_placeholder_seed(AlignmentSettings & settings) {
+	// if no seed exist, create one (only in the correct cycle and if parameter is true).
+	if(seeds.size()==0){
+		USeed s (new Seed);
+		s->gid = TRIMMED;
+		s->num_matches = 1;
+		s->cigar_data.clear();
+		s->cigar_data.emplace_back(settings.kmer_span,TRIMMED_MATCH);
+
+        // this is always sorted, because there is only one seed now
+        seeds.push_back(std::move(s));
+	}
+}
+
+
+// convert a placeholder seed to a set of normal seeds
+void ReadAlignment::convertPlaceholder(GenomePosListType& pos, AlignmentSettings & settings){
+	if(seeds.size()!=1)
+		return;
+	auto s = seeds.begin();
+	auto matches = (*s)->num_matches;
+	if(cycle - settings.kmer_span > 0 && (*s)->gid==TRIMMED){
+		seeds.clear();
+		for(auto p = pos.begin(); p != pos.end(); ++p){
+			USeed newSeed (new Seed());
+		    newSeed->gid = p->gid;
+		    newSeed->start_pos = p->pos - (cycle - settings.kmer_span);
+		    newSeed->num_matches = matches;
+		    newSeed->cigar_data.clear();
+            newSeed->cigar_data.emplace_back(cycle - settings.kmer_span,NO_MATCH);
+
+            // set correct matches and mismatches depending on kmer mask
+            std::vector<unsigned> gapVec = settings.kmer_gaps;
+            gapVec.push_back(settings.kmer_span); // without +1 because the last match will be inserted in extend_alignment
+            unsigned lastProcessedGapPosition = 0;
+            for (unsigned gapIndex = 0, nextGap; gapIndex < gapVec.size(); ++gapIndex) {
+                nextGap = gapVec[gapIndex];
+                if (nextGap - lastProcessedGapPosition - 1 > 0)
+                    newSeed->cigar_data.emplace_back(nextGap - lastProcessedGapPosition - 1,0);
+                lastProcessedGapPosition = nextGap;
+                newSeed->cigar_data.emplace_back(1,NO_MATCH);
+            }
+            newSeed->cigar_data.pop_back(); // remove tailing NO_MATCH from the for-loop
+
+            // insert into sorted list. The list is empty and pos vector is already sorted.
+            // therefore I only push back
+            seeds.push_back(std::move(newSeed));
+		}
+	}
+}
+
+
+// filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
+void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension) {
+    // TODO this function misbehaves when using demultiplexing. Reads might be preferred, kicking others only to get discarded due to barcode in the end.
+    // compute possible remaining matches
+    int possibleRemainingMatches = settings.seqlen - cycle + (settings.kmer_span - K_HiLive);
+    if (cycle == settings.seqlen)
+        possibleRemainingMatches = 0;
+
+    // compute threshold for number of matching bases a seed must already have to have a chance of getting printed in the end
+    // adjust threshold via adapted q-gram-lemma
+    int num_matches_threshold = settings.seqlen - settings.min_errors*(settings.kmer_span) - possibleRemainingMatches;
+
+    if ((settings.all_best_hit_mode) || (settings.any_best_hit_mode)) {
+        int max_num_matches = 0;
+        for(SeedVecIt sd = seeds.begin() ; sd !=seeds.end(); ++sd)
+            max_num_matches = std::max(max_num_matches, (int) (*sd)->num_matches);
+        num_matches_threshold = std::max(num_matches_threshold, (int) max_num_matches);
+    }
+    if (settings.all_best_n_scores_mode && settings.best_n > 0) {
+        std::vector<CountType> num_matches_vector;
+        for (SeedVecIt it=seeds.begin(); it!=seeds.end();++it)
+            num_matches_vector.push_back((*it)->num_matches);
+        std::sort(num_matches_vector.begin(), num_matches_vector.end(), std::greater<CountType>()); // sort in decreasing order
+        unsigned numberOfUniques = std::unique(num_matches_vector.begin(), num_matches_vector.end()) - num_matches_vector.begin(); // uniques are in front of vector now
+        if (numberOfUniques > settings.best_n) {
+            CountType nth_best_num_matches = num_matches_vector[settings.best_n - 1];
+            num_matches_threshold = std::max(num_matches_threshold, (int) nth_best_num_matches);
+        }
+    }
+    // else nothing has to be done for all-hit-mode
+    
+
+    // delete all seeds which do not reach threshold
+    SeedVecIt it=seeds.begin();
+    bool foundHit = false;
+    while ( it!=seeds.end()) {
+        if ((*it)->num_matches < num_matches_threshold)
+            it = seeds.erase(it);
+        else if (settings.discard_ohw && (cycle>settings.start_ohw) && ((*it)->num_matches <= K_HiLive)) // remove one-hit-wonders
+            it = seeds.erase(it);
+        else if (cycle == settings.seqlen && settings.any_best_hit_mode && foundHit)
+            it = seeds.erase(it);
+        else
+            ++it;
+        foundHit = true;
+    }
+
+    // if a new seed would have a chance then create it
+    if (num_matches_threshold <= K_HiLive) // new seed would get an additional K_HiLive matches
+        add_new_seeds(pos, posWasUsedForExtension, settings);
+}
+
+
+// updates cigar_data accordingly to a new matching kmer
+void ReadAlignment::addMatchingKmer(USeed & s, DiffType offset, AlignmentSettings & settings) {
+
+    s->cigar_data.emplace_back(1,offset);
+    s->num_matches += 1;
+
+    ////////////////////////////////////////////////////////////
+    //// determine last occurred offset ////////////////////////
+    int last_offset = 0;
+    if ((*prev(s->cigar_data.end())).offset != NO_MATCH) // if last CigarElement is Match
+        last_offset = (*prev(s->cigar_data.end())).offset;
+    else // then the one before has to be a match
+        last_offset = (*prev(prev(s->cigar_data.end()))).offset;
+    assert(last_offset != NO_MATCH);
+
+    ////////////////////////////////////////////////////////////
+    //// split last kmer-span bases in single CigarElements ////
+    CigarVector::iterator it = --(s->cigar_data.end());
+    unsigned summedLength = 1;
+    while (summedLength < settings.kmer_span) {
+        ++summedLength;
+        --it;
+        if ((*it).length > 1) {
+            CigarElement elem1(1, (*it).offset);
+            CigarElement elem2((*it).length-1, (*it).offset);
+            s->cigar_data.insert(it, elem2);
+            s->cigar_data.insert(it, elem1);
+            it = s->cigar_data.erase(it); // points now at element after former it
+            --it; // points now at elem1
+        }
+    }
+    // it points now at kmer-spans-th last element of cigar_data list
+
+    ////////////////////////////////////////////////////////////
+    //// remove possibly inserted bases ////////////////////////
+    if (offset < last_offset) {
+        --it;
+        for (int i=0; i<last_offset-offset; ++i) {
+            assert((*it).offset == NO_MATCH);
+            if ((*it).length > 1)
+                --((*it).length);
+            else
+                it = --(s->cigar_data.erase(it));
+        }
+        ++it; // now again points at kmer-spans-th last element of cigar_data list
+    }
+
+    ////////////////////////////////////////////////////////////
+    //// set matched bases as match ////////////////////////////
+
+    CigarVector::iterator it_save = it; // for joining
+    unsigned positionInKmer = 1;
+    while (it != s->cigar_data.end()) {
+        // if positionInKmer is not in kmer_gaps and cigar element was match
+        if ((*it).offset == NO_MATCH && std::find(settings.kmer_gaps.begin(), settings.kmer_gaps.end(), positionInKmer) == settings.kmer_gaps.end()) {
+            (*it).offset = offset;
+            s->num_matches += 1;
+        }
+        ++it;
+        ++positionInKmer;
+    }
+
+    ////////////////////////////////////////////////////////////
+    //// join last kmer-span+1 CigarElements ///////////////////
+    it = it_save;
+    if (it == s->cigar_data.begin())
+        ++it;
+    while (it != s->cigar_data.end()) {
+        if ((*prev(it)).offset == (*it).offset) {
+            (*prev(it)).length += 1;
+            it = s->cigar_data.erase(it);
+        }
+        else
+            ++it;
+    }
+}
+
+
+// Extend an existing seed (to be precise, extend the CIGAR vector / data).
+bool ReadAlignment::extendSeed(USeed & s, DiffType offset, AlignmentSettings & settings){
+	// Extend CIGAR for TRIMMED k-mers
+	if ((offset == TRIMMED_MATCH) || ((offset == NO_MATCH) && (s->cigar_data.back().offset == TRIMMED_MATCH))){
+		s->cigar_data.back().length += 1;
+		if (s->cigar_data.back().offset != NO_MATCH){
+			s->num_matches += 1;
+			return true;
+		}
+		return false;
+	}
+    
+    // if last region was match region
+	if(s->cigar_data.back().offset != NO_MATCH){ 
+        // MATCH -> NO_MATCH
+        if(offset == NO_MATCH){
+            // new mismatch region
+            s->cigar_data.emplace_back(1,NO_MATCH);
+            return false;
+        }
+        // MATCH -> MATCH  Extend match region with new match.
+        else {
+            int offset_change = offset - s->cigar_data.rbegin()->offset;
+            // without any mismatch in between there cannot be a valid offset_change other than 0
+            if (offset_change!=0) {
+                // new mismatch region
+                s->cigar_data.emplace_back(1,NO_MATCH);
+                return false;
+            }
+            // else: extend current match region
+            addMatchingKmer(s, offset, settings);
+            return true;
+        }
+    }
+    // so last region was mismatch region
+    else {
+        // NO_MATCH -> NO_MATCH  Extend mismatch region with new mismatch.
+        if(offset == NO_MATCH){
+            s->cigar_data.back().length += 1;
+            return false;
+        }
+        // NO_MATCH -> MATCH
+        else {
+            assert((++(s->cigar_data.rbegin()))->offset != TRIMMED_MATCH && (++(s->cigar_data.rbegin()))->offset != NO_MATCH);
+            int offset_change = offset - (++(s->cigar_data.rbegin()))->offset;
+            // If there is an offset change, I need to have seen the appropriate mismatches before.
+            if ( offset_change == 0
+            || ((offset_change < 0) && (s->cigar_data.back().length >= -offset_change + settings.kmer_span - 1)) // Insertion in read
+            || ((offset_change > 0) && (s->cigar_data.back().length >= settings.kmer_span - 1 )) ) { // Deletion in read
+                addMatchingKmer(s, offset, settings);
+                return true;
+            } else {
+                // criteria not fulfilled: extend existing mismatch area.
+                s->cigar_data.back().length += 1;
+                return false;
+            }
+        }
+    }
 }
 
 
 
 void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* settings) {
 
-  // q-gram-lemma: seeds added after last_new_seed have at least more than min_errors errors
-  CountType last_new_seed = K*(settings->min_errors+1); 
+	// move to the next cycle
+	cycle += 1;
 
-  // move to the next cycle
-  cycle += 1;
+	// update the last k-mer
+	uint8_t qual = ((bc >> 2) & 63); // get bits 3-8
+	if ( (bc == 0) || (qual < settings->min_qual) ){ // no call if all 0 bits or quality below threshold
+		last_invalid = cycle; // TODO append an N as basecall? Could be a bad idea
+	}
+    unsigned mask = 3;
+    if (flags != 0) // if read is valid
+        appendNucleotideToSequenceStoreVector(revtwobit_repr(bc & mask)); // get the nucleotide as an actual character, disregarding the quality
 
-  // update the last k-mer
-  uint8_t qual = ((bc >> 2) & 63); // get bits 3-8
-  if ( (bc == 0) || (qual < settings->min_qual) ){ // no call if all 0 bits or quality below threshold 
-    last_kmer = 0;
-    last_invalid = cycle;
-  }
-  else{
-    // update the current k-mer of the read using the basecall
-    update_kmer(last_kmer, bc);
-  }
-
-  // update the alignments
-  if ( last_invalid+K-1 < cycle ) {
-
-    // get all occurrences of last_kmer (fwd & rc) from index
-    GenomePosListType pos = index->retrieve_positions(last_kmer);
-
-    // pos MUST be sorted. However, pos is sorted as long as the index is sorted (should be by default)
-    // DEPRECATED
-    if (settings->sort_positions) {
-      std::sort(pos.begin(),pos.end(),gp_compare);
+    // do not update the alignments when reading barcode
+    if (cycle > settings->seqlen) {
+        if (cycle == rlen)
+            if (std::find(settings->barcodeVector.begin(), settings->barcodeVector.end(), getBarcodeString(*settings)) == settings->barcodeVector.end())
+                this->disable(*settings);
+        return;
     }
-    
-    // maximum number of k-mer matches in seeds
-    CountType max_num_matches = 0;
-    
-    // check if the current k-mer was trimmed in the index
-    if ( (pos.size() == 1) && (pos[0].gid == TRIMMED) ) {
-      // clear the pos list so nothing bad happens in the next steps
-      pos.clear();
+
+    // do not update the alignments when reading the first kmer_span-1 cycles
+    if (cycle < settings->kmer_span)
+        return;
+
+	// update the alignments
+	GenomePosListType pos;
+    std::vector<bool> posWasUsedForExtension;
+	// if last kmer of read is not valid
+	if (!( last_invalid+settings->kmer_span-1 < cycle )) {
+		// write a NO_MATCH
+        for (auto sit = seeds.begin(); sit != seeds.end(); ++sit)
+            extendSeed(*sit, NO_MATCH, *settings);
+	}
+	else {
+
+		// get all occurrences of last_kmer (fwd & rc) from index
+        const std::string sequence = getSequenceString(*settings);
+        std::string::const_iterator it_lastKmer = sequence.end() - settings->kmer_span;
+        HashIntoType last_kmer = 0;
+        hash_fw(it_lastKmer, sequence.end(), last_kmer, *settings);
+		pos = index->retrieve_positions(sequence.substr(sequence.length()-settings->kmer_span), *settings);
+        posWasUsedForExtension.resize(pos.size(), false);
+
+		// check if the current k-mer was trimmed in the index
+		if ( (pos.size() == 1) && ((*pos.begin()).gid == TRIMMED) ) {
+			if(seeds.size()==0 && cycle==settings->kmer_span ){	// Create placeholder seed if first k-mer is trimmed
+				create_placeholder_seed(*settings);
+			} else
+				// pretend that all existing seeds could be extended
+				for(auto sd = seeds.begin() ; sd !=seeds.end(); ++sd)
+					extendSeed(*sd, TRIMMED_MATCH, *settings);
+			// clear the pos list so nothing bad happens in the next steps
+			pos.clear();
+		}
+
+		// not trimmed in the index --> try to extend existing seeds
+		else {
+			// Convert placeholder seeds (if any) to "real" seeds
+			if(seeds.size()==1 && (*(seeds.begin()))->gid==TRIMMED){
+				convertPlaceholder(pos, *settings);
+			}
+			// find support for each candidate: iterate over seed candidates and positions simultaneously
+			auto cPos1 = pos.begin(), cPos2 = pos.begin(); // sliding window [cPos1, cPos2)
       
-      // pretend that all existing seeds could be extended
-      for (auto sd = seeds.begin() ; sd!=seeds.end(); ++sd ) {
-        (*sd)->cigar_data.back().length += 1;
-        if ((*sd)->cigar_data.back().offset != NO_MATCH) {
-          (*sd)->num_matches += 1;
-          max_num_matches = std::max(max_num_matches, (*sd)->num_matches);
-        }
-      }
-    }
-    // not trimmed in the index --> try to extend existing seeds
-    else {
-      // find support for each candidate: iterate over seed candidates and positions simultaneously
-      auto cPos1 = pos.begin(); // beginning of the sliding window [cPos1, cPos2)
-      auto cPos2 = pos.begin(); // end of the sliding window
-      auto wSeed1 = seeds.begin(); // beginning of the sliding window in the seeds [wSeed1, wSeed2)
-      auto wSeed2 = seeds.begin(); // end of the sliding window
-      
-      for (auto cSeed = seeds.begin(); cSeed!=seeds.end(); ++cSeed ) {
-        PositionType seed_pos = (*cSeed)->start_pos + cycle -K;
+			for (auto cSeed = seeds.begin(); cSeed!=seeds.end(); ++cSeed ) {
+				PositionType seed_pos = (*cSeed)->start_pos + cycle -settings->kmer_span;
+
+                // adjust the window in the position list
+                while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - settings->window) )
+                    ++cPos1;
+                while( (cPos2!=pos.end()) && (cPos2->pos <= seed_pos + settings->window) )
+                    ++cPos2;
         
-        // adjust the window in the position list
-        while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - settings->window) ){
-          ++cPos1;
-        }
-        while( (cPos2!=pos.end()) && (cPos2->pos < seed_pos + settings->window) ){
-          ++cPos2;
-        }
+				// search all positions in the window for the best matching extension of the seed
+				DiffType best_offset = settings->window+1;  // set larger than search window
+				GenomePosListIt best_match = cPos2; // set behind the last element of the window
+				for(GenomePosListIt kmerHitIt = cPos1; kmerHitIt!=cPos2; ++kmerHitIt)
+					if (kmerHitIt->gid == (*cSeed)->gid){
+					    // if offset gets bigger => Deletion in read
+						int offset = kmerHitIt->pos - seed_pos;
+						if ((best_match==cPos2)||(abs(offset) < abs(best_offset))) {
+							best_match = kmerHitIt;
+							best_offset = offset;
+						}
+					}
         
-        // adjust the neighboring seeds window
-        while( (wSeed1!=seeds.end()) && ((*wSeed1)->start_pos < (*cSeed)->start_pos - 2*settings->window) ){
-          ++wSeed1;
-        }
-        while( (wSeed2!=seeds.end()) && ((*wSeed2)->start_pos < (*cSeed)->start_pos + 2*settings->window) ){
-          ++wSeed2;
-        }
-        
-        // search all positions in the window for the best matching extension of the seed
-        DiffType best_distance = settings->window+1;  // set larger than search window
-        GenomePosListIt best_match = cPos2; // set behind the last element of the window
-        for(GenomePosListIt win=cPos1; win!=cPos2; ++win){
-          if (win->gid == (*cSeed)->gid){
-            int dist = seed_pos - win->pos; 
-            if ((best_match==cPos2)||(abs(dist) < abs(best_distance))) {
-              best_match = win;
-              best_distance = dist;
-            }
-          }
-        }
-        
-        // check if a best match was found for this seed
-        if (best_match != cPos2) {
-          // find the best seed from the perspective of best_match
-          DiffType best_sdist = 2*settings->window+1;  // set larger than search window
-          auto best_seed = wSeed2;   // set behind the last element of the window
-          for(auto win=wSeed1; win!=wSeed2; ++win){
-            if ((*win)->gid == best_match->gid){
-              int dist = best_match->pos - ((*win)->start_pos+cycle-K); 
-              if ((best_seed==wSeed2)||(abs(dist) < abs(best_sdist))) {
-                best_seed = win;
-                best_sdist = dist;
-              }
-            }
-          }
-        
-          if (best_seed == cSeed) {
-            // the current seed is the best extension
-            
-            if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
-              // Before starting a new matching area check if the match is valid
-              // A match after a NO_MATCH area is valid if:
-              //  - offset change == 0 and NO_MATCH length >= K (mismatch)
-              //  - offset change > 0 and NO_MATCH length >= Offset change + K - 1 (insertion in read)
-              //  - offset change < 0 and NO_MATCH length >= K - 1 (deletion in read)
-              if ((*cSeed)->cigar_data.size() > 1) { 
-                int offset_change = best_distance - ((*cSeed)->cigar_data.rbegin() + 1)->offset;
-                if ( ((offset_change == 0) && ((*cSeed)->cigar_data.back().length >= K))
-                    || ((offset_change > 0) && ((*cSeed)->cigar_data.back().length >= offset_change + K - 1))
-                    || ((offset_change < 0) && ((*cSeed)->cigar_data.back().length > K - 1 )) ) {
-                  // criteria fulfilled. Start a new match area. 1 matching k-mer = K matches
-                  (*cSeed)->cigar_data.emplace_back(K,best_distance);  
-                  (*cSeed)->num_matches += 1;
-                  
-                  // remove assigned position from the list of possible matches
-                  if(best_match == cPos1){
-                    cPos1 = pos.erase(best_match);
-                  }
-                  else {
-                    pos.erase(best_match);
-                  }
-                  --cPos2; 
+				// check if a best match was found for this seed
+				if (best_match != cPos2) {
+						if(extendSeed(*cSeed, best_offset, *settings))
+		            		// if pos was used as match, mark it so that later it does not get converted into a new seed
+		            		posWasUsedForExtension[best_match-pos.begin()] = true;
                 }
-                else {
-                  // continue existing mismatch area
-                  (*cSeed)->cigar_data.back().length += 1;
-                }
-              }
-              else {
-                // start a new match area. 1 matching k-mer = K matches
-                (*cSeed)->cigar_data.emplace_back(K,best_distance);
-                (*cSeed)->num_matches += 1;
-                
-                // remove assigned position from the list of possible matches
-                if(best_match == cPos1){
-                  cPos1 = pos.erase(best_match);
-                }
-                else {
-                  pos.erase(best_match);
-                }
-                --cPos2; 
-              }
-            }
-            else {
-              // continue existing match area
-              (*cSeed)->cigar_data.back().length += 1;
-              (*cSeed)->num_matches += 1;
-              
-              // remove assigned position from the list of possible matches
-              if(best_match == cPos1){
-                cPos1 = pos.erase(best_match);
-              }
-              else {
-                pos.erase(best_match);
-              }
-              --cPos2; 
-            }
-            max_num_matches = std::max(max_num_matches, (*cSeed)->num_matches);
+				else{
+					// no position found to extend the current seed
+					extendSeed(*cSeed, NO_MATCH, *settings);
+				}
+			} // END: for(seeds...)
+		} // END: not trimmed
+	} // END: if last kmer is valid
 
-          }
-          else{
-            // best match has another favourite, don't extend this seed
-            if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
-              // continue existing mismatch area
-              (*cSeed)->cigar_data.back().length += 1;
-            }
-            else {
-              // start new mismatch area
-              (*cSeed)->cigar_data.emplace_back(1,NO_MATCH);
-            }
-          }
-        }
-        else{
-          // no position found to extend the current seed
-          if ( (*cSeed)->cigar_data.back().offset == NO_MATCH ) {
-            // continue existing mismatch area
-            (*cSeed)->cigar_data.back().length += 1;
-          }
-          else {
-            // start new mismatch area
-            (*cSeed)->cigar_data.emplace_back(1,NO_MATCH);
-          }
-        }
-      } // END: for(seeds...)
-    } // END: not trimmed
+    filterAndCreateNewSeeds(*settings, pos, posWasUsedForExtension);
 
-    
-    // get the num_matches of the N'th best seed
-    // seed list gets partially sorted (and sorted back later). Noone ever said it will be fast...
-    CountType nth_best_matches = 0;
-    if ( settings->best_n_mode && (settings->best_n > 0) && (seeds.size() >= settings->best_n) ) {
-      std::nth_element(seeds.begin(), seeds.begin()+seeds.size()-settings->best_n , seeds.end(), seed_compare_num_matches);
-      nth_best_matches = (*(seeds.begin()+seeds.size()-settings->best_n))->num_matches;
-    }
-
-    // set the last_new_seed cycle according to the mapping mode
-    if ( settings->best_hit_mode ) {
-      last_new_seed = std::min(CountType(rlen-max_num_matches+1),last_new_seed);
-    }
-    else if ( settings->best_n_mode ) {
-      last_new_seed = std::min(CountType(rlen-nth_best_matches+1),last_new_seed);
-    }
-
-    // create new seed candidates for each k-mer match that was not used to extend a seed
-    if ( cycle <= last_new_seed ) {
-
-      add_new_seeds(pos);
-
-      if (pos.begin() != pos.end()) {
-        max_num_matches = std::max(max_num_matches, (CountType)1);
-      }
-
-    }
-
-    // define a lambda function implementing all discard criteria.
-    // all criteria must be fulfilled to keep the seed. Go from stronger to weaker criteria.
-    auto crit = [&] (USeed & s) {
-      // don't filter seeds that were extended in this cycle
-      if (s->cigar_data.back().offset != NO_MATCH) {
-        return false;
-      }
-
-      // 1. remove one-hit-wonders
-      if ( settings->discard_ohw && (cycle>settings->start_ohw)&&(s->num_matches<=1) ) {
-        return true;
-      }
-
-      // 2. remove according to q-gram lemma
-      if ( cycle > (K*(settings->min_errors+1) + s->num_matches) ) {
-        return true;
-      }
-
-      // 3. remove according Best-Hit-criteria
-      if ( settings->best_hit_mode ) {
-        if (cycle > (rlen - max_num_matches + s->num_matches)) {
-          return true;
-        }
-      }
-      // 4. remove according Best-N-criteria
-      else if ( settings->best_n_mode ) {
-        if ( cycle > (rlen - nth_best_matches + s->num_matches) ) {
-          return true;
-        }
-      }
-
-      // get the number of mismatches since the last match
-      int since_last_match = s->cigar_data.back().length;
-
-      // 5. heuristic criterium
-      if ((since_last_match >= K+10)&&(s->num_matches < (int)(std::sqrt(cycle-K+1)))){
-        return true;
-      }
-
-      return false;
-    };
-
-    seeds.erase(std::remove_if(seeds.begin(),seeds.end(),crit) , seeds.end());
-
-    std::sort(seeds.begin(), seeds.end(), seed_compare_pos);
-
-  } // END: if ( last_invalid+K-1 < cycle ) ...
-  else {
-    
-    // write a NO_MATCH if cycle > K-1
-    if ( cycle > K-1 ) {
-      for (auto sit = seeds.begin(); sit != seeds.end(); ++sit){
-        if ( (*sit)->cigar_data.back().offset == NO_MATCH ) {
-          // continue existing mismatch area
-          (*sit)->cigar_data.back().length += 1;
-        }
-        else {
-          // start new mismatch area
-          (*sit)->cigar_data.emplace_back(1,NO_MATCH);
-        }
-      }
-    }
-  }
-
-  return ;
+	return;
 }
 
 
 
 // disable this alignment, i.e. delete all seeds and set the last_invalid indicator to the
 // end of the read. --> This read will not be aligned and consumes almost no space.
-void ReadAlignment::disable() {
-  last_invalid = rlen;
+void ReadAlignment::disable(AlignmentSettings & settings) {
+  last_invalid = settings.seqlen;
   seeds.clear();
   flags = 0;
-}
-
-
-// generate the SAM flags for a seed
-uint32_t ReadAlignment::get_SAM_flags(uint32_t sd) {
-  if ( sd < seeds.size() ) {
-    uint32_t flags = 0;
-    // flag for the reverse strand alignment
-    if (seeds[sd]->start_pos < 0)
-      flags += 16;
-
-    // Primary/Secondary alignment
-    // the "Primary" alignment is the alignment with the highest number of matches
-    // in case of a tie, the left-most alignment wins (including negative positions)
-    bool primary = true;
-    for(uint32_t i = 0; i < seeds.size(); i++) {
-      if(seeds[i]->num_matches > seeds[sd]->num_matches || (seeds[i]->num_matches == seeds[sd]->num_matches && i < sd)) {
-	primary = false;
-      }
-    }
-    if (!primary)
-      flags += 256;
-    return flags;
-  }
-  else {
-    throw std::length_error(std::string("Error generating SAM flags: requested alignment ID (")+std::to_string(sd)+std::string(") exceeds number of alignments (")+std::to_string(seeds.size())+std::string(")!"));
-  }
+  sequenceLen=0;
+  sequenceStoreVector.clear();
 }
 
 
 // obtain start position of a seed according to SAM (leftmost) 
-PositionType ReadAlignment::get_SAM_start_pos(uint32_t sd) {
-  PositionType pos = seeds[sd]->start_pos;
+PositionType ReadAlignment::get_SAM_start_pos(USeed & sd, AlignmentSettings & settings) {
+  PositionType pos = sd->start_pos;
   if (pos < 0) {
-    pos = -pos - rlen + K;
+    if (sd->cigar_data.back().offset == NO_MATCH)
+        pos = -pos - settings.seqlen + settings.kmer_span - (++sd->cigar_data.rbegin())->offset;
+    else
+        pos = -pos - settings.seqlen + settings.kmer_span - (sd->cigar_data.rbegin())->offset;
   }
   return pos;
 }
 
 
-// calculate a quality score according to SAM
-uint16_t ReadAlignment::get_SAM_quality(uint32_t sd) {
-  CountType best_match = 0;
-  for (uint32_t s = 0; s < seeds.size(); s++) {
-    best_match = std::max(seeds[s]->num_matches, best_match);
-  }
-  double total_weighted_matches = 0.;
-  for (uint32_t s = 0; s < seeds.size(); s++) {
-    total_weighted_matches = std::pow(4., double(seeds[s]->num_matches - best_match));
-  }
-
-  double prob = std::pow(4., double(seeds[sd]->num_matches - best_match)) / total_weighted_matches;
-  int score = -10 * std::log10(prob);
-  if (score > 255 || score < 0)
-    score = 255;
-  return score;
-}
-
-
-
-
-
-
-
-
-
-
-/* Calculate the mapping quality for all alignments of the read based on the other alignments
-   and the number of matching positions.
- */
-
+// Calculate the mapping quality for all alignments of the read based on the other alignments and the number of matching positions.
 int16_t MAPQ(const SeedVec &sv){
   return sv.size();
   }
-
-
-/* Helper function; checks if the position at 'sit' is sane. only applicable for reads matching 
-   to the backwards genome sequence (forward sanity check is MUCH easier) */
-bool is_sane(std::vector<DiffType>::iterator sit,
-	     const std::vector<DiffType> &matches){
-  DiffType dist = 0;
-  DiffType this_offset = *sit;
-  // find the OFFSET of the next matching region (after the next NOMATCH region)
-  bool passed_NOMATCH = false;
-  while(!((*sit!=NO_MATCH)&&passed_NOMATCH) && (sit!=matches.end())){
-    if(*sit == NO_MATCH) {passed_NOMATCH = true;}
-    ++sit;
-    ++dist;
-  }
-  
-  if (sit == matches.end()) {
-    return true;
-  }
-  else {
-    int offset_change = *sit - this_offset;
-    return ((dist-K+1 - offset_change*(offset_change>0)) > 0);
-  }
-}
-
-/* Construct a CIGAR string from a seed */
-std::string CIGAR(const Seed &seed){
-  // Alignments are always reported in forward direction wrt the reference sequence --> take care
-  bool fw = (seed.start_pos >= 0); // Read was mapped to the forward sequence
-  CigarVector cig;
-  if (fw) {
-    cig = seed.cigar_data;
-  }
-  else {
-    // need to adjust the offsets --> find last offset != NO_MATCH
-    auto rit = seed.cigar_data.rbegin();
-    while((rit != seed.cigar_data.rend()) && (rit->offset == NO_MATCH)) {
-      ++rit;
-    }
-    int loffset;
-    if (rit != seed.cigar_data.rend())
-      loffset = rit->offset;
-    else
-      loffset = 0;
-    cig.reserve(seed.cigar_data.size());
-    // reverse direction of 'cigar_data' and adjust offsets
-    for(rit = seed.cigar_data.rbegin(); rit != seed.cigar_data.rend(); ++rit) {
-      if (rit->offset != NO_MATCH)
-	cig.emplace_back(rit->length,loffset - rit->offset);
-      else
-	cig.emplace_back(rit->length,NO_MATCH);
-    }
-  }
-  
-  // Now, calculate the CIGAR string
-  std::string cigar;
-  if (cig.size() > 0) {
-    int previous_offset = 0; // the offset in the previous matching region
-    for (uint32_t i = 0; i < cig.size(); i++) {
-      // extend the cigar string accordingly
-      if ( cig[i].offset != NO_MATCH ) {
-	cigar.append(std::to_string(cig[i].length)+std::string("M"));
-	previous_offset = cig[i].offset;
-      }
-      else {
-	int offset_change = 0;
-	int mm_len = cig[i].length -K+1;
-	// correct the length of the mismatch region if there are insane positions
-	if ( i+1 < cig.size() ) {
-	  offset_change = cig[i+1].offset - previous_offset;
-	  if (offset_change > mm_len) {
-	    // offset change cannot be larger than the mismatch area
-	    cig[i].length += (offset_change - mm_len);
-	    cig[i+1].length -= (offset_change - mm_len);
-	    mm_len = cig[i].length -K+1;
-	  }
-	}
-
-	if ( offset_change == 0 ) {
-	  // Sequence mismatch(es)
-	  if ( i > 0 && i < cig.size()-1 ) {
-	    cigar.append(std::to_string(cig[i].length -K+1)+std::string("X"));
-	  }
-	  else {
-	    // report as soft-clipped at the beginning/end of the read
-	    cigar.append(std::to_string(cig[i].length)+std::string("S"));
-	  }
-	}
-	else {
-	  // Number of insertions
-	  int insertions = cig[i].length -K+1;
-	  // Number of deletions
-	  int deletions = - (offset_change - insertions);
-	  // append to cigar string
-	  if ( insertions > 0 )
-	    cigar.append(std::to_string(insertions)+std::string("I"));
-	  if ( deletions > 0 )
-	    cigar.append(std::to_string(deletions)+std::string("D"));
-	}
-      }
-    }
-  }
-
-  /*int count = K-1; // number of matches/mismatches in a row
-    bool previous_match = true; // was the previous k-mer a match? -> recognize changes
-    // change initial values if the read starts with a mismatch
-    if(*(matches.begin()) == NO_MATCH) {
-      count = K-1; 
-      previous_match = false; 
-    }
-    int previous_offset = 0; // the offset in the previous matching region
-    int pos = 0; // current position in the read
-    for(auto it = matches.begin(); it != matches.end(); ++it){
-      if ((*it) != NO_MATCH) {
-	// The k-mer could be matched
-	if (previous_match) {
-	  // Check the sanity of this match, if found on backward seq
-	  bool sane = true;
-	  if (!fw){
-	    sane = is_sane(it, matches);
-	  }
-	  if (sane) {
-	    // Continue a match
-	    count += 1;
-	    previous_offset = (*it);
-	  }
-	  else {
-	    // end the match here, treat this position as mismatch
-	    //std::cout << "INSANE position!!!" << std::endl;
-	    // start a new mismatch area here. Don't care about countinuing, this happens below
-	    // Finish a match region
-	    cigar.append(std::to_string(count)+std::string("M"));
-	    // Start a new mismatch region
-	    count = 1; 
-	    previous_match = false;
-	  }
-	}
-	// the previous k-mer was not matched
-	else {
-	  int offset_change = (*it) - previous_offset;
-	  // check the sanity of the match
-	  bool sane = ((count-K+1 - offset_change*(offset_change>0)) >= 0) && fw;
-	  // add the criterium for backward matches here (as above)
-	  sane = sane || (!fw && is_sane(it, matches));
-	  if (sane) {
-	    // Finish a mismatch region
-	    if (offset_change == 0) {
-	      if(count > K-1){
-		// Sequence mismatch(es)
-		cigar.append(std::to_string(count-K+1)+std::string("X"));
-	      }
-	    }
-	    else {
-	      // cure only on forward mapping reads
-	      if (count > K-1){
-		// Insertion compared to reference
-		cigar.append(std::to_string(count-K+1)+std::string("I"));
-	      }
-	      if (count-offset_change > K-1){ 
-		// In this case, a string of length count-offset_change was deleted from reference
-		cigar.append(std::to_string(count-offset_change-K+1)+std::string("D"));
-	      }
-	    }
-	    // Start a new match region. The first k-mer represents K matching positions
-	    count = K;
-	    previous_match = true;
-	    previous_offset = (*it);
-	  }
-	  else {
-	    // insane match --> treat as mismatch
-	    count += 1;
-	    previous_match = false;
-	  }
-	}
-      }
-      else {
-	// The k-mer could NOT be matched
-	if (!previous_match) {
-	  // Continue a mismatch
-	  count += 1;
-	} else {
-	  // Finish a match region
-	  cigar.append(std::to_string(count)+std::string("M"));
-	  // Start a new mismatch region
-	  count = 1; 
-	  previous_match = false;
-	}
-      }
-      // increase the position counter
-      pos++;
-    }
-    // Complete the cigar string
-    if (previous_match) {
-      // Fill cigar string with matches
-      cigar.append(std::to_string(count)+std::string("M"));
-    }
-    else {
-      // Fill cigar string with mismatches
-      // TODO: probably report this as "soft-clipping"
-      cigar.append(std::to_string(count)+std::string("X"));
-    }
-    }*/
-  return cigar;
-}

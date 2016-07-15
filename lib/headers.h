@@ -1,5 +1,6 @@
 #include "config.h"
 #include <iostream>
+#include <sstream>
 #include <fstream>
 #include <zlib.h>
 #include <lz4.h>

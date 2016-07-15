@@ -1,17 +1,21 @@
-# Header
+##############
+### Header ###
+
 cmake_minimum_required (VERSION 2.8)
 project (HiLive)
-include(ExternalProject)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -pthread -W -Wall -std=gnu++11 -O3")
+# Set the version number 
+set (HiLive_VERSION_MAJOR 0)
+set (HiLive_VERSION_MINOR 3)
 
 # Set the k-mer length
 set (HiLive_K 15 CACHE INT "Set the k-mer length for index and mapper")
 
-# Set the version number 
-set (HiLive_VERSION_MAJOR 0)
-set (HiLive_VERSION_MINOR 2)
+# Set flags for compilation
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++11 -O0")
 
+
+# configure a header file to pass some of the CMake settings to the source code
 configure_file (
   "${PROJECT_SOURCE_DIR}/lib/config.h.in"
   "${PROJECT_BINARY_DIR}/config.h"  )
@@ -21,20 +25,26 @@ include_directories("${PROJECT_BINARY_DIR}")
 
 
 
-include_directories(lib)
+#############################
+### setup seqan libraries ###
 
-set(LIBS tools
-         alnread
-	 alnstream
-	 illumina_parsers
-	 kindex
-	 parallel
-	 bamout)
+set (CMAKE_MODULE_PATH "/home/schulzeja/masterthesis/tools/seqan-src/util/cmake") # adjust this to [pathToSeqanCode]/util/cmake
+set (SEQAN_INCLUDE_PATH "/home/schulzeja/masterthesis/tools/seqan-src/include/") # adjust this to [pathToSeqanCode]/include
 
-set(LIB_FILES "")
-foreach (lib ${LIBS})
-    list(APPEND LIB_FILES "lib/${lib}.cpp")
-endforeach()
+# Configure SeqAn, enabling features for libbz2 and zlib.
+#set (SEQAN_FIND_DEPENDENCIES ZLIB BZip2) # original version from seqan tutorial
+set (SEQAN_FIND_DEPENDENCIES BZip2)
+find_package (SeqAn REQUIRED)
+
+# Add include directories, defines, and flags for SeqAn (and its dependencies).
+include_directories (${SEQAN_INCLUDE_DIRS})
+add_definitions (${SEQAN_DEFINITIONS})
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
+
+
+
+#############################
+### setup Boost libraries ###
 
 set(Boost_USE_STATIC_LIBS ON) 
 set(Boost_USE_MULTITHREADED ON)  
@@ -42,25 +52,54 @@ set(Boost_USE_STATIC_RUNTIME ON)
 FIND_PACKAGE( Boost COMPONENTS system filesystem program_options REQUIRED )
 INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 
-find_package( ZLIB REQUIRED )
 
+
+############################
+### setup Zlib and lz4 libraries ###
+
+find_package( ZLIB REQUIRED )
 # manually set the path for lz4 library
 set (LZ4_PATH /usr/local/lib CACHE PATH "Manually set the path to the lz4 library")
 LINK_DIRECTORIES(${LZ4_PATH})
+set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
 
-# download & build the Samtools library
-file(DOWNLOAD "http://downloads.sourceforge.net/project/samtools/samtools/1.2/samtools-1.2.tar.bz2" ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2)
-execute_process(COMMAND tar xf ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2 )
+
+#############################################
+### download & build the Samtools library ###
+file(DOWNLOAD "https://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download" ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2)
+execute_process(COMMAND tar xjf ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2 )
 execute_process(COMMAND make -s -C samtools-1.2 )
 INCLUDE_DIRECTORIES( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 )
 INCLUDE_DIRECTORIES( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
 LINK_DIRECTORIES( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
 
-# create the executables
-add_library(hilivelib ${LIB_FILES})
 
-add_executable(hilive tools/hilive.cpp )
-target_link_libraries(hilive hilivelib ${ZLIB_LIBRARIES} ${Boost_LIBRARIES} lz4 hts)
+##############################
+### setup HiLive libraries ###
+include_directories("${PROJECT_SOURCE_DIR}/lib")
+# make a list of HiLive libraries
+set (LIB_NAMES tools alnread alnstream illumina_parsers kindex parallel argument_parser)
+set(LIB_LIST "")
+foreach (x ${LIB_NAMES})
+	list(APPEND LIB_LIST "lib/${x}.cpp")
+endforeach()
+add_library(HiLiveLibs ${LIB_LIST})
+
+
+#############################
+### Build the executables ###
+
+add_executable (hilive tools/hilive.cpp)
+target_link_libraries (hilive HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES} hts)
 
 add_executable(hilive-build tools/build_index.cpp )
-target_link_libraries(hilive-build hilivelib ${ZLIB_LIBRARIES} ${Boost_LIBRARIES} lz4)
+target_link_libraries(hilive-build HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
+
+
+#####################
+### for debugging ###
+
+#get_cmake_property(_variableNames VARIABLES)
+#foreach (_variableName ${_variableNames})
+	#message(STATUS "${_variableName}=${${_variableName}}")
+#endforeach()

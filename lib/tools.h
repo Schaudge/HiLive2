@@ -5,6 +5,10 @@
 #include "definitions.h"
 #include "kindex.h"
 
+
+// compare function to sort GenomePosType objects by position
+bool gp_compare (GenomePosType i,GenomePosType j);
+
 // calculates the total size of a file in bytes
 std::ifstream::pos_type get_filesize(const std::string &fname);
 
@@ -24,23 +28,19 @@ uint32_t num_reads_from_bcl(std::string bcl);
 uint64_t write_binary_file(const std::string &fname, const std::vector<char> & data);
 
 //------  Hashing helper functions  ---------------------------------//
-HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r);
-HashIntoType hash_fw(const char * kmer, HashIntoType& _h);
-HashIntoType rc(HashIntoType fw); 
-
-// Update an existing kmer by left-shifting all nucleotides and appending new nucleotide
-void update_kmer(HashIntoType &kmer, HashIntoType nuc);
+HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r, AlignmentSettings & settings);
+std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h, AlignmentSettings & settings);
+//HashIntoType rc(HashIntoType fw); 
+/* returns the sequence of a k-mer */
+std::string unhash(HashIntoType myHash, unsigned hashLen=K_HiLive);
 
 // file name construction functions
 std::string bcl_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl);
 std::string alignment_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl);
 std::string filter_name(std::string rt, uint16_t ln, uint16_t tl);
 std::string position_name(std::string rt, uint16_t ln, uint16_t tl);
-std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl);
-std::string sam_lane_name(std::string rt, uint16_t ln);
-
-
-
+std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, bool write_bam);
+std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam);
 
 
 #endif /* TOOLS_H */

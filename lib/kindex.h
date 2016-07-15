@@ -19,20 +19,15 @@ class KixBuild {
  public:
   
   // add k-mers of all sequences in FASTA file
-  int add_fasta(const std::string &fname, GenomeIdListType &ids);
-  int add_fasta(const std::string &fname);
+  int add_fasta(const std::string &fname, GenomeIdListType &ids, AlignmentSettings & settings, bool convert_spaces, bool trim_ids);
+  int add_fasta(const std::string &fname, AlignmentSettings & settings, bool convert_spaces, bool trim_ids);
   
   // add all k-mers in a string sequence to the database
-  GenomeIdType add_sequence(const std::string &s);
+  GenomeIdType start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings);
+  GenomeIdType continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings);
 
   // trim the database: remove kmers with more than max_count occurrences
   uint64_t trim(uint64_t max_count);
-
-  // set the name of a sequence
-  int set_name(GenomeIdType id, const std::string &name);
-
-  // get the name of a sequence
-  std::string get_name(GenomeIdType id);
 
   // serialize the KixBuild
   std::vector<char> serialize();
@@ -52,7 +47,7 @@ class KixBuild {
   StringListType seq_names; // names of the sequences in the database
   std::vector<uint32_t> seq_lengths; // lengths of the sequences in the database
 
-};  // END class KIindex
+};  // END class KixBuild
 
 
 
@@ -67,21 +62,15 @@ class KixRun {
  public:
   // pointer to the matching positions for a k-mer
   char* kmer(HashIntoType kmer);
-
-  // get the name of a sequence
-  std::string get_name(GenomeIdType id);
   
   // retrieve all fwd and rc occurrences of kmer in the index
-  GenomePosListType retrieve_positions(HashIntoType kmer);
+  GenomePosListType retrieve_positions(std::string kmerSpan, AlignmentSettings & settings);
 
   // deserialize Kix
   uint64_t deserialize(char* d);
   
   // load and deserialize Kix from file
   uint64_t deserialize_file(std::string f);
-
-  // generate a SAM compliant header string
-  std::string get_SAM_header();
 
   // Database content
   GenomeIdType num_seq; // total number of sequences in the database
@@ -90,14 +79,6 @@ class KixRun {
   KixRunDB db;  // the lightweight database structure itself, pointing to sdata
   std::vector<char> sdata; // actual chunk of data
 };  // END class KixRun
-
-
-
-
-
-
-
-
 
 
 #endif /* KINDEX_H */
