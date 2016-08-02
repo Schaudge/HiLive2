@@ -12,7 +12,7 @@ is finished as soon as the sequencer is finished.
 Website
 -------
 
-The HiLive project website is https://sourceforge.net/projects/hilive/
+The HiLive project website is https://gitlab.com/SimonHTausch/HiLive
 
 There you can find the latest version of HiLive, source code, documentation,
 and examples.
