@@ -98,6 +98,22 @@ Hint: to concatenate the resulting sam files of a lane to a single file using sa
 
 ---
 
+#### Demultiplexing:
+
+To map reads from multiplexed sequencing runs, you can provide HiLive with the barcode sequences from your Sample Sheet.
+In default cases, barcode sequences are read after the (first) read, such that demultiplexing is carried out after the mapping is completed. 
+If you use double indexing, please concatenate both indices in the correct order and provide them as one sequence. Please take care that the number of cycles is exactly the read length from your Sample Sheet plus that of your complete barcode sequence. All entered indices must be of the same length. To provide multiple indices, enter the -XXX argument for every barcode or barcode combination, e.g.:
+
+	hilive /path/to/BaseCalls /path/to/index.kix 107 /path/to/outputFolder -XXX barcode1 -XXX barcode2 ...
+
+Reads containing one of the given barcodes will be written to the resulting samfiles. The corresponding barcode sequence is stored in the BC-field of the samfile.
+
+Hint: You can write the results of each sample into a separate files using the following command:
+
+	for barcode in barcode1 barcode2 ... ; do grep "^@" allAlignments.sam > allAlignments_$barcode.sam && grep "BC:Z:$barcode" allAlignments.sam >> allAlignments_$barcode.sam; done
+
+---
+
 We recommend to adjust the numbers of threads used by HiLive with -n. If possible,
 make use of all threads on the machine!
 
