@@ -104,7 +104,7 @@ To map reads from multiplexed sequencing runs, you can provide HiLive with the b
 In default cases, barcode sequences are read after the (first) read, such that demultiplexing is carried out after the mapping is completed. 
 If you use double indexing, please concatenate both indices in the correct order and provide them as one sequence. Please take care that the number of cycles is exactly the read length from your Sample Sheet plus that of your complete barcode sequence. All entered indices must be of the same length. To provide multiple indices, enter the -XXX argument for every barcode or barcode combination, e.g.:
 
-	hilive /path/to/BaseCalls /path/to/index.kix 107 /path/to/outputFolder -XXX barcode1 -XXX barcode2 ...
+	hilive /path/to/BaseCalls /path/to/index.kix 107 /path/to/outputFolder -b barcode1 -b barcode2 ...
 
 Reads containing one of the given barcodes will be written to the resulting samfiles. The corresponding barcode sequence is stored in the BC-field of the samfile.
 
