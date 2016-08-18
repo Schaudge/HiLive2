@@ -49,8 +49,8 @@ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
 set(Boost_USE_STATIC_LIBS ON) 
 set(Boost_USE_MULTITHREADED ON)  
 set(Boost_USE_STATIC_RUNTIME ON) 
-FIND_PACKAGE( Boost COMPONENTS system filesystem program_options REQUIRED )
-INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
+find_package( Boost COMPONENTS system filesystem program_options REQUIRED )
+include_directories( ${Boost_INCLUDE_DIR} )
 
 
 
@@ -58,9 +58,9 @@ INCLUDE_DIRECTORIES( ${Boost_INCLUDE_DIR} )
 ### setup Zlib and lz4 libraries ###
 
 find_package( ZLIB REQUIRED )
-# manually set the path for lz4 library
-set (LZ4_PATH /usr/local/lib CACHE PATH "Manually set the path to the lz4 library")
-LINK_DIRECTORIES(${LZ4_PATH})
+set (LZ4_PATH /usr/local/lib) # possibly adjust this to [pathToLz4]/lib if using downloaded lz4 source code
+include_directories(${LZ4_PATH})
+link_directories(${LZ4_PATH})
 set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
 
 
@@ -69,9 +69,9 @@ set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
 file(DOWNLOAD "https://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download" ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2)
 execute_process(COMMAND tar xjf ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2 )
 execute_process(COMMAND make -s -C samtools-1.2 )
-INCLUDE_DIRECTORIES( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 )
-INCLUDE_DIRECTORIES( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
-LINK_DIRECTORIES( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 )
+include_directories( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
+link_directories( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
 
 
 ##############################

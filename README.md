@@ -24,12 +24,14 @@ Installation
 If the binary distribution from the project website does not work for you,
 you can still compile HiLive from source.
 
-Make sure that the following dependences are installed:
+Make sure that the following dependencies are installed:
 
  * cmake (>= 2.8)
  * boost (system, filesystem, program\_options)
  * zlib
  * lz4
+
+If using a local version of lz4 then adjust path in CMakeLists.txt line 61.
 
 ---
 

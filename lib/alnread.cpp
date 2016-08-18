@@ -462,7 +462,7 @@ void ReadAlignment::convertPlaceholder(GenomePosListType& pos, AlignmentSettings
 void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension) {
     // TODO this function misbehaves when using demultiplexing. Reads might be preferred, kicking others only to get discarded due to barcode in the end.
     // compute possible remaining matches
-    int possibleRemainingMatches = settings.seqlen - cycle + (settings.kmer_span - K_HiLive);
+    int possibleRemainingMatches = settings.seqlen - cycle + settings.kmer_span - 1;
     if (cycle == settings.seqlen)
         possibleRemainingMatches = 0;
 
@@ -474,7 +474,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
         int max_num_matches = 0;
         for(SeedVecIt sd = seeds.begin() ; sd !=seeds.end(); ++sd)
             max_num_matches = std::max(max_num_matches, (int) (*sd)->num_matches);
-        num_matches_threshold = std::max(num_matches_threshold, (int) max_num_matches);
+        num_matches_threshold = std::max(num_matches_threshold, (int) max_num_matches - possibleRemainingMatches);
     }
     if (settings.all_best_n_scores_mode && settings.best_n > 0) {
         std::vector<CountType> num_matches_vector;
@@ -484,7 +484,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
         unsigned numberOfUniques = std::unique(num_matches_vector.begin(), num_matches_vector.end()) - num_matches_vector.begin(); // uniques are in front of vector now
         if (numberOfUniques > settings.best_n) {
             CountType nth_best_num_matches = num_matches_vector[settings.best_n - 1];
-            num_matches_threshold = std::max(num_matches_threshold, (int) nth_best_num_matches);
+            num_matches_threshold = std::max(num_matches_threshold, (int) nth_best_num_matches - possibleRemainingMatches);
         }
     }
     // else nothing has to be done for all-hit-mode
@@ -506,7 +506,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
     }
 
     // if a new seed would have a chance then create it
-    if (num_matches_threshold <= K_HiLive) // new seed would get an additional K_HiLive matches
+    if (num_matches_threshold <= 1) // new seed would have 1 more match than expected by possibleRemainingMatches
         add_new_seeds(pos, posWasUsedForExtension, settings);
 }
 
@@ -520,10 +520,10 @@ void ReadAlignment::addMatchingKmer(USeed & s, DiffType offset, AlignmentSetting
     ////////////////////////////////////////////////////////////
     //// determine last occurred offset ////////////////////////
     int last_offset = 0;
-    if ((*prev(s->cigar_data.end())).offset != NO_MATCH) // if last CigarElement is Match
-        last_offset = (*prev(s->cigar_data.end())).offset;
-    else // then the one before has to be a match
+    if ((*prev(prev(s->cigar_data.end()))).offset != NO_MATCH) // if last CigarElement is Match
         last_offset = (*prev(prev(s->cigar_data.end()))).offset;
+    else // then the one before has to be a match
+        last_offset = (*prev(prev(prev(s->cigar_data.end())))).offset;
     assert(last_offset != NO_MATCH);
 
     ////////////////////////////////////////////////////////////
