@@ -21,8 +21,10 @@ and examples.
 Installation
 ------------
 
-If the binary distribution from the project website does not work for you,
-you can still compile HiLive from source.
+If you are using a Debian based system you can directly install the Debian 
+package from the official [Debian repository](https://packages.debian.org/sid/hilive "HiLive Debian package")
+
+If this does not work for you, you can still compile HiLive from source.
 
 Make sure that the following dependencies are installed:
 
