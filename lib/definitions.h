@@ -140,7 +140,7 @@ struct AlignmentSettings {
   std::string temp_dir;
 
   // SWITCH: write sam/bam output or not
-  bool write_bam;
+  bool write_bam=false;
 
   // SWITCH: Keep the old alignment files of previous cycles
   bool keep_aln_files;

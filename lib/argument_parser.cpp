@@ -14,12 +14,12 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         ("BC_DIR", po::value<std::string>(&settings.root)->required(), "Illumina BaseCalls directory")
         ("INDEX", po::value<std::string>(&settings.index_fname)->required(), "Path to k-mer index")
         ("CYCLES", po::value<CountType>(&settings.rlen)->required(), "Number of cycles")
-        ("OUTDIR", po::value<std::string>(&settings.out_dir), "Directory to store sam/bam files in [Default: temporary or BaseCalls directory");
+        ("OUTDIR", po::value<std::string>(&settings.out_dir), "Directory to store sam files in [Default: temporary or BaseCalls directory");
 
     po::options_description io_settings("IO settings");
     io_settings.add_options()
         ("temp", po::value<std::string>(&settings.temp_dir)->default_value(""), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
-        ("bam,B", po::bool_switch(&settings.write_bam)->default_value(false), "Create BAM files instead of SAM files [Default: false]")
+        //("bam,B", po::bool_switch(&settings.write_bam)->default_value(false), "Create BAM files instead of SAM files [Default: false]")
         ("keep-files,k", po::bool_switch(&settings.keep_aln_files)->default_value(false), "Keep intermediate alignment files [Default: false]")
         ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
@@ -60,7 +60,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     help_message << "  BC_DIR       Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
     help_message << "  INDEX        Path to k-mer index file (*.kix)" << std::endl;
     help_message << "  CYCLES       Total number of cycles for read 1" << std::endl;
-    help_message << "  OUTDIR       Directory to store sam/bam files in" << std::endl;
+    help_message << "  OUTDIR       Directory to store sam files in" << std::endl;
     help_message << visible_options << std::endl;
 
     po::positional_options_description p;
@@ -206,10 +206,10 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     if (settings.temp_dir != "") {
         std::cout << "Temporary directory:      " << settings.temp_dir << std::endl;
     }
-    if (!settings.write_bam)
-        std::cout << "SAM output directory:     " << settings.out_dir << std::endl;
-    else
-        std::cout << "BAM output directory:     " << settings.out_dir << std::endl;
+    //if (!settings.write_bam)
+    std::cout << "SAM output directory:     " << settings.out_dir << std::endl;
+    //else
+        //std::cout << "BAM output directory:     " << settings.out_dir << std::endl;
     std::cout << "Lanes:                    ";
     for ( uint16_t ln : settings.lanes )
         std::cout << ln << " ";
