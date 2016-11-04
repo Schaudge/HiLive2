@@ -738,7 +738,6 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
     if (!((filters.size()>0 && filters.next()) || filters.size() == 0))
         continue;
 
-    num_alignments += ra->seeds.size();
 
     // Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
     //readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
@@ -748,7 +747,8 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
     /////////////////
     // set sam entries
     seqan::BamAlignmentRecord record;
-    for (SeedVecIt it = ra->seeds.begin(); it != ra->seeds.end(); ++it) {
+    bool printedFirstSeed = false;
+    for (SeedVecIt it = ra->seeds.begin(); it != ra->seeds.end(); ) {
         seqan::clear(record);
 
         record.qName = readname.str();
@@ -756,8 +756,10 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
         record.rID = (*it)->gid;
 
         record.beginPos = ra->get_SAM_start_pos(*it, *settings)-1; // seqan expects 0-based positions, but in HiLive we use 1-based
-        if (record.beginPos < 0)
+        if (record.beginPos < 0) {
+            it = ra->seeds.erase(it);
             continue;
+        }
 
         record.cigar = (*it)->returnSeqanCigarString();
 
@@ -768,7 +770,7 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
             seqan::reverseComplement(record.seq);
             record.flag |= 16;
         }
-        if (it != ra->seeds.begin()) { // if current seed is secondary alignment
+        if (printedFirstSeed) { // if current seed is secondary alignment
             record.flag |= 256;
             seqan::clear(record.seq);
             record.qual = "*";
@@ -786,6 +788,12 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
         }
         if (cigarElemSum != settings->seqlen) {
             std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << ra->get_SAM_start_pos(*it, *settings) << " because its cigar vector had length " << cigarElemSum << std::endl;
+            it = ra->seeds.erase(it);
+            continue;
+        }
+        if (deletionSum >= settings->seqlen) {
+            std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << ra->get_SAM_start_pos(*it, *settings) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
+            it = ra->seeds.erase(it);
             continue;
         }
 
@@ -800,6 +808,9 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
 
         // write record to disk
         seqan::writeRecord(samFileOut, record);
+        ++num_alignments;
+        printedFirstSeed = true;
+        ++it;
     }
   }
   
