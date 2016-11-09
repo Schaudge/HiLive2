@@ -42,5 +42,15 @@ std::string position_name(std::string rt, uint16_t ln, uint16_t tl);
 std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, bool write_bam);
 std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam);
 
+/**
+ * Split a string by a delimiter.
+ * @param s String to split.
+ * @param delim Delimiter for splitting
+ * @param elems Vector to push the fragments
+ * @return
+ * @author Tobias Loka
+ */
+void split(const std::string &s, char delim, std::vector<std::string> &elems);
+
 
 #endif /* TOOLS_H */

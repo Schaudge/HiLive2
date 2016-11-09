@@ -129,6 +129,11 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     if (vm.count("barcodes")) {
         settings.barcodeVector = vm["barcodes"].as< std::vector<std::string> >();
         settings.seqlen = settings.rlen - settings.barcodeVector[0].size();
+        if( !parseBarcodeArgument(settings, vm["barcodes"].as< std::vector<std::string> >()) ) {
+        	std::cerr << "Parsing error: Invalid barcode(s) detected. Please ensure that you used \'-\' "
+        			"as duplex delimiter and that all barcodes have the correct length. Only use A,C,G and T as bases!" << std::endl;
+        	return -1;
+        }
     }
 
     if (vm["all-hits"].as<bool>()) {
@@ -269,4 +274,50 @@ bool parseReadsArgument(AlignmentSettings & settings, std::vector< std::string >
 	}
 
 	return true;
+}
+
+bool parseBarcodeArgument(AlignmentSettings & settings, std::vector< std::string > barcodeArg ) {
+
+	std::vector<uint16_t> barcode_lengths;
+
+	for ( uint16_t seq_num = 0; seq_num < settings.isBarcode.size(); seq_num++ ) {
+
+		// We are only interesed in Barcode sequences
+		if ( !settings.isBarcode[seq_num] )
+			continue;
+
+		barcode_lengths.push_back( settings.seqLengths[seq_num] );
+	}
+
+	for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {
+
+		std::string valid_chars = seq_chars + "-";
+		for(CountType i = 0; i != (*barcode).length(); i++){
+			char c = (*barcode)[i];
+			if ( valid_chars.find(c) == std::string::npos )
+				return false;
+		}
+
+		std::vector<std::string> fragments;
+		split(*barcode, '-', fragments);
+
+		// check validity of barcode
+		if ( barcode_lengths.size() != fragments.size())
+			return false;
+
+
+
+		for ( uint16_t num = 0; num != fragments.size(); num++ ) {
+			if ( fragments[num].length() != barcode_lengths[num] ) {
+				return false;
+			}
+		}
+
+		// push back the fragments vector
+		settings.multiBarcodeVector.push_back(fragments);
+
+	}
+
+	return true;
+
 }

@@ -241,3 +241,12 @@ std::string position_name(std::string rt, uint16_t ln, uint16_t tl) {
   path_stream << rt << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
   return path_stream.str();
 }
+
+void split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+}

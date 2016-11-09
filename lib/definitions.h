@@ -175,6 +175,9 @@ struct AlignmentSettings {
   // PARAMETER: true, if barcode read, false if sequence read.
   std::vector<bool> isBarcode;
 
+  //PARAMETER: Vector to store multi-barcodes
+  std::vector<std::vector<std::string>> multiBarcodeVector;
+
   // PARAMETER: vector containing all barcodes of the reads which should be outputted
   std::vector<std::string> barcodeVector;
 
