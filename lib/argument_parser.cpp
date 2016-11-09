@@ -23,7 +23,8 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         ("keep-files,k", po::bool_switch(&settings.keep_aln_files)->default_value(false), "Keep intermediate alignment files [Default: false]")
         ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
-        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, i.e. -b AGGATC -b CCCTTT [Default: no demultiplexing]");
+        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, i.e. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
+    	("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes.");
 
     po::options_description alignment("Alignment settings");
     alignment.add_options()
@@ -109,6 +110,9 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         else
             settings.out_dir = settings.temp_dir;
     }
+
+    if ( vm.count("reads") && !parseReadsArgument(settings, vm["reads"].as< std::vector<std::string> >()) )
+    	return -1;
 
     if (vm.count("lanes"))
         settings.lanes = vm["lanes"].as< std::vector<uint16_t> >();
@@ -228,4 +232,41 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     std::cout << std::endl;
 
     return 0;
+}
+
+bool parseReadsArgument(AlignmentSettings & settings, std::vector< std::string > readsArg){
+
+	CountType lenSum = 0;
+	CountType length = 0;
+	std::string length_string = "";
+	char type;
+
+	for ( auto read = readsArg.begin(); read != readsArg.end(); ++read ) {
+
+		length_string = (*read).substr(0,(*read).length()-1);
+		type = (*(*read).rbegin());
+
+		try{
+		std::stringstream( length_string ) >> length;
+		} catch( std::bad_cast & ex ){
+			std::cerr << "Error while casting length " << length_string << " to type uint16_t" << std::endl;
+		}
+
+		if ( type!='B' && type!='R' ) {
+			std::cerr << "\'" << type << "\'" << " is no valid read type. Please use " << "\'R\'" << " for sequencing reads or "
+					"\'B\'" << " for barcode reads." << std::endl;
+			return false;
+		}
+
+		settings.seqLengths.push_back( length );
+		lenSum += length;
+		settings.isBarcode.push_back( type=='B' );
+	}
+
+	if ( lenSum!=settings.rlen ) {
+		std::cerr << "Sum of defined reads does not equal the given number of cycles." << std::endl;
+		return false;
+	}
+
+	return true;
 }

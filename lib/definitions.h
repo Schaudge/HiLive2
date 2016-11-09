@@ -169,6 +169,12 @@ struct AlignmentSettings {
   // PARAMETER: length of the sequence of all reads (excluding barcodes)
   CountType seqlen;
 
+  // PARAMETER: lengths of the respective sequencing reads
+  std::vector<CountType> seqLengths;
+
+  // PARAMETER: true, if barcode read, false if sequence read.
+  std::vector<bool> isBarcode;
+
   // PARAMETER: vector containing all barcodes of the reads which should be outputted
   std::vector<std::string> barcodeVector;
 
