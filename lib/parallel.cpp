@@ -4,7 +4,8 @@
 
 std::ostream& operator<<(std::ostream& os, const Task& t)
 {
-  os << "Lane " << t.lane << " Tile " << t.tile << " Cycle " << t.cycle;
+  std::string mate = t.seqEl.mate == 0 ? "b" : std::to_string(t.seqEl.mate);
+  os << "Lane " << t.lane << " Tile " << t.tile << " Cycle " << mate << "." << t.cycle;
   return os;
 }
 
@@ -71,34 +72,35 @@ std::vector<uint16_t> one_tile(uint16_t t) {
 
 
 // initialize agenda with root directory and read length only (all lanes, all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl) {
+Agenda::Agenda (std::string rt, uint16_t rl, AlignmentSettings* set) {
   
   // add lanes 1-8 to the list
   std::vector<uint16_t> ln = all_lanes();
   
   // call the tiles constructor
-  Agenda(rt, rl, ln);
+  Agenda(rt, rl, ln, set);
 
 }
 
 // initialize agenda with root directory, read length, and lanes (all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln) {
+Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, AlignmentSettings* set) {
 
   // add all tiles to the list
   std::vector<uint16_t> tl = all_tiles();
   
   // call the full constructor
-  Agenda (rt, rl, ln, tl);
+  Agenda (rt, rl, ln, tl, set);
 
 }
 
 // initialize agenda with root directory, read length, lanes, and tiles
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) {
+Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, AlignmentSettings* set) {
 
   root = rt;
   rlen = rl;
   lanes = ln;
   tiles = tl;
+  settings = set;
 
   // set up the agenda
   items.clear();
@@ -116,65 +118,65 @@ Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vect
 // check for BCL files and update item status
 void Agenda::update_status () {
 
-  // iterate over lanes
-  for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+	// iterate over lanes
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
 
-    // iterate over all tiles
-    for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+		// iterate over all tiles
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
 
-      // get the first cycle that is not in the FINISHED status
-      uint16_t first_unfinished = 0;
-      while ( (first_unfinished < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == FINISHED)) {
-	first_unfinished++;
-      }
+			// get the first cycle that is not in the FINISHED status
+			uint16_t first_unfinished = 0;
+			while ( (first_unfinished < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == FINISHED)) {
+				first_unfinished++;
+			}
 
-      // if there is one, check if there is a BCL file available
-      if ((first_unfinished != items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == WAITING)) {
-	std::string this_fname = bcl_name(root, lanes[ln_id], tiles[tl_id], first_unfinished+1);
-	// only change the status if the file exists
-	if ( file_exists(this_fname) ) {
-	  // TODO: probably find a way to check if the machine currently writes to that file
-	  items[ln_id][tl_id][first_unfinished] = BCL_AVAILABLE;
+			// if there is one, check if there is a BCL file available
+			if ((first_unfinished != items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == WAITING)) {
+				std::string this_fname = bcl_name(root, lanes[ln_id], tiles[tl_id], first_unfinished+1);
+				// only change the status if the file exists
+				if ( file_exists(this_fname) ) {
+					// TODO: probably find a way to check if the machine currently writes to that file
+					items[ln_id][tl_id][first_unfinished] = BCL_AVAILABLE;
+				}
+			}
+		}
 	}
-      }
-
-    }
-
-  }
-  
 }
-
 
 // generate a new task from the agenda
 Task Agenda::get_task(){
-  // iterate over lanes
-  for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+	// iterate over lanes
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
 
-    // iterate over all tiles
-    for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+		// iterate over all tiles
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
 
-      // check if there is a cycle with an unprocessed BCL file
-      uint16_t unprocessed = 0;
-      while ( (unprocessed < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][unprocessed] != BCL_AVAILABLE)) {
-	unprocessed++;
-      }
+			// check if there is a cycle with an unprocessed BCL file
+			uint16_t unprocessed = 0;
+			while ( (unprocessed < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][unprocessed] != BCL_AVAILABLE)) {
+				unprocessed++;
+			}
 
-      // generate a new task if there is an unprocessed BCL file
-      if ( unprocessed != items[ln_id][tl_id].size() ) {
-	Task t (lanes[ln_id], tiles[tl_id], unprocessed+1, rlen, root);
-	return t;
-      }
-
-    }
-
-  }
-  // return indicator that no new task could be created
-  return NO_TASK;
+			// generate a new task if there is an unprocessed BCL file
+			if ( unprocessed != items[ln_id][tl_id].size() ) {
+				uint16_t cycle = unprocessed + 1;
+				uint16_t read_no = 0;
+				while ( cycle > settings->getSeqById(read_no).length) {
+					cycle -= settings->getSeqById(read_no).length;
+					read_no += 1;
+				}
+				Task t (lanes[ln_id], tiles[tl_id], settings->getSeqById(read_no), cycle, root);
+				return t;
+			}
+		}
+	}
+	// return indicator that no new task could be created
+	return NO_TASK;
 }
 
 
 // set a status
-void Agenda::set_status(Task t, ItemStatus status) {
+void Agenda::set_status(Task t, ItemStatus status, AlignmentSettings* set) {
   // get the lane index
   uint64_t diff = std::find(lanes.begin(), lanes.end(), t.lane) - lanes.begin();
   if ( diff >= lanes.size() ) {
@@ -193,7 +195,7 @@ void Agenda::set_status(Task t, ItemStatus status) {
   if ( (t.cycle > rlen) || (t.cycle == 0) ) {
     throw std::out_of_range("Cycle out of range.");
   }
-  uint16_t cl_id = t.cycle -1;
+  uint16_t cl_id = getSeqCycle(t.cycle,set,t.seqEl.id) -1;
 
   items[ln_id][tl_id][cl_id] = status;
 }
@@ -277,8 +279,12 @@ std::vector<Task> Agenda::get_SAM_tasks() {
   // find tiles that are completely mapped
   for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
     for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
-      if ( items[ln_id][tl_id][rlen-1] == FINISHED ) {
-	tv.push_back(Task(lanes[ln_id],tiles[tl_id],rlen,rlen,root));
+      if ( items[ln_id][tl_id][settings->cycles-1] == FINISHED ) {
+    	  CountType mate = 1;
+    	  for ( ; mate <= settings->mates; mate++ ) {
+    		  SequenceElement seqEl = settings->getSeqByMate(mate);
+    		  tv.push_back(Task(lanes[ln_id],tiles[tl_id],seqEl,seqEl.length,root));
+    	  }
       }
     }
   }

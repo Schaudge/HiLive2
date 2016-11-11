@@ -33,10 +33,24 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, Alignm
             // Execute the task
             bool success = true;
             try {
-                StreamedAlignment s (t.lane, t.tile, t.root, t.rlen);
+
+                StreamedAlignment s (t.lane, t.tile, t.root, t.seqEl.length);
                 uint64_t num_seeds;
-                num_seeds = s.extend_alignment(t.cycle,idx,settings);
-                std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+
+                // Seed extension if current read is no barcode.
+                if ( !t.seqEl.isBarcode() ) {
+                	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate,idx,settings);
+                	std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+                // If current read is barcode, extend barcode sequence in all sequence read align files
+                } else {
+                	CountType mate = 1;
+                	for ( ; mate <= settings->mates; mate++ ) {
+                		SequenceElement seqEl = settings->getSeqByMate(mate);
+                		CountType current_mate_cycle = t.seqEl.id < seqEl.id ? 0 : seqEl.length;
+                		s.extend_barcode(t.cycle, current_mate_cycle, t.seqEl.id, mate, settings);
+                	}
+                	std::cout << "Task [" << t << "]: Extended barcode of " << --mate << " mates." << std::endl;
+                }
             }
             catch (const std::exception &e) {
                 std::cerr << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
@@ -68,7 +82,7 @@ void sam_worker (TaskQueue & tasks, AlignmentSettings* settings, KixRun* idx) {
         Task t = tasks.pop();
         if ( t != NO_TASK ) {
             // Execute the task
-            alignments_to_sam(t.lane,t.tile,t.root,t.rlen, idx,settings);
+            alignments_to_sam(t.lane,t.tile,t.root,t.seqEl.length,t.seqEl.mate,idx,settings);
         }
         else {
             return;
@@ -94,7 +108,7 @@ int main(int argc, const char* argv[]) {
 
 
     // Create the overall agenda
-    Agenda agenda (settings.root, settings.rlen, settings.lanes, settings.tiles);
+    Agenda agenda (settings.root, settings.cycles, settings.lanes, settings.tiles, &settings);
 
 
     // prepare the alignment
@@ -110,7 +124,7 @@ int main(int argc, const char* argv[]) {
         first_cycle_available = true;
         for ( auto ln : settings.lanes ) {
             for ( auto tl : settings.tiles ) {
-                if ( agenda.get_status(Task(ln,tl,1,settings.rlen,"")) != BCL_AVAILABLE) {
+                if ( agenda.get_status(Task(ln,tl,settings.getSeqById(0),1,"")) != BCL_AVAILABLE) {
                     first_cycle_available = false;
                 }
             }
@@ -122,12 +136,15 @@ int main(int argc, const char* argv[]) {
 
     std::cout << "First cycle complete. Starting alignment." << std::endl;
 
-    // write empty alignment file for each tile
+    // write empty alignment file for each tile and for each sequence read
     for (uint16_t ln : settings.lanes) {
         for (uint16_t tl : settings.tiles) {
-            StreamedAlignment s (ln, tl, settings.root, settings.rlen);
-            s.create_directories(&settings);
-            s.init_alignment(&settings);
+        	CountType mate = 1;
+        	for ( ; mate <= settings.mates; mate++ ) {
+        		StreamedAlignment s (ln, tl, settings.root, settings.getSeqByMate(mate).length);
+        		s.create_directories(&settings);
+        		s.init_alignment(mate, &settings);
+        	}
         }
     }
 
@@ -160,7 +177,7 @@ int main(int argc, const char* argv[]) {
             if (t == NO_TASK)
                 break;
             toDoQ.push(t);
-            agenda.set_status(t,RUNNING);
+            agenda.set_status(t,RUNNING, &settings);
         }
 
         // take a look in the finished queue and process finished tasks
@@ -168,7 +185,7 @@ int main(int argc, const char* argv[]) {
             Task t = finishedQ.pop();
             if (t == NO_TASK)
                 break;
-            agenda.set_status(t,FINISHED);
+            agenda.set_status(t,FINISHED, &settings);
         }
 
         // take a look in the failed queue and process failed tasks
@@ -178,11 +195,11 @@ int main(int argc, const char* argv[]) {
                 break;
             if (agenda.get_status(t) == RUNNING) {
                 // give it one more chance
-                agenda.set_status(t,RETRY);
+                agenda.set_status(t,RETRY, &settings);
                 toDoQ.push(t);
             }
             else {
-                agenda.set_status(t,FAILED);
+                agenda.set_status(t,FAILED, &settings);
                 std::cout << "Task failed! " << t << std::endl;
             }
         }

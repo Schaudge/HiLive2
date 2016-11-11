@@ -89,11 +89,43 @@ struct CigarElement {
     CigarElement (): length(0), offset(NO_MATCH) {};
 };
 
+/**
+ * Struct containing information about the user-defined sequencing reads. This can be barcode or sequence fragments.
+ * @author Tobias Loka
+ */
+struct SequenceElement {
+
+	/** The id of the read. Equals the position in the argument list and in the AlignmentSettings::seqs vector (0-based). */
+	CountType id;
+	/** The mate number. 0 for barcodes, increasing for sequence reads in the given order (1-based). */
+	CountType mate;
+	/** The length of the respective read. */
+	CountType length;
+
+	/** Construct a null-element. */
+	SequenceElement () : id(0), mate(0), length(0) {};
+
+	/**
+	 * Construct a new element
+	 * @param id The id of the read.
+	 * @param m The mate number of the read (0 for barcodes, incrementing for sequence reads)
+	 * @param l The length of the read
+	 */
+	SequenceElement (CountType id, CountType m, CountType l): id(id), mate(m), length(l) {};
+
+	/** true, if SequenceElement is a barcode. */
+	bool isBarcode() { return (mate==0);}
+};
+
+/** Checks for equality of two SequenceElement objects*/
+inline bool operator==(const SequenceElement l, const SequenceElement r) {return (l.length==r.length) && (l.mate==r.mate) && (l.id==r.id);}
+/** Checks for inequality of two SequenceElement objects*/
+inline bool operator!=(const SequenceElement l, const SequenceElement r) {return !(l==r);}
+/** Defines a null-SequenceElement. */
+const SequenceElement NULLSEQ = SequenceElement();
+
 // CigarVector containing CIGAR string like information about the alignments
 typedef std::list<CigarElement> CigarVector;
-
-
-
 
 // all user parameters are stored in the alignment settings
 struct AlignmentSettings {
@@ -163,19 +195,20 @@ struct AlignmentSettings {
   // PARAMETER: path to the index file
   std::string index_fname;
 
-  // PARAMETER: read length of all reads (including barcodes)
-  CountType rlen;
+  // PARAMETER: total number of cycles
+  CountType cycles;
 
-  // PARAMETER: length of the sequence of all reads (excluding barcodes)
-  CountType seqlen;
+  /**
+   * Contains the read information of the sequencing machine (as SequenceElement objects). Includes sequence reads and barcodes.
+   * Arbitrary numbers and orders of reads are supported. The summed length of all elements must equal the number of sequencing cycles.
+   * @author Tobias Loka
+   */
+  std::vector<SequenceElement> seqs;
 
-  // PARAMETER: lengths of the respective sequencing reads
-  std::vector<CountType> seqLengths;
+  // Number of mates (information taken from the seqLengths parameter)
+  uint16_t mates = 0;
 
-  // PARAMETER: true, if barcode read, false if sequence read.
-  std::vector<bool> isBarcode;
-
-  //PARAMETER: Vector to store multi-barcodes
+  //PARAMETER: Vector to store multi-barcodes (will replace the barcodeVector in later versions)
   std::vector<std::vector<std::string>> multiBarcodeVector;
 
   // PARAMETER: vector containing all barcodes of the reads which should be outputted
@@ -186,6 +219,28 @@ struct AlignmentSettings {
 
   // PARAMETER: number of threads to use
   CountType num_threads;
+
+  /**
+   * Get a SequenceElement object from the seqs vector by using the id
+   * @param id The id of the SequenceElement.
+   * @return The respective SequenceElement object for the given id.
+   * @author Tobias Loka
+   */
+  SequenceElement getSeqById(CountType id) {return seqs[id];}
+
+  /**
+   * Get a SequenceElement object from the seqs vector by using the mate number
+   * @param id The mate number of the SequenceElement.
+   * @return The respective SequenceElement object for the given mate number. NULLSEQ if mate==0 (barcodes).
+   * @author Tobias Loka
+   */
+  SequenceElement getSeqByMate(CountType mate) {
+	  if ( mate == 0 ) return NULLSEQ;
+	  for (uint16_t i = 0; i != seqs.size(); i++) {
+		  if(seqs[i].mate == mate) return seqs[i];
+	  }
+	  return NULLSEQ;
+  }
 };
 
 

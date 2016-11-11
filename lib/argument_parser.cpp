@@ -13,7 +13,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     parameters.add_options()
         ("BC_DIR", po::value<std::string>(&settings.root)->required(), "Illumina BaseCalls directory")
         ("INDEX", po::value<std::string>(&settings.index_fname)->required(), "Path to k-mer index")
-        ("CYCLES", po::value<CountType>(&settings.rlen)->required(), "Number of cycles")
+        ("CYCLES", po::value<CountType>(&settings.cycles)->required(), "Number of cycles")
         ("OUTDIR", po::value<std::string>(&settings.out_dir), "Directory to store sam files in [Default: temporary or BaseCalls directory");
 
     po::options_description io_settings("IO settings");
@@ -111,8 +111,13 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
             settings.out_dir = settings.temp_dir;
     }
 
+    // Parse read lengths and types. If read argument is missing, init for single-end and non-barcoded.
     if ( vm.count("reads") && !parseReadsArgument(settings, vm["reads"].as< std::vector<std::string> >()) )
     	return -1;
+    else if ( !vm.count("reads") ) {
+    	settings.seqs.push_back(SequenceElement(0,1,settings.cycles));
+    	settings.mates = 1;
+    }
 
     if (vm.count("lanes"))
         settings.lanes = vm["lanes"].as< std::vector<uint16_t> >();
@@ -125,10 +130,8 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         settings.tiles = all_tiles();
 
     settings.barcodeVector.clear();
-    settings.seqlen = settings.rlen;
     if (vm.count("barcodes")) {
         settings.barcodeVector = vm["barcodes"].as< std::vector<std::string> >();
-        settings.seqlen = settings.rlen - settings.barcodeVector[0].size();
         if( !parseBarcodeArgument(settings, vm["barcodes"].as< std::vector<std::string> >()) ) {
         	std::cerr << "Parsing error: Invalid barcode(s) detected. Please ensure that you used \'-\' "
         			"as duplex delimiter and that all barcodes have the correct length. Only use A,C,G and T as bases!" << std::endl;
@@ -224,7 +227,14 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         std::cout << ln << " ";
     std::cout << std::endl;
     std::cout << "K-mer index:              " << settings.index_fname << std::endl;
-    std::cout << "Read length:              " << settings.rlen << std::endl;
+    std::cout << "Read lengths:             ";
+    std::string barcode_suffix;
+    for ( uint16_t read = 0; read != settings.seqs.size(); read ++) {
+    	std::cout << settings.getSeqById(read).length;
+    	barcode_suffix = settings.getSeqById(read).isBarcode() ? "B" : "R";
+    	std::cout << barcode_suffix << " ";
+    }
+    std::cout << std::endl;
     std::cout << "Mapping error:            " << settings.min_errors << std::endl;
     if (settings.any_best_hit_mode) 
         std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
@@ -263,12 +273,12 @@ bool parseReadsArgument(AlignmentSettings & settings, std::vector< std::string >
 			return false;
 		}
 
-		settings.seqLengths.push_back( length );
+		settings.seqs.push_back(SequenceElement(settings.seqs.size(), (type == 'R') ? ++settings.mates : 0, length));
 		lenSum += length;
-		settings.isBarcode.push_back( type=='B' );
+
 	}
 
-	if ( lenSum!=settings.rlen ) {
+	if ( lenSum!=settings.cycles ) {
 		std::cerr << "Sum of defined reads does not equal the given number of cycles." << std::endl;
 		return false;
 	}
@@ -280,13 +290,13 @@ bool parseBarcodeArgument(AlignmentSettings & settings, std::vector< std::string
 
 	std::vector<uint16_t> barcode_lengths;
 
-	for ( uint16_t seq_num = 0; seq_num < settings.isBarcode.size(); seq_num++ ) {
+	for ( uint16_t seq_num = 0; seq_num < settings.seqs.size(); seq_num++ ) {
 
 		// We are only interesed in Barcode sequences
-		if ( !settings.isBarcode[seq_num] )
+		if ( !settings.getSeqById(seq_num).isBarcode() )
 			continue;
 
-		barcode_lengths.push_back( settings.seqLengths[seq_num] );
+		barcode_lengths.push_back( settings.getSeqById(seq_num).length );
 	}
 
 	for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {

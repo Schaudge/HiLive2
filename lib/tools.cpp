@@ -202,30 +202,37 @@ std::string bcl_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl) {
 
 
 // construct alignment file name from: root, lane, tile, cycle
-std::string alignment_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl) {
+std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt, std::string base){
   std::ostringstream path_stream;
-  path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << cl << ".align";
+  path_stream << base << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mt << "."<< cl << ".align";
   return path_stream.str();
 }
 
 // construct tile-wise SAM file name from: root, lane, tile
-std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, bool write_bam) {
+std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t mate, bool write_bam) {
   std::ostringstream path_stream;
   if (write_bam)
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".bam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".bam";
   else
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".sam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".sam";
   return path_stream.str();
 }
 
 // construct lane-wise SAM file name from: root, lane
-std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam) {
+std::string sam_lane_name(std::string rt, uint16_t ln, uint16_t mate, bool write_bam) {
   std::ostringstream path_stream;
   if (write_bam)
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << ".bam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "." << mate << ".bam";
   else
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << ".sam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "." << mate << ".sam";
   return path_stream.str();
+}
+
+uint16_t getSeqCycle(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number) {
+	uint16_t seq_cycle = cycle;
+	for ( int i = 0; i < read_number; i++ )
+		seq_cycle += settings->getSeqById(i).length;
+	return seq_cycle;
 }
 
 // construct filter file name from: root, lane, tile

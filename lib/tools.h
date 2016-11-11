@@ -36,11 +36,20 @@ std::string unhash(HashIntoType myHash, unsigned hashLen=K_HiLive);
 
 // file name construction functions
 std::string bcl_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl);
-std::string alignment_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl);
+std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt, std::string base);
 std::string filter_name(std::string rt, uint16_t ln, uint16_t tl);
 std::string position_name(std::string rt, uint16_t ln, uint16_t tl);
-std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, bool write_bam);
+std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t mate, bool write_bam);
 std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam);
+
+/** Get the current sequencing cycle using the current alignment cycle and read number.
+ * @param cycle The read cycle.
+ * @param rlen The read length.
+ * @param read_number The read number (:= index of settings.seqLengths)
+ * @return The sequencing cycle.
+ * @author Tobias Loka
+ */
+uint16_t getSeqCycle(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number=1);
 
 /**
  * Split a string by a delimiter.
