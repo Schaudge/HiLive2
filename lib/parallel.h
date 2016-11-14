@@ -8,33 +8,65 @@
 
 //------ Threading tools --------------------------------------------//
 
-/** Task data structure. Contains all information for a thread to process a BCL file.
+/**
+ * Task data structure. Contains all information for a thread to process a BCL file.
  * @author Martin Lindner
  */
 struct Task {
-  // dataset information
+  /** The lane of the task. */
   uint16_t lane;
+  /** The tile of the task. */
   uint16_t tile;
+  /** Struct containing the read properties (Barcode vs. sequence; length; mate). */
   SequenceElement seqEl;
-//  uint16_t read_number; // Number of the read fragment (:= index in settings.seqLength array)
-  uint16_t cycle; // Current cycle of the read fragment (must be <= value in settings.seqLength array)
-//  uint16_t read_length; // Number of bases for the current read fragment (:= value in settings.seqLength array)
-//  uint16_t mate; // Read mate. Normally, there exist only 1 (single-end) or 1 and 2 (paired end). Barcodes are marked as 0.
+  /** Current cycle of the particular read (in general, this does NOT equal the sequencing cycle!). Must be <=seqEl.length. */
+  uint16_t cycle;
+  /** Base call root directory */
   std::string root;
 
+  /**
+   * Constructor for a NULL task.
+   * @author Tobias Loka
+   */
   Task() : lane(255), tile(0), seqEl(NULLSEQ), cycle(0), root("") {};
 
-  // constructor initializes all member variables
+  /**
+   * Constructor for a valid task.
+   * @param ln The lane number.
+   * @param tl The tile number.
+   * @param seq The respective seqEl element for the current read containing information about length, type (barcode vs. sequence), mate number ...
+   * @param cl The cycle of the current read (in general, this does NOT equal the sequencing cycle!). Must be <=seqEl.length.
+   * @param rt Base call root directory.
+   * @author Martin Lindner
+   */
  Task(uint16_t ln, uint16_t tl, SequenceElement seq, uint16_t cl, std::string rt):
 	 lane(ln), tile(tl), seqEl(seq), cycle(cl), root(rt) {};
 
-  // overload << operator for printing
+  /**
+   * Overload of the << operator. Defines the cout form of a task.
+   * @author Martin Lindner
+   */
   friend std::ostream& operator<<(std::ostream& os, const Task& t);
 };
 
+/**
+ * Overload of the == operator.
+ * @return true, if all fields/variables of the compared tasks equal.
+ * @author Martin Lindner
+ */
 inline bool operator==(const Task& l, const Task& r){ return (r.lane==l.lane)&&(r.tile==l.tile)&&(r.cycle==l.cycle)&&(r.seqEl==l.seqEl)&&(r.root==l.root); }
+
+/**
+ * Overload of the != operator.
+ * @return true, if at least one field/variable of the compared tasks is different.
+ * @author Martin Lindner
+ */
 inline bool operator!=(const Task& l, const Task& r){ return !(l==r); }
 
+/**
+ * Definition of a NULL task.
+ * @author Martin Lindner
+ */
 const Task NO_TASK (255,0,NULLSEQ,0,"");
 
 // Task queue data structure. Manages a list of task objects in a thread safe way.

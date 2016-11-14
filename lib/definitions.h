@@ -102,18 +102,26 @@ struct SequenceElement {
 	/** The length of the respective read. */
 	CountType length;
 
-	/** Construct a null-element. */
+	/**
+	 * Constructor of a SequenceElement NULL object.
+	 * @author Tobias Loka
+	 */
 	SequenceElement () : id(0), mate(0), length(0) {};
 
 	/**
-	 * Construct a new element
+	 * Constructor of a valid SequenceElement object.
 	 * @param id The id of the read.
 	 * @param m The mate number of the read (0 for barcodes, incrementing for sequence reads)
 	 * @param l The length of the read
+	 * @author Tobias Loka
 	 */
 	SequenceElement (CountType id, CountType m, CountType l): id(id), mate(m), length(l) {};
 
-	/** true, if SequenceElement is a barcode. */
+	/**
+	 * Check whether the SequenceElement object is a barcode or not.
+	 * @return true, if SequenceElement is a barcode. False if not.
+	 * @author Tobias Loka
+	 */
 	bool isBarcode() { return (mate==0);}
 };
 

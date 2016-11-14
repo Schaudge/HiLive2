@@ -125,7 +125,6 @@ class ReadAlignment {
 
   /**
    * Convert and return sequence of the barcode. Multiple barcodes are concatenated.
-   * @param settings Object containing the program settings.
    * @return The Barcode as string
    * @author Tobias Loka
    */

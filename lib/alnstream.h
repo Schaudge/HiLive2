@@ -171,6 +171,7 @@ class StreamedAlignment {
    * Extend the barcode for all reads with the information of the current sequencing cycle.
    * @param bc_cycle The cycle of the barcode read.
    * @param read_cycle The last handled cycle for the respective mate (should always be 0 or the full length)
+   * @param read_no The number of the sequence read for which the barcode will be extended (:= index in AlignmentSettings::seqs).
    * @param mate The read mate to extend the barcode.
    * @param settings Object containing the program settings.
    * @return

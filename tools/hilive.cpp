@@ -41,6 +41,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, Alignm
                 if ( !t.seqEl.isBarcode() ) {
                 	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate,idx,settings);
                 	std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+
                 // If current read is barcode, extend barcode sequence in all sequence read align files
                 } else {
                 	CountType mate = 1;

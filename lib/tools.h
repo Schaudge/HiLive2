@@ -44,8 +44,8 @@ std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam);
 
 /** Get the current sequencing cycle using the current alignment cycle and read number.
  * @param cycle The read cycle.
- * @param rlen The read length.
- * @param read_number The read number (:= index of settings.seqLengths)
+ * @param settings Object containing the program settings.
+ * @param read_number The read number (:= index of settings.seqs)
  * @return The sequencing cycle.
  * @author Tobias Loka
  */
