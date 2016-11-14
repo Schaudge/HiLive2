@@ -131,6 +131,16 @@ class ReadAlignment {
   std::string getBarcodeString();
 
   /**
+     * Check whether the barcode of this read fulfills the criteria of at least one user-defined barcode.
+     * The nucleotides are only compared pairwise, not allowing for Indels.
+     * @param settings Object containing the program settings.
+     * @return True, if read was filtered.
+     * @author Tobias Loka
+     */
+  bool hasValidBarcode(AlignmentSettings* settings) ;
+
+
+  /**
    * Append one nucleotide to sequenceStoreVector
    * @param nucl The nucleotide. Must be 2-bit-formatted.
    * @param appendToBarcode If true, the nucleotide is appended to the barcode instead of the read sequence (default: false).

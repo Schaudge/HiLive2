@@ -664,6 +664,11 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	    ReadAlignment* ra = input.get_alignment();
 	    ra->appendNucleotideToSequenceStoreVector(revtwobit_repr(bc), true);
 
+	    // check for barcode validity
+	    if ( bc_cycle == settings->seqs[read_no].length && !ra->hasValidBarcode(settings)) {
+	    	ra->disable();
+	    }
+
 	    output.write_alignment(ra);
 	    delete ra;
 	  }
@@ -679,6 +684,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	  std::rename(out_fname.c_str(), in_fname.c_str());
 
 }
+
 
 //-------------------------------------------------------------------//
 //------  Streamed SAM generation -----------------------------------//

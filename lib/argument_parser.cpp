@@ -23,8 +23,9 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         ("keep-files,k", po::bool_switch(&settings.keep_aln_files)->default_value(false), "Keep intermediate alignment files [Default: false]")
         ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
-        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, i.e. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
-    	("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes.");
+        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
+    	("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
+		("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes.");
 
     po::options_description alignment("Alignment settings");
     alignment.add_options()
@@ -129,6 +130,8 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     else
         settings.tiles = all_tiles();
 
+
+
     settings.barcodeVector.clear();
     if (vm.count("barcodes")) {
         settings.barcodeVector = vm["barcodes"].as< std::vector<std::string> >();
@@ -137,6 +140,20 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         			"as duplex delimiter and that all barcodes have the correct length. Only use A,C,G and T as bases!" << std::endl;
         	return -1;
         }
+    }
+
+    if ( settings.multiBarcodeVector.size() != 0 ) {
+    	if ( vm.count("barcode-errors") ) {
+    		settings.barcode_errors = vm["barcode-errors"].as< std::vector<uint16_t> >();
+    		if ( settings.multiBarcodeVector[0].size() != settings.barcode_errors.size() ) {
+    			std::cerr << "Parsing error: Number of barcode errors does not equal the number of barcodes." << std::endl;
+    			return -1;
+    		}
+    	} else {
+        	for ( uint16_t i = 0; i < settings.multiBarcodeVector[0].size(); i++ ) {
+        		settings.barcode_errors.push_back(1);
+        	}
+    	}
     }
 
     if (vm["all-hits"].as<bool>()) {

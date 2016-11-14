@@ -219,6 +219,9 @@ struct AlignmentSettings {
   //PARAMETER: Vector to store multi-barcodes (will replace the barcodeVector in later versions)
   std::vector<std::vector<std::string>> multiBarcodeVector;
 
+  // PARAMETER: number of allowed errors for the single barcodes
+  std::vector<uint16_t> barcode_errors;
+
   // PARAMETER: vector containing all barcodes of the reads which should be outputted
   std::vector<std::string> barcodeVector;
 

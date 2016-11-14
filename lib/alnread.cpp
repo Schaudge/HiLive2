@@ -690,7 +690,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* 
 	// update the last k-mer
 	uint8_t qual = ((bc >> 2) & 63); // get bits 3-8
 	if ( (bc == 0) || (qual < settings->min_qual) ){ // no call if all 0 bits or quality below threshold
-		last_invalid = cycle; // TODO append an N as basecall? Could be a bad idea
+		last_invalid = last_invalid > cycle ? last_invalid : cycle; // TODO append an N as basecall? Could be a bad idea
 	}
     unsigned mask = 3;
     if (flags != 0) // if read is valid
@@ -787,6 +787,64 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* 
     filterAndCreateNewSeeds(*settings, pos, posWasUsedForExtension);
 
 	return;
+}
+
+bool ReadAlignment::hasValidBarcode(AlignmentSettings* settings) {
+
+	// if barcoding not activated, dont't filter.
+	 if ( settings->barcodeVector.size() == 0 )
+		 return false;
+
+	// Get the barcodes of the read
+	std::string read_bc = getBarcodeString();
+
+	bool valid = false;
+	uint16_t fragment_errors = 0;
+	uint16_t fragment_pos = 0;
+	uint16_t fragment_num = 0;
+
+	// Iterate through all user-defined (multi-)barcodes
+	// That's quite complicated since the read barcodes are consecutive and the user barcodes are divided in vectors. // TODO: change that?
+	for ( auto barcode = settings->multiBarcodeVector.begin(); barcode != settings->multiBarcodeVector.end(); ++ barcode ) {
+
+		// reset values for the barcode
+		fragment_errors = 0;
+		fragment_pos = 0;
+		fragment_num = 0;
+		valid = true;
+
+		// for each base of the read barcode
+		for ( uint16_t nucl = 0; nucl < read_bc.length(); nucl++ ) {
+
+			// reset values for each barcode fragment
+			if ( fragment_pos >= (*barcode)[fragment_num].length() ) {
+				fragment_pos = 0;
+				fragment_num += 1;
+				fragment_errors = 0;
+				assert( fragment_num < barcode->size() );
+			}
+
+			// compare nucleotides and increase the number of fragment errors if not equal
+			if ( read_bc.at(nucl) != (*barcode)[fragment_num].at(fragment_pos) ) {
+				fragment_errors++;
+			}
+
+			// if too many errors in a fragment, break the loop for the barcode
+			if ( fragment_errors > settings->barcode_errors[fragment_num] ) {
+				valid = false;
+				break;
+			}
+
+			fragment_pos += 1; // increment the fragment position
+
+		}
+
+		// if one barcode fulfilled the criteria, we can stop.
+		if ( valid )
+			break;
+	}
+
+	return valid;
 }
 
 
