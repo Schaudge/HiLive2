@@ -124,7 +124,7 @@ class ReadAlignment {
   std::string getSequenceString();
 
   /**
-   * Convert and return sequence of the barcode. Multiple barcodes are concatenated.
+   * Convert and return sequence of the barcode. Multiple barcodes are concatenated (without delimiter).
    * @return The Barcode as string
    * @author Tobias Loka
    */
@@ -134,10 +134,11 @@ class ReadAlignment {
      * Check whether the barcode of this read fulfills the criteria of at least one user-defined barcode.
      * The nucleotides are only compared pairwise, not allowing for Indels.
      * @param settings Object containing the program settings.
-     * @return True, if read was filtered.
-     * @author Tobias Loka
+     * @return The index of the matching barcode in AlignmentSettings::multiBarcodeVector. NO_MATCH, if none.
+     * Also return NO_MATCH, if demultiplexing is not activated.
+     * @author 	Tobias Loka
      */
-  bool hasValidBarcode(AlignmentSettings* settings) ;
+  CountType getBarcodeIndex(AlignmentSettings* settings) ;
 
 
   /**

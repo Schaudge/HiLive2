@@ -664,8 +664,9 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	    ReadAlignment* ra = input.get_alignment();
 	    ra->appendNucleotideToSequenceStoreVector(revtwobit_repr(bc), true);
 
-	    // check for barcode validity
-	    if ( bc_cycle == settings->seqs[read_no].length && !ra->hasValidBarcode(settings)) {
+	    // filter invalid barcodes if new barcode fragment is completed
+	    // TODO: Is done for each mate. Check if it's worth to change it (runtime should not be too high?)
+	    if ( !settings->keep_all_barcodes && bc_cycle == settings->seqs[read_no].length && ra->getBarcodeIndex(settings) == NO_MATCH ) {
 	    	ra->disable();
 	    }
 
@@ -876,11 +877,12 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
         	for ( uint16_t i = 0; i != settings->seqs.size(); i++) {
         		if ( settings->getSeqById(i).isBarcode() ) {
         			bc_counter += settings->getSeqById(i).length;
+        			if (barcode.length() <= bc_counter)
+        				break;
         			barcode.insert(bc_counter, "-");
         			bc_counter++;
         		}
         	}
-        	barcode = barcode.substr(0, barcode.size()-1); // remove the latest -
             seqan::appendTagValue(dict, "BC", barcode);
         }
         seqan::appendTagValue(dict, "NM", deletionSum + seqEl.length - (*it)->num_matches);

@@ -25,6 +25,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
         ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
     	("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
+		("keep-all-barcodes", po::bool_switch(&settings.keep_all_barcodes)->default_value(false), "Align and output all barcodes [Default: false]")
 		("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes.");
 
     po::options_description alignment("Alignment settings");
@@ -132,9 +133,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
 
 
 
-    settings.barcodeVector.clear();
     if (vm.count("barcodes")) {
-        settings.barcodeVector = vm["barcodes"].as< std::vector<std::string> >();
         if( !parseBarcodeArgument(settings, vm["barcodes"].as< std::vector<std::string> >()) ) {
         	std::cerr << "Parsing error: Invalid barcode(s) detected. Please ensure that you used \'-\' "
         			"as duplex delimiter and that all barcodes have the correct length. Only use A,C,G and T as bases!" << std::endl;
@@ -142,15 +141,15 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         }
     }
 
-    if ( settings.multiBarcodeVector.size() != 0 ) {
+    if ( settings.barcodeVector.size() != 0 ) {
     	if ( vm.count("barcode-errors") ) {
     		settings.barcode_errors = vm["barcode-errors"].as< std::vector<uint16_t> >();
-    		if ( settings.multiBarcodeVector[0].size() != settings.barcode_errors.size() ) {
+    		if ( settings.barcodeVector[0].size() != settings.barcode_errors.size() ) {
     			std::cerr << "Parsing error: Number of barcode errors does not equal the number of barcodes." << std::endl;
     			return -1;
     		}
     	} else {
-        	for ( uint16_t i = 0; i < settings.multiBarcodeVector[0].size(); i++ ) {
+        	for ( uint16_t i = 0; i < settings.barcodeVector[0].size(); i++ ) {
         		settings.barcode_errors.push_back(1);
         	}
     	}
@@ -341,7 +340,7 @@ bool parseBarcodeArgument(AlignmentSettings & settings, std::vector< std::string
 		}
 
 		// push back the fragments vector
-		settings.multiBarcodeVector.push_back(fragments);
+		settings.barcodeVector.push_back(fragments);
 
 	}
 

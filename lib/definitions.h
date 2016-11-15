@@ -216,14 +216,14 @@ struct AlignmentSettings {
   // Number of mates (information taken from the seqLengths parameter)
   uint16_t mates = 0;
 
-  //PARAMETER: Vector to store multi-barcodes (will replace the barcodeVector in later versions)
-  std::vector<std::vector<std::string>> multiBarcodeVector;
+  //PARAMETER: Stores the barcodes defined by the user. The inner vector contains the single fragments of multi-barcodes.
+  std::vector<std::vector<std::string>> barcodeVector;
 
   // PARAMETER: number of allowed errors for the single barcodes
   std::vector<uint16_t> barcode_errors;
 
-  // PARAMETER: vector containing all barcodes of the reads which should be outputted
-  std::vector<std::string> barcodeVector;
+  // SWITCH: if true, keep all barcodes (disables barcode filtering).
+  bool keep_all_barcodes;
 
   // PARAMETER: directory in which to create the output directory structure 
   std::string out_dir;
