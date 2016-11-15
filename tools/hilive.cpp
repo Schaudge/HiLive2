@@ -1,9 +1,12 @@
 #include "../lib/headers.h"
 #include "../lib/definitions.h"
+#include "../lib/global_variables.h"
 #include "../lib/kindex.h"
 #include "../lib/alnstream.h"
 #include "../lib/parallel.h"
 #include "../lib/argument_parser.h"
+
+AlignmentSettings globalAlignmentSettings;
 
 std::string license =
 "Copyright (c) 2015-2016, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info.\n"
@@ -23,7 +26,7 @@ std::string license =
 
 
 // the worker function for the threads
-void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, AlignmentSettings* settings, KixRun* idx, bool & surrender ) {
+void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun* idx, bool & surrender ) {
 
     // loop that keeps on running until the surrender flag is set
     while ( !surrender ) {
@@ -35,7 +38,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, Alignm
             try {
                 StreamedAlignment s (t.lane, t.tile, t.root, t.rlen);
                 uint64_t num_seeds;
-                num_seeds = s.extend_alignment(t.cycle,idx,settings);
+                num_seeds = s.extend_alignment(t.cycle,idx);
                 std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
             }
             catch (const std::exception &e) {
@@ -60,7 +63,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, Alignm
 
 
 // create a special SAM worker, that writes out a SAM file for a tile
-void sam_worker (TaskQueue & tasks, AlignmentSettings* settings, KixRun* idx) {
+void sam_worker (TaskQueue & tasks, KixRun* idx) {
 
     // loop that keeps on running until the surrender flag is set
     while ( true ) {
@@ -68,7 +71,7 @@ void sam_worker (TaskQueue & tasks, AlignmentSettings* settings, KixRun* idx) {
         Task t = tasks.pop();
         if ( t != NO_TASK ) {
             // Execute the task
-            alignments_to_sam(t.lane,t.tile,t.root,t.rlen, idx,settings);
+            alignments_to_sam(t.lane,t.tile,t.root,t.rlen, idx);
         }
         else {
             return;
@@ -82,19 +85,18 @@ void sam_worker (TaskQueue & tasks, AlignmentSettings* settings, KixRun* idx) {
 int main(int argc, const char* argv[]) {
     time_t t_start = time(NULL);
 
-    // parse the command line arguments, store results in settings
-    AlignmentSettings settings;
-    if (parseCommandLineArguments(settings, license, argc, argv)) // returns true if error occured 
+    // parse the command line arguments, store results in globalAlignmentSettings defined in hilive.cpp at the very top
+    if (parseCommandLineArguments(license, argc, argv)) // returns true if error occured 
         return 1;
 
     // load the index
     std::cout << "Loading Index" << std::endl;
     KixRun* index = new KixRun();
-    index->deserialize_file(settings.index_fname);
+    index->deserialize_file(globalAlignmentSettings.index_fname);
 
 
     // Create the overall agenda
-    Agenda agenda (settings.root, settings.rlen, settings.lanes, settings.tiles);
+    Agenda agenda (globalAlignmentSettings.root, globalAlignmentSettings.rlen, globalAlignmentSettings.lanes, globalAlignmentSettings.tiles);
 
 
     // prepare the alignment
@@ -108,9 +110,9 @@ int main(int argc, const char* argv[]) {
 
         // check if the first cycle is available for all tiles
         first_cycle_available = true;
-        for ( auto ln : settings.lanes ) {
-            for ( auto tl : settings.tiles ) {
-                if ( agenda.get_status(Task(ln,tl,1,settings.rlen,"")) != BCL_AVAILABLE) {
+        for ( auto ln : globalAlignmentSettings.lanes ) {
+            for ( auto tl : globalAlignmentSettings.tiles ) {
+                if ( agenda.get_status(Task(ln,tl,1,globalAlignmentSettings.rlen,"")) != BCL_AVAILABLE) {
                     first_cycle_available = false;
                 }
             }
@@ -123,16 +125,16 @@ int main(int argc, const char* argv[]) {
     std::cout << "First cycle complete. Starting alignment." << std::endl;
 
     // write empty alignment file for each tile
-    for (uint16_t ln : settings.lanes) {
-        for (uint16_t tl : settings.tiles) {
-            StreamedAlignment s (ln, tl, settings.root, settings.rlen);
-            s.create_directories(&settings);
-            s.init_alignment(&settings);
+    for (uint16_t ln : globalAlignmentSettings.lanes) {
+        for (uint16_t tl : globalAlignmentSettings.tiles) {
+            StreamedAlignment s (ln, tl, globalAlignmentSettings.root, globalAlignmentSettings.rlen);
+            s.create_directories();
+            s.init_alignment();
         }
     }
 
-    if (settings.temp_dir != "" && !is_directory(settings.temp_dir)){
-        std::cerr << "Error: Could not find temporary directory " << settings.temp_dir << std::endl;
+    if (globalAlignmentSettings.temp_dir != "" && !is_directory(globalAlignmentSettings.temp_dir)){
+        std::cerr << "Error: Could not find temporary directory " << globalAlignmentSettings.temp_dir << std::endl;
         return -1;
     }
 
@@ -142,11 +144,11 @@ int main(int argc, const char* argv[]) {
     TaskQueue failedQ;
 
     // Create the threads
-    std::cout << "Creating " << settings.num_threads << " threads." << std::endl;
+    std::cout << "Creating " << globalAlignmentSettings.num_threads << " threads." << std::endl;
     bool surrender = false;
     std::vector<std::thread> workers;
-    for (int i = 0; i < settings.num_threads; i++) {
-        workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), &settings, index, std::ref(surrender)));
+    for (int i = 0; i < globalAlignmentSettings.num_threads; i++) {
+        workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), index, std::ref(surrender)));
     }
 
     // Process all tasks on the agenda
@@ -208,8 +210,8 @@ int main(int argc, const char* argv[]) {
     }
 
     workers.clear();
-    for (int i = 0; i < settings.num_threads; i++) {
-        workers.push_back(std::thread(sam_worker, std::ref(sam_tasks), &settings, index));
+    for (int i = 0; i < globalAlignmentSettings.num_threads; i++) {
+        workers.push_back(std::thread(sam_worker, std::ref(sam_tasks), index));
     }
 
     for (auto& w : workers) {
