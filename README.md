@@ -136,8 +136,8 @@ Contact
 Please consult the HiLive project website for questions!
 
 If this does not help, please feel free to consult:
+ * [Martin S. Lindner](mailto:martin@mail-lindner.de "Mail Martin S. Lindner") (technical contact)
+ * [Bernhard Y. Renard](mailto:renardb@rki.de "Mail Bernhard Y. Renard") (project head)
 
- * Martin S. Lindner <martin (at) mail-lindner.de> (technical contact)
- * Bernhard Y. Renard <renardb (at) rki.de> (project head)
 
 also see CONTRIBUTORS for a complete list of contributors and their contact information
