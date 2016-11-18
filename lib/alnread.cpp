@@ -316,7 +316,7 @@ std::string ReadAlignment::getSequenceString() {
         seq.pop_back();
 
     // return sequence without barcode
-    return seq.substr(0,globalAlignmentSettings.seqlen);
+    return seq.substr(0,globalAlignmentSettings.get_seqlen());
 }
 
 
@@ -332,7 +332,7 @@ std::string ReadAlignment::getBarcodeString() {
         seq.pop_back();
 
     // return only barcode of sequence
-    return seq.substr(globalAlignmentSettings.seqlen);
+    return seq.substr(globalAlignmentSettings.get_seqlen());
 }
 
 
@@ -378,15 +378,15 @@ void ReadAlignment::add_new_seeds(GenomePosListType& pos, std::vector<bool> & po
     USeed s (new Seed);
 
     s->gid = it->gid;
-    s->start_pos = it->pos - (cycle-globalAlignmentSettings.kmer_span);
+    s->start_pos = it->pos - (cycle-globalAlignmentSettings.get_kmer_span());
     s->num_matches = K_HiLive;
     s->cigar_data.clear();
-    if (cycle-globalAlignmentSettings.kmer_span > 0)
-      s->cigar_data.emplace_back(cycle-globalAlignmentSettings.kmer_span,NO_MATCH);
+    if (cycle-globalAlignmentSettings.get_kmer_span() > 0)
+      s->cigar_data.emplace_back(cycle-globalAlignmentSettings.get_kmer_span(),NO_MATCH);
 
     // set correct matches and mismatches depending on kmer mask
-    std::vector<unsigned> gapVec = globalAlignmentSettings.kmer_gaps;
-    gapVec.push_back(globalAlignmentSettings.kmer_span+1);
+    std::vector<unsigned> gapVec = globalAlignmentSettings.get_kmer_gaps();
+    gapVec.push_back(globalAlignmentSettings.get_kmer_span()+1);
     unsigned lastProcessedGapPosition = 0;
     for (unsigned gapIndex = 0, nextGap; gapIndex < gapVec.size(); ++gapIndex) {
         nextGap = gapVec[gapIndex];
@@ -413,7 +413,7 @@ void ReadAlignment::create_placeholder_seed() {
 		s->gid = TRIMMED;
 		s->num_matches = 1;
 		s->cigar_data.clear();
-		s->cigar_data.emplace_back(globalAlignmentSettings.kmer_span,TRIMMED_MATCH);
+		s->cigar_data.emplace_back(globalAlignmentSettings.get_kmer_span(),TRIMMED_MATCH);
 
         // this is always sorted, because there is only one seed now
         seeds.push_back(std::move(s));
@@ -427,19 +427,19 @@ void ReadAlignment::convertPlaceholder(GenomePosListType& pos){
 		return;
 	auto s = seeds.begin();
 	auto matches = (*s)->num_matches;
-	if(cycle - globalAlignmentSettings.kmer_span > 0 && (*s)->gid==TRIMMED){
+	if(cycle - globalAlignmentSettings.get_kmer_span() > 0 && (*s)->gid==TRIMMED){
 		seeds.clear();
 		for(auto p = pos.begin(); p != pos.end(); ++p){
 			USeed newSeed (new Seed());
 		    newSeed->gid = p->gid;
-		    newSeed->start_pos = p->pos - (cycle - globalAlignmentSettings.kmer_span);
+		    newSeed->start_pos = p->pos - (cycle - globalAlignmentSettings.get_kmer_span());
 		    newSeed->num_matches = matches;
 		    newSeed->cigar_data.clear();
-            newSeed->cigar_data.emplace_back(cycle - globalAlignmentSettings.kmer_span,NO_MATCH);
+            newSeed->cigar_data.emplace_back(cycle - globalAlignmentSettings.get_kmer_span(),NO_MATCH);
 
             // set correct matches and mismatches depending on kmer mask
-            std::vector<unsigned> gapVec = globalAlignmentSettings.kmer_gaps;
-            gapVec.push_back(globalAlignmentSettings.kmer_span); // without +1 because the last match will be inserted in extend_alignment
+            std::vector<unsigned> gapVec = globalAlignmentSettings.get_kmer_gaps();
+            gapVec.push_back(globalAlignmentSettings.get_kmer_span()); // without +1 because the last match will be inserted in extend_alignment
             unsigned lastProcessedGapPosition = 0;
             for (unsigned gapIndex = 0, nextGap; gapIndex < gapVec.size(); ++gapIndex) {
                 nextGap = gapVec[gapIndex];
@@ -462,28 +462,28 @@ void ReadAlignment::convertPlaceholder(GenomePosListType& pos){
 void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension) {
     // TODO this function misbehaves when using demultiplexing. Reads might be preferred, kicking others only to get discarded due to barcode in the end.
     // compute possible remaining matches
-    int possibleRemainingMatches = globalAlignmentSettings.seqlen - cycle + globalAlignmentSettings.kmer_span - 1;
-    if (cycle == globalAlignmentSettings.seqlen)
+    int possibleRemainingMatches = globalAlignmentSettings.get_seqlen() - cycle + globalAlignmentSettings.get_kmer_span() - 1;
+    if (cycle == globalAlignmentSettings.get_seqlen())
         possibleRemainingMatches = 0;
 
     // compute threshold for number of matching bases a seed must already have to have a chance of getting printed in the end
     // adjust threshold via adapted q-gram-lemma
-    int num_matches_threshold = globalAlignmentSettings.seqlen - globalAlignmentSettings.min_errors*(globalAlignmentSettings.kmer_span) - possibleRemainingMatches;
+    int num_matches_threshold = globalAlignmentSettings.get_seqlen() - globalAlignmentSettings.get_min_errors()*(globalAlignmentSettings.get_kmer_span()) - possibleRemainingMatches;
 
-    if ((globalAlignmentSettings.all_best_hit_mode) || (globalAlignmentSettings.any_best_hit_mode)) {
+    if ((globalAlignmentSettings.get_all_best_hit_mode()) || (globalAlignmentSettings.get_any_best_hit_mode())) {
         int max_num_matches = 0;
         for(SeedVecIt sd = seeds.begin() ; sd !=seeds.end(); ++sd)
             max_num_matches = std::max(max_num_matches, (int) (*sd)->num_matches);
         num_matches_threshold = std::max(num_matches_threshold, (int) max_num_matches - possibleRemainingMatches);
     }
-    if (globalAlignmentSettings.all_best_n_scores_mode && globalAlignmentSettings.best_n > 0) {
+    if (globalAlignmentSettings.get_all_best_n_scores_mode() && globalAlignmentSettings.get_best_n() > 0) {
         std::vector<CountType> num_matches_vector;
         for (SeedVecIt it=seeds.begin(); it!=seeds.end();++it)
             num_matches_vector.push_back((*it)->num_matches);
         std::sort(num_matches_vector.begin(), num_matches_vector.end(), std::greater<CountType>()); // sort in decreasing order
         unsigned numberOfUniques = std::unique(num_matches_vector.begin(), num_matches_vector.end()) - num_matches_vector.begin(); // uniques are in front of vector now
-        if (numberOfUniques > globalAlignmentSettings.best_n) {
-            CountType nth_best_num_matches = num_matches_vector[globalAlignmentSettings.best_n - 1];
+        if (numberOfUniques > globalAlignmentSettings.get_best_n()) {
+            CountType nth_best_num_matches = num_matches_vector[globalAlignmentSettings.get_best_n() - 1];
             num_matches_threshold = std::max(num_matches_threshold, (int) nth_best_num_matches - possibleRemainingMatches);
         }
     }
@@ -496,9 +496,9 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
     while ( it!=seeds.end()) {
         if ((*it)->num_matches < num_matches_threshold)
             it = seeds.erase(it);
-        else if (globalAlignmentSettings.discard_ohw && (cycle>globalAlignmentSettings.start_ohw) && ((*it)->num_matches <= K_HiLive)) // remove one-hit-wonders
+        else if (globalAlignmentSettings.get_discard_ohw() && (cycle>globalAlignmentSettings.get_start_ohw()) && ((*it)->num_matches <= K_HiLive)) // remove one-hit-wonders
             it = seeds.erase(it);
-        else if (cycle == globalAlignmentSettings.seqlen && globalAlignmentSettings.any_best_hit_mode && foundHit)
+        else if (cycle == globalAlignmentSettings.get_seqlen() && globalAlignmentSettings.get_any_best_hit_mode() && foundHit)
             it = seeds.erase(it);
         else
             ++it;
@@ -530,7 +530,7 @@ void ReadAlignment::addMatchingKmer(USeed & s, DiffType offset) {
     //// split last kmer-span bases in single CigarElements ////
     CigarVector::iterator it = --(s->cigar_data.end());
     unsigned summedLength = 1;
-    while (summedLength < globalAlignmentSettings.kmer_span) {
+    while (summedLength < globalAlignmentSettings.get_kmer_span()) {
         ++summedLength;
         --it;
         if ((*it).length > 1) {
@@ -565,7 +565,7 @@ void ReadAlignment::addMatchingKmer(USeed & s, DiffType offset) {
     unsigned positionInKmer = 1;
     while (it != s->cigar_data.end()) {
         // if positionInKmer is not in kmer_gaps and cigar element was match
-        if ((*it).offset == NO_MATCH && std::find(globalAlignmentSettings.kmer_gaps.begin(), globalAlignmentSettings.kmer_gaps.end(), positionInKmer) == globalAlignmentSettings.kmer_gaps.end()) {
+        if ((*it).offset == NO_MATCH && std::find(globalAlignmentSettings.get_kmer_gaps().begin(), globalAlignmentSettings.get_kmer_gaps().end(), positionInKmer) == globalAlignmentSettings.get_kmer_gaps().end()) {
             (*it).offset = offset;
             s->num_matches += 1;
         }
@@ -636,8 +636,8 @@ bool ReadAlignment::extendSeed(USeed & s, DiffType offset){
             int offset_change = offset - (++(s->cigar_data.rbegin()))->offset;
             // If there is an offset change, I need to have seen the appropriate mismatches before.
             if ( offset_change == 0
-            || ((offset_change < 0) && (s->cigar_data.back().length >= -offset_change + globalAlignmentSettings.kmer_span - 1)) // Insertion in read
-            || ((offset_change > 0) && (s->cigar_data.back().length >= globalAlignmentSettings.kmer_span - 1 )) ) { // Deletion in read
+            || ((offset_change < 0) && (s->cigar_data.back().length >= -offset_change + globalAlignmentSettings.get_kmer_span() - 1)) // Insertion in read
+            || ((offset_change > 0) && (s->cigar_data.back().length >= globalAlignmentSettings.get_kmer_span() - 1 )) ) { // Deletion in read
                 addMatchingKmer(s, offset);
                 return true;
             } else {
@@ -658,7 +658,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 
 	// update the last k-mer
 	uint8_t qual = ((bc >> 2) & 63); // get bits 3-8
-	if ( (bc == 0) || (qual < globalAlignmentSettings.min_qual) ){ // no call if all 0 bits or quality below threshold
+	if ( (bc == 0) || (qual < globalAlignmentSettings.get_min_qual()) ){ // no call if all 0 bits or quality below threshold
 		last_invalid = cycle; // TODO append an N as basecall? Could be a bad idea
 	}
     unsigned mask = 3;
@@ -666,22 +666,22 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
         appendNucleotideToSequenceStoreVector(revtwobit_repr(bc & mask)); // get the nucleotide as an actual character, disregarding the quality
 
     // do not update the alignments when reading barcode
-    if (cycle > globalAlignmentSettings.seqlen) {
+    if (cycle > globalAlignmentSettings.get_seqlen()) {
         if (cycle == rlen)
-            if (std::find(globalAlignmentSettings.barcodeVector.begin(), globalAlignmentSettings.barcodeVector.end(), getBarcodeString()) == globalAlignmentSettings.barcodeVector.end())
+            if (std::find(globalAlignmentSettings.get_barcodeVector().begin(), globalAlignmentSettings.get_barcodeVector().end(), getBarcodeString()) == globalAlignmentSettings.get_barcodeVector().end())
                 this->disable();
         return;
     }
 
     // do not update the alignments when reading the first kmer_span-1 cycles
-    if (cycle < globalAlignmentSettings.kmer_span)
+    if (cycle < globalAlignmentSettings.get_kmer_span())
         return;
 
 	// update the alignments
 	GenomePosListType pos;
     std::vector<bool> posWasUsedForExtension;
 	// if last kmer of read is not valid
-	if (!( last_invalid+globalAlignmentSettings.kmer_span-1 < cycle )) {
+	if (!( last_invalid+globalAlignmentSettings.get_kmer_span()-1 < cycle )) {
 		// write a NO_MATCH
         for (auto sit = seeds.begin(); sit != seeds.end(); ++sit)
             extendSeed(*sit, NO_MATCH);
@@ -690,15 +690,15 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 
 		// get all occurrences of last_kmer (fwd & rc) from index
         const std::string sequence = getSequenceString();
-        std::string::const_iterator it_lastKmer = sequence.end() - globalAlignmentSettings.kmer_span;
+        std::string::const_iterator it_lastKmer = sequence.end() - globalAlignmentSettings.get_kmer_span();
         HashIntoType last_kmer = 0;
         hash_fw(it_lastKmer, sequence.end(), last_kmer);
-		pos = index->retrieve_positions(sequence.substr(sequence.length()-globalAlignmentSettings.kmer_span));
+		pos = index->retrieve_positions(sequence.substr(sequence.length()-globalAlignmentSettings.get_kmer_span()));
         posWasUsedForExtension.resize(pos.size(), false);
 
 		// check if the current k-mer was trimmed in the index
 		if ( (pos.size() == 1) && ((*pos.begin()).gid == TRIMMED) ) {
-			if(seeds.size()==0 && cycle==globalAlignmentSettings.kmer_span ){	// Create placeholder seed if first k-mer is trimmed
+			if(seeds.size()==0 && cycle==globalAlignmentSettings.get_kmer_span() ){	// Create placeholder seed if first k-mer is trimmed
 				create_placeholder_seed();
 			} else
 				// pretend that all existing seeds could be extended
@@ -718,16 +718,16 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 			auto cPos1 = pos.begin(), cPos2 = pos.begin(); // sliding window [cPos1, cPos2)
       
 			for (auto cSeed = seeds.begin(); cSeed!=seeds.end(); ++cSeed ) {
-				PositionType seed_pos = (*cSeed)->start_pos + cycle -globalAlignmentSettings.kmer_span;
+				PositionType seed_pos = (*cSeed)->start_pos + cycle -globalAlignmentSettings.get_kmer_span();
 
                 // adjust the window in the position list
-                while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - globalAlignmentSettings.window) )
+                while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - globalAlignmentSettings.get_window()) )
                     ++cPos1;
-                while( (cPos2!=pos.end()) && (cPos2->pos <= seed_pos + globalAlignmentSettings.window) )
+                while( (cPos2!=pos.end()) && (cPos2->pos <= seed_pos + globalAlignmentSettings.get_window()) )
                     ++cPos2;
         
 				// search all positions in the window for the best matching extension of the seed
-				DiffType best_offset = globalAlignmentSettings.window+1;  // set larger than search window
+				DiffType best_offset = globalAlignmentSettings.get_window()+1;  // set larger than search window
 				GenomePosListIt best_match = cPos2; // set behind the last element of the window
 				for(GenomePosListIt kmerHitIt = cPos1; kmerHitIt!=cPos2; ++kmerHitIt)
 					if (kmerHitIt->gid == (*cSeed)->gid){
@@ -763,7 +763,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 // disable this alignment, i.e. delete all seeds and set the last_invalid indicator to the
 // end of the read. --> This read will not be aligned and consumes almost no space.
 void ReadAlignment::disable() {
-  last_invalid = globalAlignmentSettings.seqlen;
+  last_invalid = globalAlignmentSettings.get_seqlen();
   seeds.clear();
   flags = 0;
   sequenceLen=0;
@@ -776,9 +776,9 @@ PositionType ReadAlignment::get_SAM_start_pos(USeed & sd) {
   PositionType pos = sd->start_pos;
   if (pos < 0) {
     if (sd->cigar_data.back().offset == NO_MATCH)
-        pos = -pos - globalAlignmentSettings.seqlen + globalAlignmentSettings.kmer_span - (++sd->cigar_data.rbegin())->offset;
+        pos = -pos - globalAlignmentSettings.get_seqlen() + globalAlignmentSettings.get_kmer_span() - (++sd->cigar_data.rbegin())->offset;
     else
-        pos = -pos - globalAlignmentSettings.seqlen + globalAlignmentSettings.kmer_span - (sd->cigar_data.rbegin())->offset;
+        pos = -pos - globalAlignmentSettings.get_seqlen() + globalAlignmentSettings.get_kmer_span() - (sd->cigar_data.rbegin())->offset;
   }
   return pos;
 }

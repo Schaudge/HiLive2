@@ -102,106 +102,105 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     } 
 
 
-    globalAlignmentSettings.root = vm["BC_DIR"].as<std::string>();
-    globalAlignmentSettings.index_fname = vm["INDEX"].as<std::string>();
-    globalAlignmentSettings.rlen = vm["CYCLES"].as<CountType>();
-    globalAlignmentSettings.temp_dir = vm["temp"].as<std::string>();
-    //globalAlignmentSettings.write_bam = vm["bam"].as<bool>();
-    globalAlignmentSettings.keep_aln_files = vm["keep-files"].as<bool>();
-    globalAlignmentSettings.min_errors = vm["min-errors"].as<CountType>();
+    globalAlignmentSettings.set_root(vm["BC_DIR"].as<std::string>());
+    globalAlignmentSettings.set_index_fname(vm["INDEX"].as<std::string>());
+    globalAlignmentSettings.set_rlen(vm["CYCLES"].as<CountType>());
+    globalAlignmentSettings.set_temp_dir(vm["temp"].as<std::string>());
+    //globalAlignmentSettings.set_write_bam(vm["bam"].as<bool>());
+    globalAlignmentSettings.set_keep_aln_files(vm["keep-files"].as<bool>());
+    globalAlignmentSettings.set_min_errors(vm["min-errors"].as<CountType>());
 
-    globalAlignmentSettings.discard_ohw = vm["disable-ohw-filter"].as<bool>();
-    globalAlignmentSettings.start_ohw = vm["start-ohw"].as<CountType>();
-    globalAlignmentSettings.window = vm["window"].as<DiffType>();
-    globalAlignmentSettings.min_qual = vm["min-quality"].as<CountType>();
-    globalAlignmentSettings.compression_format = vm["compression"].as<uint8_t>();
+    globalAlignmentSettings.set_discard_ohw(vm["disable-ohw-filter"].as<bool>());
+    globalAlignmentSettings.set_start_ohw(vm["start-ohw"].as<CountType>());
+    globalAlignmentSettings.set_window(vm["window"].as<DiffType>());
+    globalAlignmentSettings.set_min_qual(vm["min-quality"].as<CountType>());
+    globalAlignmentSettings.set_compression_format(vm["compression"].as<uint8_t>());
 
 
     if (vm.count("OUTDIR"))
-        globalAlignmentSettings.out_dir = vm["OUTDIR"].as<std::string>();
+        globalAlignmentSettings.set_out_dir(vm["OUTDIR"].as<std::string>());
     else {
-        if (globalAlignmentSettings.temp_dir == "") 
-            globalAlignmentSettings.out_dir = globalAlignmentSettings.root;
+        if (globalAlignmentSettings.get_temp_dir() == "") 
+            globalAlignmentSettings.set_out_dir(globalAlignmentSettings.get_root());
         else
-            globalAlignmentSettings.out_dir = globalAlignmentSettings.temp_dir;
+            globalAlignmentSettings.set_out_dir(globalAlignmentSettings.get_temp_dir());
     }
 
     if (vm.count("lanes"))
-        globalAlignmentSettings.lanes = vm["lanes"].as< std::vector<uint16_t> >();
+        globalAlignmentSettings.set_lanes(vm["lanes"].as< std::vector<uint16_t> >());
     else
-        globalAlignmentSettings.lanes = all_lanes();
+        globalAlignmentSettings.set_lanes(all_lanes());
 
     if (vm.count("tiles"))
-        globalAlignmentSettings.tiles = vm["tiles"].as< std::vector<uint16_t> >();
+        globalAlignmentSettings.set_tiles(vm["tiles"].as< std::vector<uint16_t> >());
     else
-        globalAlignmentSettings.tiles = all_tiles();
+        globalAlignmentSettings.set_tiles(all_tiles());
 
-    globalAlignmentSettings.barcodeVector.clear();
-    globalAlignmentSettings.seqlen = globalAlignmentSettings.rlen;
+    globalAlignmentSettings.set_seqlen(globalAlignmentSettings.get_rlen());
     if (vm.count("barcodes")) {
-        globalAlignmentSettings.barcodeVector = vm["barcodes"].as< std::vector<std::string> >();
-        globalAlignmentSettings.seqlen = globalAlignmentSettings.rlen - globalAlignmentSettings.barcodeVector[0].size();
+        globalAlignmentSettings.set_barcodeVector(vm["barcodes"].as< std::vector<std::string> >());
+        globalAlignmentSettings.set_seqlen(globalAlignmentSettings.get_rlen() - globalAlignmentSettings.get_barcodeVector()[0].size());
     }
 
     if (vm["all-hits"].as<bool>()) {
         // all hits: disable other modes
-        globalAlignmentSettings.any_best_hit_mode = false;
-        globalAlignmentSettings.all_best_hit_mode = false;
-        globalAlignmentSettings.all_best_n_scores_mode = false;
+        globalAlignmentSettings.set_any_best_hit_mode(false);
+        globalAlignmentSettings.set_all_best_hit_mode(false);
+        globalAlignmentSettings.set_all_best_n_scores_mode(false);
     } else if (vm["all-best-hit"].as<bool>()) {
         // enable all-best-hit mode and disable others
-        globalAlignmentSettings.any_best_hit_mode = false;
-        globalAlignmentSettings.all_best_hit_mode = true;
-        globalAlignmentSettings.all_best_n_scores_mode = false;
+        globalAlignmentSettings.set_any_best_hit_mode(false);
+        globalAlignmentSettings.set_all_best_hit_mode(true);
+        globalAlignmentSettings.set_all_best_n_scores_mode(false);
     } else if (vm.count("all-best-n-scores")) {
         // enable any-best-n mode and get parameter
-        globalAlignmentSettings.any_best_hit_mode = false;
-        globalAlignmentSettings.all_best_hit_mode = false;
-        globalAlignmentSettings.all_best_n_scores_mode = true;
-        globalAlignmentSettings.best_n = vm["all-best-n-scores"].as<CountType>();
+        globalAlignmentSettings.set_any_best_hit_mode(false);
+        globalAlignmentSettings.set_all_best_hit_mode(false);
+        globalAlignmentSettings.set_all_best_n_scores_mode(true);
+        globalAlignmentSettings.set_best_n(vm["all-best-n-scores"].as<CountType>());
     } else { // the default behaviour
         // enable any-best-hit mode and disable others
-        globalAlignmentSettings.any_best_hit_mode = true;
-        globalAlignmentSettings.all_best_hit_mode = false;
-        globalAlignmentSettings.all_best_n_scores_mode = false;
+        globalAlignmentSettings.set_any_best_hit_mode(true);
+        globalAlignmentSettings.set_all_best_hit_mode(false);
+        globalAlignmentSettings.set_all_best_n_scores_mode(false);
     }
         
     if (vm["-M"].as<bool>())
-        globalAlignmentSettings.block_size = vm["block-size"].as<uint64_t>()*1024*1024;
+        globalAlignmentSettings.set_block_size(vm["block-size"].as<uint64_t>()*1024*1024);
     else if (vm["-K"].as<bool>())
-        globalAlignmentSettings.block_size = vm["block-size"].as<uint64_t>()*1024;
+        globalAlignmentSettings.set_block_size(vm["block-size"].as<uint64_t>()*1024);
     else
-        globalAlignmentSettings.block_size = vm["block-size"].as<uint64_t>();
+        globalAlignmentSettings.set_block_size(vm["block-size"].as<uint64_t>());
 
     if (vm.count("num-threads")) 
-        globalAlignmentSettings.num_threads = vm["num-threads"].as<int>();
+        globalAlignmentSettings.set_num_threads(vm["num-threads"].as<int>());
     else { // the default case, meaning as much as physically useful
         uint32_t n_cpu = std::thread::hardware_concurrency();
         if (n_cpu > 1)
-            globalAlignmentSettings.num_threads = n_cpu;
+            globalAlignmentSettings.set_num_threads(n_cpu);
         else
-            globalAlignmentSettings.num_threads = 1;
+            globalAlignmentSettings.set_num_threads(1);
     }
 
 
     // check paths and file names
-    if (!file_exists(globalAlignmentSettings.index_fname)){
-        std::cerr << "Input error: Could not find k-mer index file " << globalAlignmentSettings.index_fname << std::endl;
+    if (!file_exists(globalAlignmentSettings.get_index_fname())){
+        std::cerr << "Input error: Could not find k-mer index file " << globalAlignmentSettings.get_index_fname() << std::endl;
         return -1;
     }
 
-    std::size_t found = globalAlignmentSettings.root.find("BaseCalls");
-    if (!(found != std::string::npos && found >= globalAlignmentSettings.root.size()-10)) {
-        std::cerr << "Warning: BaseCalls directory seems to be invalid: " << globalAlignmentSettings.root << std::endl;
+    std::size_t found = globalAlignmentSettings.get_root().find("BaseCalls");
+    if (!(found != std::string::npos && found >= globalAlignmentSettings.get_root().size()-10)) {
+        std::cerr << "Warning: BaseCalls directory seems to be invalid: " << globalAlignmentSettings.get_root() << std::endl;
     } 
 
-    if (!is_directory(globalAlignmentSettings.root)){
-        std::cerr << "Input error: Could not find BaseCalls directory " << globalAlignmentSettings.root << std::endl;
+    if (!is_directory(globalAlignmentSettings.get_root())){
+        std::cerr << "Input error: Could not find BaseCalls directory " << globalAlignmentSettings.get_root() << std::endl;
         return -1;
     }
 
-    for ( uint16_t ln : globalAlignmentSettings.lanes ) {
-        std::string ln_dir = globalAlignmentSettings.root;
+    for ( uint16_t ln : globalAlignmentSettings.get_lanes() ) {
+        std::string ln_dir = globalAlignmentSettings.get_root();
         if ( ln < 10 )
             ln_dir += "/L00";
         else if ( ln < 100 )
@@ -217,28 +216,28 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
 
 
     // Report the basic settings
-    std::cout << "Running HiLive with       " << globalAlignmentSettings.num_threads << " thread(s)." << std::endl;
-    std::cout << "BaseCalls directory:      " << globalAlignmentSettings.root << std::endl;
-    if (globalAlignmentSettings.temp_dir != "") {
-        std::cout << "Temporary directory:      " << globalAlignmentSettings.temp_dir << std::endl;
+    std::cout << "Running HiLive with       " << globalAlignmentSettings.get_num_threads() << " thread(s)." << std::endl;
+    std::cout << "BaseCalls directory:      " << globalAlignmentSettings.get_root() << std::endl;
+    if (globalAlignmentSettings.get_temp_dir() != "") {
+        std::cout << "Temporary directory:      " << globalAlignmentSettings.get_temp_dir() << std::endl;
     }
-    //if (!globalAlignmentSettings.write_bam)
-    std::cout << "SAM output directory:     " << globalAlignmentSettings.out_dir << std::endl;
+    //if (!globalAlignmentSettings.get_write_bam())
+    std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
     //else
-        //std::cout << "BAM output directory:     " << globalAlignmentSettings.out_dir << std::endl;
+        //std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
     std::cout << "Lanes:                    ";
-    for ( uint16_t ln : globalAlignmentSettings.lanes )
+    for ( uint16_t ln : globalAlignmentSettings.get_lanes() )
         std::cout << ln << " ";
     std::cout << std::endl;
-    std::cout << "K-mer index:              " << globalAlignmentSettings.index_fname << std::endl;
-    std::cout << "Read length:              " << globalAlignmentSettings.rlen << std::endl;
-    std::cout << "Mapping error:            " << globalAlignmentSettings.min_errors << std::endl;
-    if (globalAlignmentSettings.any_best_hit_mode) 
+    std::cout << "K-mer index:              " << globalAlignmentSettings.get_index_fname() << std::endl;
+    std::cout << "Read length:              " << globalAlignmentSettings.get_rlen() << std::endl;
+    std::cout << "Mapping error:            " << globalAlignmentSettings.get_min_errors() << std::endl;
+    if (globalAlignmentSettings.get_any_best_hit_mode()) 
         std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
-    else if (globalAlignmentSettings.all_best_hit_mode) 
+    else if (globalAlignmentSettings.get_all_best_hit_mode()) 
         std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
-    else if (globalAlignmentSettings.all_best_n_scores_mode) 
-        std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.best_n << std::endl;
+    else if (globalAlignmentSettings.get_all_best_n_scores_mode()) 
+        std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
     else
         std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
     std::cout << std::endl;

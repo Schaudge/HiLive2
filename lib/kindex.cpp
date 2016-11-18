@@ -43,13 +43,13 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, bool co
 
       added_ids.push_back(seq_id);
       seq_names.push_back(seq_name);
-      seq_lengths.push_back(0); // gets later corrected to globalAlignmentSettings.kmer_span - 1
+      seq_lengths.push_back(0); // gets later corrected to globalAlignmentSettings.get_kmer_span() - 1
       assert(seq_names.size() == num_seq);
       startNewSequence = true;
     } 
     else { // sequence line
       if (startNewSequence) {
-        if (line.length() < globalAlignmentSettings.kmer_span)
+        if (line.length() < globalAlignmentSettings.get_kmer_span())
             continue; // ignore sequences shorter than K
         start_sequence(line, tailingKmer, sequencePosition);
         startNewSequence = false;
@@ -70,7 +70,7 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, bool co
 */
 GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition) {
   assert(seq_names.size() == num_seq);
-  assert(s.length() >= globalAlignmentSettings.kmer_span);
+  assert(s.length() >= globalAlignmentSettings.get_kmer_span());
 
   // add sequence kmers to index
   sequencePosition = 0; // use 1-based positions (to allow for negative positions)
@@ -78,8 +78,8 @@ GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailing
   std::string::const_iterator last_invalid;
   HashIntoType fw; // forward k-mer
 
-  seq_lengths.back()=globalAlignmentSettings.kmer_span-1;
-  for (; it_s < s.end()-globalAlignmentSettings.kmer_span+1; ++it_s) {
+  seq_lengths.back()=globalAlignmentSettings.get_kmer_span()-1;
+  for (; it_s < s.end()-globalAlignmentSettings.get_kmer_span()+1; ++it_s) {
     ++sequencePosition; // use 1-based positions (to allow for negative positions)
     seq_lengths.back()+=1;
     last_invalid = hash_fw(it_s, s.end(), fw);
@@ -88,13 +88,13 @@ GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailing
     if (last_invalid < it_s)
       add_kmer(fw,num_seq-1,sequencePosition);
     else {
-      unsigned jumplength = std::min(last_invalid - it_s, s.end() - globalAlignmentSettings.kmer_span - it_s);
+      unsigned jumplength = std::min(last_invalid - it_s, s.end() - globalAlignmentSettings.get_kmer_span() - it_s);
       sequencePosition += jumplength;
       seq_lengths.back() += jumplength;
       it_s = last_invalid;
     }
   }
-  tailingKmer = s.substr(s.length()-globalAlignmentSettings.kmer_span);
+  tailingKmer = s.substr(s.length()-globalAlignmentSettings.get_kmer_span());
   return num_seq;
 }
 
@@ -111,7 +111,7 @@ GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tail
   std::string::const_iterator last_invalid;
   HashIntoType fw; // forward k-mer
 
-  for (; it_s < concatString.end()-globalAlignmentSettings.kmer_span+1; ++it_s) {
+  for (; it_s < concatString.end()-globalAlignmentSettings.get_kmer_span()+1; ++it_s) {
     ++sequencePosition; // use 1-based positions (to allow for negative positions)
     seq_lengths.back()+=1;
     last_invalid = hash_fw(it_s, concatString.end(), fw);
@@ -120,13 +120,13 @@ GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tail
     if (last_invalid < it_s)
       add_kmer(fw,num_seq-1,sequencePosition);
     else {
-      unsigned jumplength = std::min(last_invalid - it_s, concatString.end()- globalAlignmentSettings.kmer_span - it_s);
+      unsigned jumplength = std::min(last_invalid - it_s, concatString.end()- globalAlignmentSettings.get_kmer_span() - it_s);
       sequencePosition += jumplength;
       seq_lengths.back() += jumplength;
       it_s = last_invalid;
     }
   }
-  tailingKmer = concatString.substr(concatString.length()-globalAlignmentSettings.kmer_span);
+  tailingKmer = concatString.substr(concatString.length()-globalAlignmentSettings.get_kmer_span());
   return num_seq;
 }
 

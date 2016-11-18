@@ -91,11 +91,11 @@ int main(int argc, const char* argv[]) {
     // load the index
     std::cout << "Loading Index" << std::endl;
     KixRun* index = new KixRun();
-    index->deserialize_file(globalAlignmentSettings.index_fname);
+    index->deserialize_file(globalAlignmentSettings.get_index_fname());
 
 
     // Create the overall agenda
-    Agenda agenda (globalAlignmentSettings.root, globalAlignmentSettings.rlen, globalAlignmentSettings.lanes, globalAlignmentSettings.tiles);
+    Agenda agenda (globalAlignmentSettings.get_root(), globalAlignmentSettings.get_rlen(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
 
 
     // prepare the alignment
@@ -109,9 +109,9 @@ int main(int argc, const char* argv[]) {
 
         // check if the first cycle is available for all tiles
         first_cycle_available = true;
-        for ( auto ln : globalAlignmentSettings.lanes ) {
-            for ( auto tl : globalAlignmentSettings.tiles ) {
-                if ( agenda.get_status(Task(ln,tl,1,globalAlignmentSettings.rlen,"")) != BCL_AVAILABLE) {
+        for ( auto ln : globalAlignmentSettings.get_lanes() ) {
+            for ( auto tl : globalAlignmentSettings.get_tiles() ) {
+                if ( agenda.get_status(Task(ln,tl,1,globalAlignmentSettings.get_rlen(),"")) != BCL_AVAILABLE) {
                     first_cycle_available = false;
                 }
             }
@@ -124,16 +124,16 @@ int main(int argc, const char* argv[]) {
     std::cout << "First cycle complete. Starting alignment." << std::endl;
 
     // write empty alignment file for each tile
-    for (uint16_t ln : globalAlignmentSettings.lanes) {
-        for (uint16_t tl : globalAlignmentSettings.tiles) {
-            StreamedAlignment s (ln, tl, globalAlignmentSettings.root, globalAlignmentSettings.rlen);
+    for (uint16_t ln : globalAlignmentSettings.get_lanes()) {
+        for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
+            StreamedAlignment s (ln, tl, globalAlignmentSettings.get_root(), globalAlignmentSettings.get_rlen());
             s.create_directories();
             s.init_alignment();
         }
     }
 
-    if (globalAlignmentSettings.temp_dir != "" && !is_directory(globalAlignmentSettings.temp_dir)){
-        std::cerr << "Error: Could not find temporary directory " << globalAlignmentSettings.temp_dir << std::endl;
+    if (globalAlignmentSettings.get_temp_dir() != "" && !is_directory(globalAlignmentSettings.get_temp_dir())){
+        std::cerr << "Error: Could not find temporary directory " << globalAlignmentSettings.get_temp_dir() << std::endl;
         return -1;
     }
 
@@ -143,10 +143,10 @@ int main(int argc, const char* argv[]) {
     TaskQueue failedQ;
 
     // Create the threads
-    std::cout << "Creating " << globalAlignmentSettings.num_threads << " threads." << std::endl;
+    std::cout << "Creating " << globalAlignmentSettings.get_num_threads() << " threads." << std::endl;
     bool surrender = false;
     std::vector<std::thread> workers;
-    for (int i = 0; i < globalAlignmentSettings.num_threads; i++) {
+    for (int i = 0; i < globalAlignmentSettings.get_num_threads(); i++) {
         workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), index, std::ref(surrender)));
     }
 
@@ -209,7 +209,7 @@ int main(int argc, const char* argv[]) {
     }
 
     workers.clear();
-    for (int i = 0; i < globalAlignmentSettings.num_threads; i++) {
+    for (int i = 0; i < globalAlignmentSettings.get_num_threads(); i++) {
         workers.push_back(std::thread(sam_worker, std::ref(sam_tasks), index));
     }
 

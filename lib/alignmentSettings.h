@@ -259,16 +259,16 @@ class AlignmentSettings {
   }
 
 
-  void set_write_bam=false(bool value) {
-      if (!write_bam=false_setFlag) {
-          write_bam=false_setFlag = true;
-          this->write_bam=false = value;
+  void set_write_bam(bool value) {
+      if (!write_bam_setFlag) {
+          write_bam_setFlag = true;
+          this->write_bam = value;
       }
       else
-          std::cerr << "Warning: write_bam=false can only be set once." << std::endl;
+          std::cerr << "Warning: write_bam can only be set once." << std::endl;
   }
-  bool get_write_bam=false() {
-      return(this->write_bam=false);
+  bool get_write_bam() {
+      return(this->write_bam);
   }
 
 

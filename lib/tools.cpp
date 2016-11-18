@@ -125,16 +125,16 @@ std::ifstream::pos_type get_filesize(const std::string &fname)
    string <kmer> and returns the canonical representation. */
 HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
 {
-  assert(strlen(kmer) >= globalAlignmentSettings.kmer_span);
+  assert(strlen(kmer) >= globalAlignmentSettings.get_kmer_span());
 
   HashIntoType h = 0, r = 0;
 
   h |= twobit_repr(kmer[0]);
-  r |= twobit_comp(kmer[globalAlignmentSettings.kmer_span-1]);
+  r |= twobit_comp(kmer[globalAlignmentSettings.get_kmer_span()-1]);
 
-  for (unsigned int i = 1, j = globalAlignmentSettings.kmer_span-2; i < globalAlignmentSettings.kmer_span; i++, j--) {
+  for (unsigned int i = 1, j = globalAlignmentSettings.get_kmer_span()-2; i < globalAlignmentSettings.get_kmer_span(); i++, j--) {
     // if i not gap position
-    if (std::find(globalAlignmentSettings.kmer_gaps.begin(), globalAlignmentSettings.kmer_gaps.end(), i+1) == globalAlignmentSettings.kmer_gaps.end()) {
+    if (std::find(globalAlignmentSettings.get_kmer_gaps().begin(), globalAlignmentSettings.get_kmer_gaps().end(), i+1) == globalAlignmentSettings.get_kmer_gaps().end()) {
       h = h << 2;
       h |= twobit_repr(kmer[i]);
       r = r << 2;
@@ -151,22 +151,22 @@ HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
 /* calculates the first forward k-mer in the string <kmer> */
 std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h)
 {
-  assert(it+globalAlignmentSettings.kmer_span-1 < end);
+  assert(it+globalAlignmentSettings.get_kmer_span()-1 < end);
   HashIntoType h = 0;
   std::string::const_iterator last_invalid = it-1;
 
   h |= twobit_repr(*it);
 
-  std::string::const_iterator kmerEnd = it+globalAlignmentSettings.kmer_span;
+  std::string::const_iterator kmerEnd = it+globalAlignmentSettings.get_kmer_span();
   ++it;
   int positionInKmer = 2;
   for (; it != kmerEnd; ++it, ++positionInKmer) {
-    if (std::find(globalAlignmentSettings.kmer_gaps.begin(), globalAlignmentSettings.kmer_gaps.end(), positionInKmer) != globalAlignmentSettings.kmer_gaps.end())
+    if (std::find(globalAlignmentSettings.get_kmer_gaps().begin(), globalAlignmentSettings.get_kmer_gaps().end(), positionInKmer) != globalAlignmentSettings.get_kmer_gaps().end())
         continue;
     h = h << 2;
     h |= twobit_repr(*it);
     if ( seq_chars.find(*it) == std::string::npos ) {
-      last_invalid = it+globalAlignmentSettings.kmer_span-1;
+      last_invalid = it+globalAlignmentSettings.get_kmer_span()-1;
     }
   }
 
