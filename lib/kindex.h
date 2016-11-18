@@ -19,6 +19,9 @@ class KixBuild {
 
  public:
   
+  // constructor resizing db (see below) to match the number of possible k-mers
+  KixBuild();
+
   // add k-mers of all sequences in FASTA file
   int add_fasta(const std::string &fname, GenomeIdListType &ids, bool convert_spaces, bool trim_ids);
   int add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids);
@@ -36,12 +39,6 @@ class KixBuild {
   // serialize and store the KixBuild to a file
   uint64_t serialize_file(std::string f);
 
-  // deserialize KixBuild
-  uint64_t deserialize(char* d);
-  
-  // load and deserialize KixBuild from file
-  uint64_t deserialize_file(std::string f);
-
 
   GenomeIdType num_seq; // total number of sequences in the database
   KmerIndexType db; // the database structure itself
@@ -57,9 +54,9 @@ class KixBuild {
 //-------------------------------------------------------------------//
 
 
-typedef std::array<char*,n_kmer> KixRunDB;
-
 class KixRun {
+ private:
+  uint8_t kmer_weight; // k-mer weight read from file
  public:
   // pointer to the matching positions for a k-mer
   char* kmer(HashIntoType kmer);
@@ -67,11 +64,14 @@ class KixRun {
   // retrieve all fwd and rc occurrences of kmer in the index
   GenomePosListType retrieve_positions(std::string kmerSpan);
 
-  // deserialize Kix
+  // deserialize Kix, also sets kmer_weight and globalAlignmentSettings.kmer_weight
   uint64_t deserialize(char* d);
   
   // load and deserialize Kix from file
   uint64_t deserialize_file(std::string f);
+
+  // return k-mer weight of the k-mers in the index
+  uint8_t get_kmer_weight();
 
   // Database content
   GenomeIdType num_seq; // total number of sequences in the database

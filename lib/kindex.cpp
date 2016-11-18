@@ -1,6 +1,11 @@
 #include "kindex.h"
 
 
+KixBuild::KixBuild() { // default constructor
+    this->db.resize(pow(4,globalAlignmentSettings.get_kmer_weight()));
+}
+
+
 int KixBuild::add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids) {
   GenomeIdListType added_ids;
   return add_fasta(fname, added_ids, convert_spaces, trim_ids);
@@ -168,7 +173,7 @@ std::vector<char> KixBuild::serialize() {
   // calculate total size
   unsigned long int total_size = 0;
 
-  // K_HiLive itself
+  // The k-mer weight itself
   total_size += 1;
 
   // total number of sequences in database
@@ -200,7 +205,7 @@ std::vector<char> KixBuild::serialize() {
   char* d = data.data();
 
   // write K
-  uint8_t kk = K_HiLive;
+  uint8_t kk = globalAlignmentSettings.get_kmer_weight();
   memcpy(d,&kk,1);
   d++;
 
@@ -276,121 +281,17 @@ uint64_t KixBuild::serialize_file(std::string f) {
 }
 
 
-uint64_t KixBuild::deserialize(char* d) {
-  // the total number of bytes read
-  uint64_t bytes = 0; 
-
-  // read and check K
-  uint8_t kk;
-  memcpy(&kk,d+bytes,1);
-  bytes++;
-  assert(K_HiLive == kk);
-
-  // read total number of sequences in database
-  memcpy(&num_seq,d+bytes,sizeof(GenomeIdType));
-  bytes += sizeof(GenomeIdType);
-
-
-  // sequence names
-  seq_names.clear();
-  seq_lengths.clear();
-  for (uint32_t i = 0; i < num_seq; i++) {
-    uint16_t nm_length;
-    memcpy(&nm_length,d+bytes,sizeof(uint16_t));
-    bytes += sizeof(uint16_t);
-
-    char * tmp = new char[nm_length+1];
-    memcpy(tmp,d+bytes,nm_length);
-    tmp[nm_length] = 0; // make the string null-terminated
-    seq_names.push_back(tmp);
-    delete tmp;
-    bytes += nm_length;
-  }
-  for (uint32_t i = 0; i < num_seq; i++) {
-    uint64_t seq_len;
-    memcpy(&seq_len,d+bytes,sizeof(uint64_t));
-    bytes += sizeof(uint64_t);
-    seq_lengths.push_back(seq_len);
-  }
-
-  
-  // database entries
-  for (auto it = db.begin(); it != db.end(); ++it) {
-    // number of positions
-    uint32_t num_positions;
-    memcpy(&num_positions,d+bytes,sizeof(uint32_t));
-    bytes += sizeof(uint32_t);
-    (*it).clear();
-    (*it).reserve(num_positions);
-
-    // genome ID and position
-    for( uint32_t i = 0; i < num_positions; i++) {
-      GenomeIdType gid;
-      PositionType pos;
-      GenomePosType gp;
-      
-      memcpy(&gid,d+bytes,sizeof(GenomeIdType));
-      bytes += sizeof(GenomeIdType);
-      
-      memcpy(&pos,d+bytes,sizeof(PositionType));
-      bytes += sizeof(PositionType);
-      
-      gp.gid = gid;
-      gp.pos = pos;
-      
-      (*it).push_back(gp);
-    }
-  }
-
-  return bytes;
-}
-
-
-uint64_t KixBuild::deserialize_file(std::string f) {
-  std::string fname = f;
-  
-  // obtain file size
-  unsigned long int size = get_filesize(fname);
-
-  // open binary file
-  FILE* ifile;
-  ifile = fopen(fname.c_str(), "rb");
-
-  if (!ifile) {
-    std::cerr << "Error reading from file " << fname << ": Could not open file." << std::endl;
-    return 0;
-  }
-
-  // allocate memory
-  std::vector<char> sdata (size);
-  
-  // read all data
-  unsigned long int read = fread(sdata.data(), 1, size, ifile);
-
-  // close file
-  fclose (ifile);
-
-  if (read != size){
-    std::cerr << "Error reading from file " << fname << ": File size: " << size << " bytes. Read: " << read << " bytes." << std::endl;
-    return 0;
-  }
-
-  // deserialize data
-  deserialize(sdata.data());
-
-  return read;
-}
-
-
 uint64_t KixRun::deserialize(char* d) {
   // the total number of bytes read
   uint64_t bytes = 0; 
 
-  // read and check K
+  // read k-mer weight
   uint8_t kk;
   memcpy(&kk,d+bytes,1);
   bytes++;
-  assert(kk == K_HiLive);
+  this->kmer_weight = kk;
+  globalAlignmentSettings.set_kmer_weight(this->kmer_weight);
+  this->db.resize(pow(4,globalAlignmentSettings.get_kmer_weight()));
 
   // read total number of sequences in database
   memcpy(&num_seq,d+bytes,sizeof(GenomeIdType));
@@ -447,6 +348,12 @@ uint64_t KixRun::deserialize_file(std::string f) {
   deserialize(sdata.data());
 
   return sdata.size();
+}
+
+
+// return k-mer weight read from index
+uint8_t KixRun::get_kmer_weight() {
+  return(this->kmer_weight);
 }
 
 

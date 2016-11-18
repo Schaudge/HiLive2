@@ -14,12 +14,6 @@ set (HiLive_K 15 CACHE INT "Set the k-mer length for index and mapper")
 # Set flags for compilation
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++11 -O0")
 
-
-# configure a header file to pass some of the CMake settings to the source code
-configure_file (
-  "${PROJECT_SOURCE_DIR}/lib/config.h.in"
-  "${PROJECT_BINARY_DIR}/config.h"  )
-
 # add the binary tree to the search path for include files
 include_directories("${PROJECT_BINARY_DIR}")
 

@@ -33,7 +33,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
         ("all-best-n-scores,N", po::value<CountType>(), "Report all alignments of the N best alignment scores for each read")
         ("all-hits,A", po::bool_switch()->default_value(false), "Report all valid alignments for each read")
         ("disable-ohw-filter", po::bool_switch()->default_value(true), "disable the One-Hit Wonder filter [Default: false]")
-        ("start-ohw", po::value<CountType>()->default_value(K_HiLive+5), "First cycle to apply One-Hit Wonder filter [Default: K+5]")
+        ("start-ohw", po::value<CountType>()->default_value(globalAlignmentSettings.get_kmer_weight()+5), "First cycle to apply One-Hit Wonder filter [Default: K+5]")
         ("window,w", po::value<DiffType>()->default_value(5), "Set the window size to search for alignment extension, i.e. maximum total insertion/deletion size [Default: 5]")
         ("min-quality", po::value<CountType>()->default_value(1), "Minimum allowed basecall quality [Default: 1]");
 
@@ -55,7 +55,6 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     help_message << "HiLive v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR << " - Realtime Alignment of Illumina Reads" << std::endl;
     help_message << "Copyright (c) 2015, Martin S. Lindner" << std::endl;
     help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-    help_message << "Fixed k-mer size: " << K_HiLive << std::endl << std::endl;
     help_message << "Usage: " << std::string(argv[0]) << " [options] BC_DIR INDEX CYCLES OUTDIR" << std::endl;
     help_message << "  BC_DIR       Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
     help_message << "  INDEX        Path to k-mer index file (*.kix)" << std::endl;

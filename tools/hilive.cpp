@@ -89,10 +89,10 @@ int main(int argc, const char* argv[]) {
         return 1;
 
     // load the index
-    std::cout << "Loading Index" << std::endl;
+    std::cout << "Loading Index ... " << std::endl;
     KixRun* index = new KixRun();
-    index->deserialize_file(globalAlignmentSettings.get_index_fname());
-
+    index->deserialize_file(globalAlignmentSettings.get_index_fname()); // sets also globalAlignmentSettings.kmer_weight
+    std::cout << "K-mer weight:             " << unsigned(globalAlignmentSettings.get_kmer_weight()) << std::endl << std::endl;
 
     // Create the overall agenda
     Agenda agenda (globalAlignmentSettings.get_root(), globalAlignmentSettings.get_rlen(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());

@@ -30,9 +30,6 @@ const std::string seq_chars = "ACGTacgt";
 // probably 32 bit/16 nt are enough here
 typedef uint64_t HashIntoType;
 
-// construct a mask to truncate a binary representation of a k-mer to length K
-const HashIntoType MASK = HashIntoType(pow(4,K_HiLive))-1;
-
 // identifiers for genome sequences
 typedef uint32_t GenomeIdType;
 const GenomeIdType TRIMMED = std::numeric_limits<GenomeIdType>::max();
@@ -65,9 +62,11 @@ typedef std::vector<GenomePosType> GenomePosListType;
 // iterator on GenomePosList
 typedef GenomePosListType::iterator GenomePosListIt;
 
-// the k-mer index array
-const HashIntoType n_kmer = pow(4,K_HiLive);
-typedef std::array<GenomePosListType,n_kmer> KmerIndexType;
+// the k-mer index type
+typedef std::vector<GenomePosListType> KmerIndexType;
+
+// a lightweight type for storing the index
+typedef std::vector<char*> KixRunDB;
 
 // small counters
 typedef uint16_t CountType;

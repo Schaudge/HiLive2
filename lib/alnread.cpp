@@ -379,7 +379,7 @@ void ReadAlignment::add_new_seeds(GenomePosListType& pos, std::vector<bool> & po
 
     s->gid = it->gid;
     s->start_pos = it->pos - (cycle-globalAlignmentSettings.get_kmer_span());
-    s->num_matches = K_HiLive;
+    s->num_matches = globalAlignmentSettings.get_kmer_weight();
     s->cigar_data.clear();
     if (cycle-globalAlignmentSettings.get_kmer_span() > 0)
       s->cigar_data.emplace_back(cycle-globalAlignmentSettings.get_kmer_span(),NO_MATCH);
@@ -496,7 +496,7 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
     while ( it!=seeds.end()) {
         if ((*it)->num_matches < num_matches_threshold)
             it = seeds.erase(it);
-        else if (globalAlignmentSettings.get_discard_ohw() && (cycle>globalAlignmentSettings.get_start_ohw()) && ((*it)->num_matches <= K_HiLive)) // remove one-hit-wonders
+        else if (globalAlignmentSettings.get_discard_ohw() && (cycle>globalAlignmentSettings.get_start_ohw()) && ((*it)->num_matches <= globalAlignmentSettings.get_kmer_weight())) // remove one-hit-wonders
             it = seeds.erase(it);
         else if (cycle == globalAlignmentSettings.get_seqlen() && globalAlignmentSettings.get_any_best_hit_mode() && foundHit)
             it = seeds.erase(it);

@@ -3,6 +3,7 @@
 
 #include "headers.h"
 #include "definitions.h"
+#include "alignmentSettings.h"
 #include "global_variables.h"
 #include "kindex.h"
 
@@ -33,7 +34,7 @@ HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r);
 std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h);
 //HashIntoType rc(HashIntoType fw); 
 /* returns the sequence of a k-mer */
-std::string unhash(HashIntoType myHash, unsigned hashLen=K_HiLive);
+std::string unhash(HashIntoType myHash, unsigned hashLen=globalAlignmentSettings.get_kmer_weight());
 
 // file name construction functions
 std::string bcl_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl);

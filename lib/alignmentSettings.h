@@ -1,10 +1,12 @@
 #ifndef ALIGNMENTSETTINGS_H
 #define ALIGNMENTSETTINGS_H
 
+#include "definitions.h"
+
 // all user parameters are stored in the alignment settings
 class AlignmentSettings {
  private:
-  // HARD CODED: kmer gap structure (this is not used anywhere)
+  // HARD CODED: kmer gap structure (this is not used anywhere, instead the kmer_gaps are parsed)
   //std::string kmer_structure = "11111110111110111";
   std::string kmer_structure = "111111111111111";
 
@@ -12,9 +14,13 @@ class AlignmentSettings {
   //std::vector<unsigned> kmer_gaps = {8, 14};
   std::vector<unsigned> kmer_gaps;
 
-  // HARD CODED: kmer span (kmer weight is K_HiLive)
-  //unsigned kmer_span = K_HiLive+2;
-  unsigned kmer_span = K_HiLive;
+  // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
+  uint8_t kmer_span;
+  bool     kmer_span_setFlag=false;
+
+  // PARAMETER: Weight of the k-mers
+  uint8_t kmer_weight;
+  bool    kmer_weight_setFlag=false;
 
   // PARAMETER: Base Call quality cutoff, treat BC with quality < bc_cutoff as miscall
   CountType min_qual;
@@ -112,7 +118,7 @@ class AlignmentSettings {
 
 
 
- // getter and setter, all build up the same way, except the first three, hardcoded ones
+ // getter and setter, all build up the same way, except the first four
  public:
   std::string get_kmer_structure() {
       return(this->kmer_structure);
@@ -124,8 +130,30 @@ class AlignmentSettings {
   }
 
 
-  unsigned get_kmer_span() {
+  void set_kmer_span(uint8_t value) {
+      if (!kmer_span_setFlag) {
+          kmer_span_setFlag = true;
+          this->kmer_span = value;
+      }
+      else
+          std::cerr << "Warning: kmer_span can only be set once." << std::endl;
+  }
+  uint8_t get_kmer_span() {
       return(this->kmer_span);
+  }
+
+
+  void set_kmer_weight(uint8_t value) {
+      if (!kmer_weight_setFlag) {
+          kmer_weight_setFlag = true;
+          this->kmer_weight = value;
+          this->set_kmer_span(this->kmer_weight + this->kmer_gaps.size());
+      }
+      else
+          std::cerr << "Warning: kmer_weight can only be set once." << std::endl;
+  }
+  uint8_t get_kmer_weight() {
+      return(this->kmer_weight);
   }
 
 

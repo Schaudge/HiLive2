@@ -22,7 +22,7 @@ std::string license =
 
 
 
-AlignmentSettings globalAlignmentSettings; // for hard coded gapped kmer structure
+AlignmentSettings globalAlignmentSettings; // for hard coded gapped k-mer structure
 
 int main(int argc, char* argv[]) {
 
@@ -38,7 +38,8 @@ int main(int argc, char* argv[]) {
 
   po::options_description parameters("Parameters");
   parameters.add_options()
-    ("INPUT", po::value<std::string>()->required(), "Input reference genome (fasta file)");
+    ("INPUT", po::value<std::string>()->required(), "Input reference genome (fasta file)")
+    ("K-mer-weight", po::value<uint8_t>()->required(), "Number of non-gap positions in a k-mer. (For ungapped k-mers this is the k-mer size.");
 
   po::options_description options("Options");
   options.add_options()
@@ -58,14 +59,15 @@ int main(int argc, char* argv[]) {
   help_message << "Index creation tool for HiLive - Realtime Alignment of Illumina Reads" << std::endl;
   help_message << "Copyright (c) 2015, Martin S. Lindner" << std::endl;
   help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-  help_message << "Fixed k-mer size: " << K_HiLive << std::endl << std::endl;
   help_message << "Usage: " << std::string(argv[0]) << " [options] INPUT" << std::endl;
-  help_message << "  INPUT       Reference genomes in (multi-) FASTA format" << std::endl;
+  help_message << "  INPUT         Reference genomes in (multi-) FASTA format" << std::endl;
+  help_message << "  K-mer-weight  Number of non-gap positions in a k-mer. (For ungapped k-mers this is the k-mer size." << std::endl;
 
   help_message << visible_options << std::endl;
 
   po::positional_options_description p;
   p.add("INPUT", 1);
+  p.add("K-mer-weight", 1);
 
   po::variables_map vm;
   try {
@@ -99,6 +101,7 @@ int main(int argc, char* argv[]) {
 
 
   std::string fasta_name = vm["INPUT"].as<std::string>();
+  globalAlignmentSettings.set_kmer_weight(vm["K-mer-weight"].as<uint8_t>()); // sets the k-mer weight (or size, in case of ungapped k-mers)
 
   std::string index_name;
   if (vm.count("outfile")) {
@@ -109,7 +112,7 @@ int main(int argc, char* argv[]) {
     index_name = fasta_name + std::string(".kix");    
   }
 
-  std::cout << "Creating index with K_HiLive=" << K_HiLive << " from file " << fasta_name << std::endl; 
+  std::cout << "Creating index with K-mer weight =" << globalAlignmentSettings.get_kmer_weight() << " from file " << fasta_name << std::endl; 
   KixBuild* index = new KixBuild();
   index->add_fasta(fasta_name, !do_not_convert_spaces, trim_ids);
 
