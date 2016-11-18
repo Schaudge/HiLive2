@@ -35,7 +35,6 @@ uint64_t TaskQueue::size() {
 }
 
 
-
 // create a vector with all lane numbers
 std::vector<uint16_t> all_lanes() {
   std::vector<uint16_t> ln;

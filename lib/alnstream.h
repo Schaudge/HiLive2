@@ -3,6 +3,7 @@
 
 #include "headers.h"
 #include "definitions.h"
+#include "global_variables.h"
 #include "kindex.h"
 #include "tools.h"
 #include "alnread.h"
@@ -159,13 +160,13 @@ class StreamedAlignment {
   StreamedAlignment& operator=(const StreamedAlignment& other);
   
   // create directories required to store the alignment files (only if not stored in root)
-  void create_directories(AlignmentSettings* settings);
+  void create_directories();
 
   // initialize empty alignment. Creates files for a virtual Cycle 0
-  void init_alignment(AlignmentSettings* settings);
+  void init_alignment();
   
   // extend an existing alignment from cycle <cycle-1> to <cycle>
-  uint64_t extend_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings);
+  uint64_t extend_alignment(uint16_t cycle, KixRun* index);
 }; /* END class StreamedAlignment */
 
 
@@ -175,7 +176,7 @@ class StreamedAlignment {
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, KixRun* index, AlignmentSettings* settings);
+uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, KixRun* index);
 
 
 #endif /* ALNSTREAM_H */

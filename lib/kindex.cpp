@@ -1,12 +1,12 @@
 #include "kindex.h"
 
 
-int KixBuild::add_fasta(const std::string &fname, AlignmentSettings & settings, bool convert_spaces, bool trim_ids) {
+int KixBuild::add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids) {
   GenomeIdListType added_ids;
-  return add_fasta(fname, added_ids, settings, convert_spaces, trim_ids);
+  return add_fasta(fname, added_ids, convert_spaces, trim_ids);
 }
 
-int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, AlignmentSettings & settings, bool convert_spaces, bool trim_ids) {
+int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, bool convert_spaces, bool trim_ids) {
   std::ios::sync_with_stdio(false);
   std::ifstream::sync_with_stdio(false);
 
@@ -43,19 +43,19 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, Alignme
 
       added_ids.push_back(seq_id);
       seq_names.push_back(seq_name);
-      seq_lengths.push_back(0); // gets later corrected to settings.kmer_span - 1
+      seq_lengths.push_back(0); // gets later corrected to globalAlignmentSettings.kmer_span - 1
       assert(seq_names.size() == num_seq);
       startNewSequence = true;
     } 
     else { // sequence line
       if (startNewSequence) {
-        if (line.length() < settings.kmer_span)
+        if (line.length() < globalAlignmentSettings.kmer_span)
             continue; // ignore sequences shorter than K
-        start_sequence(line, tailingKmer, sequencePosition, settings);
+        start_sequence(line, tailingKmer, sequencePosition);
         startNewSequence = false;
       }
       else
-        continue_sequence(line, tailingKmer, sequencePosition, settings);
+        continue_sequence(line, tailingKmer, sequencePosition);
     }
   }
   infile.close();
@@ -68,9 +68,9 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, Alignme
     A new ID is created for this sequence.
     Return: sequence ID
 */
-GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings) {
+GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition) {
   assert(seq_names.size() == num_seq);
-  assert(s.length() >= settings.kmer_span);
+  assert(s.length() >= globalAlignmentSettings.kmer_span);
 
   // add sequence kmers to index
   sequencePosition = 0; // use 1-based positions (to allow for negative positions)
@@ -78,23 +78,23 @@ GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailing
   std::string::const_iterator last_invalid;
   HashIntoType fw; // forward k-mer
 
-  seq_lengths.back()=settings.kmer_span-1;
-  for (; it_s < s.end()-settings.kmer_span+1; ++it_s) {
+  seq_lengths.back()=globalAlignmentSettings.kmer_span-1;
+  for (; it_s < s.end()-globalAlignmentSettings.kmer_span+1; ++it_s) {
     ++sequencePosition; // use 1-based positions (to allow for negative positions)
     seq_lengths.back()+=1;
-    last_invalid = hash_fw(it_s, s.end(), fw, settings);
+    last_invalid = hash_fw(it_s, s.end(), fw);
 
     // add k-mer to database
     if (last_invalid < it_s)
       add_kmer(fw,num_seq-1,sequencePosition);
     else {
-      unsigned jumplength = std::min(last_invalid - it_s, s.end() - settings.kmer_span - it_s);
+      unsigned jumplength = std::min(last_invalid - it_s, s.end() - globalAlignmentSettings.kmer_span - it_s);
       sequencePosition += jumplength;
       seq_lengths.back() += jumplength;
       it_s = last_invalid;
     }
   }
-  tailingKmer = s.substr(s.length()-settings.kmer_span);
+  tailingKmer = s.substr(s.length()-globalAlignmentSettings.kmer_span);
   return num_seq;
 }
 
@@ -102,7 +102,7 @@ GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailing
 /* Continue adding all k-mers in a sequence string s to the database.
     Return: sequence ID
 */
-GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings) {
+GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition) {
   assert(seq_names.size() == num_seq);
 
   std::string concatString = tailingKmer + s;
@@ -111,22 +111,22 @@ GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tail
   std::string::const_iterator last_invalid;
   HashIntoType fw; // forward k-mer
 
-  for (; it_s < concatString.end()-settings.kmer_span+1; ++it_s) {
+  for (; it_s < concatString.end()-globalAlignmentSettings.kmer_span+1; ++it_s) {
     ++sequencePosition; // use 1-based positions (to allow for negative positions)
     seq_lengths.back()+=1;
-    last_invalid = hash_fw(it_s, concatString.end(), fw, settings);
+    last_invalid = hash_fw(it_s, concatString.end(), fw);
 
     // add k-mer to database
     if (last_invalid < it_s)
       add_kmer(fw,num_seq-1,sequencePosition);
     else {
-      unsigned jumplength = std::min(last_invalid - it_s, concatString.end()- settings.kmer_span - it_s);
+      unsigned jumplength = std::min(last_invalid - it_s, concatString.end()- globalAlignmentSettings.kmer_span - it_s);
       sequencePosition += jumplength;
       seq_lengths.back() += jumplength;
       it_s = last_invalid;
     }
   }
-  tailingKmer = concatString.substr(concatString.length()-settings.kmer_span);
+  tailingKmer = concatString.substr(concatString.length()-globalAlignmentSettings.kmer_span);
   return num_seq;
 }
 
@@ -451,12 +451,12 @@ uint64_t KixRun::deserialize_file(std::string f) {
 
 
 /* Retrieve all occurrences (fwd & rc) of kmer in the reference from the index */
-GenomePosListType KixRun::retrieve_positions(std::string kmerSpan, AlignmentSettings & settings) {
+GenomePosListType KixRun::retrieve_positions(std::string kmerSpan) {
 
   // get the reverse complement of the kmer
   HashIntoType fwHashValue;
   HashIntoType rcHashValue;
-  hash(kmerSpan.c_str(), fwHashValue, rcHashValue, settings);
+  hash(kmerSpan.c_str(), fwHashValue, rcHashValue);
   
   // obtain the list of positions for each k-mer
   char* fwd_begin = db[fwHashValue];

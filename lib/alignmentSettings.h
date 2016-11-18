@@ -1,3 +1,5 @@
+#ifndef ALIGNMENTSETTINGS_H
+#define ALIGNMENTSETTINGS_H
 
 // all user parameters are stored in the alignment settings
 class AlignmentSettings {
@@ -83,3 +85,5 @@ class AlignmentSettings {
   // PARAMETER: number of threads to use
   CountType num_threads;
 };
+
+#endif

@@ -22,6 +22,7 @@ std::string license =
 
 
 
+AlignmentSettings globalAlignmentSettings; // for hard coded gapped kmer structure
 
 int main(int argc, char* argv[]) {
 
@@ -110,8 +111,7 @@ int main(int argc, char* argv[]) {
 
   std::cout << "Creating index with K_HiLive=" << K_HiLive << " from file " << fasta_name << std::endl; 
   KixBuild* index = new KixBuild();
-  AlignmentSettings settings; // for hard coded gapped kmer structure
-  index->add_fasta(fasta_name, settings, !do_not_convert_spaces, trim_ids);
+  index->add_fasta(fasta_name, !do_not_convert_spaces, trim_ids);
 
   if (trim > 0) {
     uint64_t trimmed = index->trim(trim);

@@ -6,8 +6,6 @@
 #include "../lib/parallel.h"
 #include "../lib/argument_parser.h"
 
-AlignmentSettings globalAlignmentSettings;
-
 std::string license =
 "Copyright (c) 2015-2016, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info.\n"
 "All rights reserved.\n"
@@ -81,11 +79,12 @@ void sam_worker (TaskQueue & tasks, KixRun* idx) {
 }
 
 
+AlignmentSettings globalAlignmentSettings;
 
 int main(int argc, const char* argv[]) {
     time_t t_start = time(NULL);
 
-    // parse the command line arguments, store results in globalAlignmentSettings defined in hilive.cpp at the very top
+    // parse the command line arguments, store results in temporaryAlignmentSettings defined in hilive.cpp at the very top
     if (parseCommandLineArguments(license, argc, argv)) // returns true if error occured 
         return 1;
 

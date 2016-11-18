@@ -3,6 +3,7 @@
 
 #include "headers.h"
 #include "definitions.h"
+#include "global_variables.h"
 #include "kindex.h"
 
 
@@ -28,8 +29,8 @@ uint32_t num_reads_from_bcl(std::string bcl);
 uint64_t write_binary_file(const std::string &fname, const std::vector<char> & data);
 
 //------  Hashing helper functions  ---------------------------------//
-HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r, AlignmentSettings & settings);
-std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h, AlignmentSettings & settings);
+HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r);
+std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h);
 //HashIntoType rc(HashIntoType fw); 
 /* returns the sequence of a k-mer */
 std::string unhash(HashIntoType myHash, unsigned hashLen=K_HiLive);

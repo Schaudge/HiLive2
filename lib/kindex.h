@@ -3,6 +3,7 @@
  
 #include "headers.h"
 #include "definitions.h"
+#include "global_variables.h"
 #include "tools.h"
 
 
@@ -19,12 +20,12 @@ class KixBuild {
  public:
   
   // add k-mers of all sequences in FASTA file
-  int add_fasta(const std::string &fname, GenomeIdListType &ids, AlignmentSettings & settings, bool convert_spaces, bool trim_ids);
-  int add_fasta(const std::string &fname, AlignmentSettings & settings, bool convert_spaces, bool trim_ids);
+  int add_fasta(const std::string &fname, GenomeIdListType &ids, bool convert_spaces, bool trim_ids);
+  int add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids);
   
   // add all k-mers in a string sequence to the database
-  GenomeIdType start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings);
-  GenomeIdType continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings);
+  GenomeIdType start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition);
+  GenomeIdType continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition);
 
   // trim the database: remove kmers with more than max_count occurrences
   uint64_t trim(uint64_t max_count);
@@ -64,7 +65,7 @@ class KixRun {
   char* kmer(HashIntoType kmer);
   
   // retrieve all fwd and rc occurrences of kmer in the index
-  GenomePosListType retrieve_positions(std::string kmerSpan, AlignmentSettings & settings);
+  GenomePosListType retrieve_positions(std::string kmerSpan);
 
   // deserialize Kix
   uint64_t deserialize(char* d);

@@ -69,22 +69,22 @@ class ReadAlignment {
   std::vector<uint8_t> sequenceStoreVector;
 
   // Extend or create a placeholder seed for read with only trimmed matches
-  void create_placeholder_seed(AlignmentSettings & settings);
+  void create_placeholder_seed();
 
   // convert a placeholder seed to a set of normal seeds
-  void convertPlaceholder(GenomePosListType& pos, AlignmentSettings & settings);
+  void convertPlaceholder(GenomePosListType& pos);
 
   // Create new seeds from a list of kmer positions and add to current seeds
-  void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension, AlignmentSettings & settings);
+  void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension);
 
   // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
-  void filterAndCreateNewSeeds(AlignmentSettings & settings, GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension);
+  void filterAndCreateNewSeeds(GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension);
 
   // updates cigar_data accordingly to a new matching kmer
-  void addMatchingKmer(USeed & s, DiffType offset, AlignmentSettings & settings);
+  void addMatchingKmer(USeed & s, DiffType offset);
 
   // Extend an existing CIGAR string for a seed based on a new basecall. return false if last CIGAR element after extension is mismatch area (NO_MATCH), true otherwise.
-  bool extendSeed(USeed & s, DiffType offset, AlignmentSettings & settings);
+  bool extendSeed(USeed & s, DiffType offset);
 
  public: // have everything public until the apropriate access functions are available
 
@@ -116,22 +116,22 @@ class ReadAlignment {
   uint64_t deserialize(char* d);
 
   // convert and return sequence of the read as string (without barcode)
-  std::string getSequenceString(AlignmentSettings & settings);
+  std::string getSequenceString();
 
   // convert and return sequence of the barcode
-  std::string getBarcodeString(AlignmentSettings & settings);
+  std::string getBarcodeString();
 
   // append one nucleotide to sequenceStoreVector
   void appendNucleotideToSequenceStoreVector(char nuc);
 
   // extend the alignment by one basecall using reference database index
-  void extend_alignment(char bc, KixRun* index, AlignmentSettings* settings);
+  void extend_alignment(char bc, KixRun* index);
 
   // disable this alignment
-  void disable(AlignmentSettings & settings);
+  void disable();
 
   // obtain start position of a seed according to SAM (leftmost) 
-  PositionType get_SAM_start_pos(USeed & sd, AlignmentSettings & settings);
+  PositionType get_SAM_start_pos(USeed & sd);
 
 }; // END class ReadAlignment 
 

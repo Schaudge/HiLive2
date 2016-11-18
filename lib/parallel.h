@@ -112,7 +112,6 @@ class Agenda {
 };
 
 
-
 // create a vector with all lane numbers
 std::vector<uint16_t> all_lanes();
 
@@ -124,7 +123,5 @@ std::vector<uint16_t> all_tiles();
 
 // create a vector with one tile number
 std::vector<uint16_t> one_tile(uint16_t t);
-
-
 
 #endif /* PARALLEL_H */
