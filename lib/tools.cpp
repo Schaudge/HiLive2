@@ -257,3 +257,89 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems) {
         elems.push_back(item);
     }
 }
+
+void joinSamFiles(AlignmentSettings& settings) {
+    // collect fileNames
+    std::vector<std::string> fileNames = {};
+    for (std::vector<uint16_t>::iterator laneIt = settings.lanes.begin(); laneIt!=settings.lanes.end(); ++laneIt)
+        for (std::vector<uint16_t>::iterator tileIt = settings.tiles.begin(); tileIt!=settings.tiles.end(); ++tileIt)
+            for (uint16_t mate = 1; mate<=settings.mates; ++mate)
+                fileNames.push_back(sam_tile_name(settings.out_dir, *laneIt, *tileIt, mate, settings.write_bam));
+
+    // read header.
+    seqan::BamFileIn bamHeaderIn(fileNames[0].c_str());
+    seqan::BamHeader header;
+    seqan::readHeader(header, bamHeaderIn);
+
+    // read and copy records
+    if (!settings.barcodeVector.size()>0) { // If there are no specified barcodes
+
+        // Prepare Files
+        std::string outFileName = "allAlignments.sam";
+        seqan::BamFileOut bamFileOut(seqan::context(bamHeaderIn), outFileName.c_str());
+        seqan::writeHeader(bamFileOut, header);
+
+        // Copy records.
+        seqan::BamAlignmentRecord record;
+        for (auto filename:fileNames) {
+            seqan::BamFileIn bamFileIn(filename.c_str());
+            while (!seqan::atEnd(bamFileIn))
+            {
+                seqan::readHeader(header, bamFileIn);
+                seqan::readRecord(record, bamFileIn);
+                seqan::writeRecord(bamFileOut, record);
+            }
+        }
+    }
+
+    else { // There are barcodes
+
+        // prepare list of barCodeStrings
+        std::vector<std::string> barCodeStrings;
+        for (auto e:settings.barcodeVector) {
+            std::string barcode;
+            for (uint16_t mate = 1; mate<=settings.mates; ++mate) {
+                barcode += e[mate-1];
+                if (mate!=settings.mates)
+                    barcode += "-";
+            }
+            barCodeStrings.push_back(barcode);
+        }
+
+        // Prepare Files
+        std::vector<seqan::BamFileOut*> outFiles;
+        for (auto e:barCodeStrings) {
+            std::string outFileName = "barcode_"+ e +".sam";
+            seqan::BamFileOut* bamFileOut = new seqan::BamFileOut(seqan::context(bamHeaderIn), outFileName.c_str());
+            seqan::writeHeader(*bamFileOut, header);
+            outFiles.push_back(bamFileOut);
+        }
+
+        // Copy records.
+        seqan::BamAlignmentRecord record;
+        for (auto filename:fileNames) {
+            //std::cout << "Reading " << filename << " ..." << std::endl;
+            seqan::BamFileIn bamFileIn(filename.c_str());
+            while (!seqan::atEnd(bamFileIn))
+            {
+                seqan::readHeader(header, bamFileIn);
+                seqan::readRecord(record, bamFileIn);
+
+                unsigned seqansBarcodeTagId;
+                seqan::BamTagsDict tags(record.tags);
+                seqan::findTagKey(seqansBarcodeTagId, tags, seqan::CharString("BC"));
+                seqan::CharString barcodeSequence_seqan;
+                seqan::extractTagValue(barcodeSequence_seqan, tags, seqansBarcodeTagId);
+                std::string barcodeSequence(seqan::toCString(barcodeSequence_seqan));
+
+                std::vector<std::string>::iterator posIt = std::find(barCodeStrings.begin(), barCodeStrings.end(), barcodeSequence);
+                if (posIt != barCodeStrings.end()) {
+                    seqan::writeRecord(*(outFiles[posIt-barCodeStrings.begin()]), record);
+                }
+            }
+        }
+
+        for (auto outfile:outFiles)
+            delete outfile;
+    }
+}

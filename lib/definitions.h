@@ -213,8 +213,8 @@ struct AlignmentSettings {
    */
   std::vector<SequenceElement> seqs;
 
-  // Number of mates (information taken from the seqLengths parameter)
-  uint16_t mates = 0;
+  // Number of mates (information taken from the seqLengths parameter), (Hint: corresponding indeces are 1-based)
+  uint16_t mates;
 
   //PARAMETER: Stores the barcodes defined by the user. The inner vector contains the single fragments of multi-barcodes.
   std::vector<std::vector<std::string>> barcodeVector;

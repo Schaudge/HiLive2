@@ -140,12 +140,12 @@ int main(int argc, const char* argv[]) {
     // write empty alignment file for each tile and for each sequence read
     for (uint16_t ln : settings.lanes) {
         for (uint16_t tl : settings.tiles) {
-        	CountType mate = 1;
-        	for ( ; mate <= settings.mates; mate++ ) {
-        		StreamedAlignment s (ln, tl, settings.root, settings.getSeqByMate(mate).length);
-        		s.create_directories(&settings);
-        		s.init_alignment(mate, &settings);
-        	}
+            CountType mate = 1;
+            for ( ; mate <= settings.mates; mate++ ) {
+                StreamedAlignment s (ln, tl, settings.root, settings.getSeqByMate(mate).length);
+                s.create_directories(&settings);
+                s.init_alignment(mate, &settings);
+            }
         }
     }
 
@@ -217,7 +217,9 @@ int main(int argc, const char* argv[]) {
     std::cout << "All threads joined." << std::endl;
 
     
-    std::cout << "Writing SAM files." << std::endl;
+    std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl;
+
+    std::cout << "Writing SAM files per tile." << std::endl;
     // Create individual SAM files for every tile
     TaskQueue sam_tasks; 
     std::vector<Task> tv = agenda.get_SAM_tasks();
@@ -233,9 +235,14 @@ int main(int argc, const char* argv[]) {
     for (auto& w : workers) {
         w.join();
     }
+    
+    delete index;
 
+
+    // join SAM files into N files, where N is max(1,#barcodes)
+    std::cout << "Joining SAM files." << std::endl;
+    joinSamFiles(settings);
 
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
-    delete index;
     return 1;
 }

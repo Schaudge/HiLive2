@@ -271,6 +271,7 @@ bool parseReadsArgument(AlignmentSettings & settings, std::vector< std::string >
 	CountType length = 0;
 	std::string length_string = "";
 	char type;
+	settings.mates = 0;
 
 	for ( auto read = readsArg.begin(); read != readsArg.end(); ++read ) {
 

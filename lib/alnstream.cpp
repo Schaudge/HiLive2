@@ -703,10 +703,9 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
   else
     temp = settings->temp_dir;
 
-  std::string sam_dir = settings->out_dir;
   std::string filter_fname = filter_name(rt, ln, tl);
   std::string alignment_fname = alignment_name(ln, tl, rl, mate, temp);
-  std::string sam_fname = sam_tile_name(sam_dir, ln, tl, mate, settings->write_bam);
+  std::string sam_fname = sam_tile_name(settings->out_dir, ln, tl, mate, settings->write_bam);
 
   // check if files exist
   if ( !file_exists(alignment_fname) )

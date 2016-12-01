@@ -4,6 +4,9 @@
 #include "headers.h"
 #include "definitions.h"
 #include "kindex.h"
+#include <seqan/basic.h>
+#include <seqan/sequence.h>
+#include <seqan/bam_io.h>
 
 
 // compare function to sort GenomePosType objects by position
@@ -61,5 +64,6 @@ uint16_t getSeqCycle(uint16_t cycle, AlignmentSettings* settings, uint16_t read_
  */
 void split(const std::string &s, char delim, std::vector<std::string> &elems);
 
+void joinSamFiles(AlignmentSettings& settings);
 
 #endif /* TOOLS_H */
