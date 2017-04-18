@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
     index_name = fasta_name + std::string(".kix");    
   }
 
-  std::cout << "Creating index with K-mer weight = " << (unsigned) globalAlignmentSettings.get_kmer_weight() << " from file " << fasta_name << std::endl; 
+  std::cout << "Creating index with K-mer weight = " << (uint16_t) globalAlignmentSettings.get_kmer_weight() << " from file " << fasta_name << std::endl;
   KixBuild* index = new KixBuild();
   index->add_fasta(fasta_name, !do_not_convert_spaces, trim_ids);
 
