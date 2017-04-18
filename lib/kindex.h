@@ -40,7 +40,7 @@ class KixBuild {
   uint64_t serialize_file(std::string f);
 
 
-  GenomeIdType num_seq; // total number of sequences in the database
+  GenomeIdType num_seq=0; // total number of sequences in the database
   KmerIndexType db; // the database structure itself
   StringListType seq_names; // names of the sequences in the database
   std::vector<uint32_t> seq_lengths; // lengths of the sequences in the database

@@ -39,7 +39,7 @@ int main(int argc, char* argv[]) {
   po::options_description parameters("Parameters");
   parameters.add_options()
     ("INPUT", po::value<std::string>()->required(), "Input reference genome (fasta file)")
-    ("K-mer-weight", po::value<uint8_t>()->required(), "Number of non-gap positions in a k-mer. (For ungapped k-mers this is the k-mer size.");
+    ("K-mer-weight", po::value<uint16_t>()->required(), "Number of non-gap positions in a k-mer. (For ungapped k-mers this is the k-mer size.");
 
   po::options_description options("Options");
   options.add_options()
@@ -101,7 +101,7 @@ int main(int argc, char* argv[]) {
 
 
   std::string fasta_name = vm["INPUT"].as<std::string>();
-  globalAlignmentSettings.set_kmer_weight(vm["K-mer-weight"].as<uint8_t>()); // sets the k-mer weight (or size, in case of ungapped k-mers)
+  globalAlignmentSettings.set_kmer_weight(vm["K-mer-weight"].as<uint16_t>()); // sets the k-mer weight (or size, in case of ungapped k-mers)
 
   std::string index_name;
   if (vm.count("outfile")) {
@@ -112,7 +112,7 @@ int main(int argc, char* argv[]) {
     index_name = fasta_name + std::string(".kix");    
   }
 
-  std::cout << "Creating index with K-mer weight =" << globalAlignmentSettings.get_kmer_weight() << " from file " << fasta_name << std::endl; 
+  std::cout << "Creating index with K-mer weight = " << (unsigned) globalAlignmentSettings.get_kmer_weight() << " from file " << fasta_name << std::endl; 
   KixBuild* index = new KixBuild();
   index->add_fasta(fasta_name, !do_not_convert_spaces, trim_ids);
 
