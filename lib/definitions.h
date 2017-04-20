@@ -206,6 +206,9 @@ struct AlignmentSettings {
   // PARAMETER: total number of cycles
   CountType cycles;
 
+  // PARAMETER: Path to runInfo.xml for parsing read and index lengths
+  std::string runInfo_fname;
+
   /**
    * Contains the read information of the sequencing machine (as SequenceElement objects). Includes sequence reads and barcodes.
    * Arbitrary numbers and orders of reads are supported. The summed length of all elements must equal the number of sequencing cycles.

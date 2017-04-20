@@ -21,12 +21,14 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         ("temp", po::value<std::string>(&settings.temp_dir)->default_value(""), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
         //("bam,B", po::bool_switch(&settings.write_bam)->default_value(false), "Create BAM files instead of SAM files [Default: false]")
         ("keep-files,k", po::bool_switch(&settings.keep_aln_files)->default_value(false), "Keep intermediate alignment files [Default: false]")
-        ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
-        ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
+        ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane numbers. Overwrites information of runInfo.xml. [Default: 8 lanes]")
+        ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers. Overwrites information of runInfo.xml. [Default: 96 tiles]")
+        ("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]")
+        ("runInfoPath", po::value<std::string>(&settings.runInfo_fname), "Path to runInfo.xml for parsing read and index lengths [Default: BC_DIR/../../RunInfo.xml]")
         ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
     	("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
-		("keep-all-barcodes", po::bool_switch(&settings.keep_all_barcodes)->default_value(false), "Align and output all barcodes [Default: false]")
-		("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes.");
+		("keep-all-barcodes", po::bool_switch(&settings.keep_all_barcodes)->default_value(false), "Align and output all barcodes [Default: false]");
+
 
     po::options_description alignment("Alignment settings");
     alignment.add_options()
@@ -113,22 +115,64 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
             settings.out_dir = settings.temp_dir;
     }
 
-    // Parse read lengths and types. If read argument is missing, init for single-end and non-barcoded.
+    // Parse RunInfo.xml if present
+    tinyxml2::XMLDocument doc;
+    if (!doc.LoadFile( settings.runInfo_fname.c_str() ))
+      if (doc.FirstChildElement("RunInfo"))
+        if (doc.FirstChildElement("RunInfo")->FirstChildElement("Run")) {
+          if (doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("Reads")) {
+            tinyxml2::XMLElement * reads = doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("Reads");
+            if (reads->FirstChildElement("Read")) {
+              tinyxml2::XMLElement * read = reads->FirstChildElement("Read");
+              unsigned lenSum = 0;
+              do {
+                settings.seqs.push_back(SequenceElement(settings.seqs.size(), (*(read->Attribute("IsIndexedRead")) == 'N') ? ++settings.mates : 0, read->IntAttribute("NumCycles")));
+                lenSum += read->IntAttribute("NumCycles");
+              } while((read = read->NextSiblingElement()));
+              if ( lenSum!=settings.cycles ) {
+                std::cerr << "Sum of parsed read lengths does not equal the given number of cycles." << std::endl;
+                return false;
+              }
+            }
+          }
+          if (doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("FlowcellLayout")) {
+            tinyxml2::XMLElement * flowcellLayout = doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("FlowcellLayout");
+
+            std::vector<uint16_t> temp(flowcellLayout->IntAttribute("LaneCount"));
+            std::iota(temp.begin(), temp.end(), 1);
+            settings.lanes = temp;
+
+            std::vector<uint16_t> temp2;
+            for (uint16_t l = 1; l <= flowcellLayout->IntAttribute("SurfaceCount"); l++)
+              for (uint16_t s = 1; s <= flowcellLayout->IntAttribute("SwathCount"); s++)
+                for (uint16_t t = 1; t <= flowcellLayout->IntAttribute("TileCount"); t++)
+                  temp2.push_back( l*1000 + s*100 + t );
+            settings.tiles = temp2;
+          }
+        }
+    
+
+    // Parse read lengths and types.
     if ( vm.count("reads") && !parseReadsArgument(settings, vm["reads"].as< std::vector<std::string> >()) )
     	return -1;
-    else if ( !vm.count("reads") ) {
+    // If not set, init for single-end and non-barcoded.
+    if ( settings.seqs.size() == 0 ) {
     	settings.seqs.push_back(SequenceElement(0,1,settings.cycles));
     	settings.mates = 1;
     }
 
+    // Parse lanes
     if (vm.count("lanes"))
         settings.lanes = vm["lanes"].as< std::vector<uint16_t> >();
     else
+      if (settings.lanes.size() == 0)
         settings.lanes = all_lanes();
 
+    // Parse tiles
     if (vm.count("tiles"))
         settings.tiles = vm["tiles"].as< std::vector<uint16_t> >();
     else
+      if (settings.tiles.size() == 0)
         settings.tiles = all_tiles();
 
 

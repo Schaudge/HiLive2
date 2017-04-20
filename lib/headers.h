@@ -10,6 +10,7 @@
 #include <string>
 #include <cstring>
 #include <math.h>
+#include <numeric>
 #include <assert.h>
 #include <tuple>
 #include <algorithm>
