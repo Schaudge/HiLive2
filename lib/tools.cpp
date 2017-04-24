@@ -264,7 +264,7 @@ void joinSamFiles(AlignmentSettings& settings) {
     for (std::vector<uint16_t>::iterator laneIt = settings.lanes.begin(); laneIt!=settings.lanes.end(); ++laneIt)
         for (std::vector<uint16_t>::iterator tileIt = settings.tiles.begin(); tileIt!=settings.tiles.end(); ++tileIt)
             for (uint16_t mate = 1; mate<=settings.mates; ++mate)
-                fileNames.push_back(sam_tile_name(settings.out_dir, *laneIt, *tileIt, mate, settings.write_bam));
+                fileNames.push_back(sam_tile_name(settings.out_dir.string(), *laneIt, *tileIt, mate, settings.write_bam));
 
     // read header.
     seqan::BamFileIn bamHeaderIn(fileNames[0].c_str());
@@ -275,8 +275,8 @@ void joinSamFiles(AlignmentSettings& settings) {
     if (!settings.barcodeVector.size()>0) { // If there are no specified barcodes
 
         // Prepare Files
-        std::string outFileName = "allAlignments.sam";
-        seqan::BamFileOut bamFileOut(seqan::context(bamHeaderIn), outFileName.c_str());
+        boost::filesystem::path file("finalSamFile.sam");
+        seqan::BamFileOut bamFileOut(seqan::context(bamHeaderIn), (settings.out_dir / file).string().c_str());
         seqan::writeHeader(bamFileOut, header);
 
         // Copy records.
@@ -309,8 +309,8 @@ void joinSamFiles(AlignmentSettings& settings) {
         // Prepare Files
         std::vector<seqan::BamFileOut*> outFiles;
         for (auto e:barCodeStrings) {
-            std::string outFileName = "barcode_"+ e +".sam";
-            seqan::BamFileOut* bamFileOut = new seqan::BamFileOut(seqan::context(bamHeaderIn), outFileName.c_str());
+            boost::filesystem::path file("finalSamFile_" + e + ".sam");
+            seqan::BamFileOut* bamFileOut = new seqan::BamFileOut(seqan::context(bamHeaderIn), (settings.out_dir / file).string().c_str());
             seqan::writeHeader(*bamFileOut, header);
             outFiles.push_back(bamFileOut);
         }

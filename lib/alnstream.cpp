@@ -492,7 +492,7 @@ void StreamedAlignment::create_directories(AlignmentSettings* settings) {
   boost::filesystem::create_directories(path_stream.str());
 
   std::ostringstream sam_stream;
-  sam_stream << settings->out_dir;
+  sam_stream << settings->out_dir.string();
   sam_stream << "/L00" << lane;
   
   boost::filesystem::create_directories(sam_stream.str());
@@ -705,7 +705,7 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
 
   std::string filter_fname = filter_name(rt, ln, tl);
   std::string alignment_fname = alignment_name(ln, tl, rl, mate, temp);
-  std::string sam_fname = sam_tile_name(settings->out_dir, ln, tl, mate, settings->write_bam);
+  std::string sam_fname = sam_tile_name(settings->out_dir.string(), ln, tl, mate, settings->write_bam);
 
   // check if files exist
   if ( !file_exists(alignment_fname) )

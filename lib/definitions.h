@@ -226,7 +226,7 @@ struct AlignmentSettings {
   bool keep_all_barcodes;
 
   // PARAMETER: directory in which to create the output directory structure 
-  std::string out_dir;
+  boost::filesystem::path out_dir;
 
   // PARAMETER: number of threads to use
   CountType num_threads;

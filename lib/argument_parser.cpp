@@ -14,7 +14,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         ("BC_DIR", po::value<std::string>(&settings.root)->required(), "Illumina BaseCalls directory")
         ("INDEX", po::value<std::string>(&settings.index_fname)->required(), "Path to k-mer index")
         ("CYCLES", po::value<CountType>(&settings.cycles)->required(), "Number of cycles")
-        ("OUTDIR", po::value<std::string>(&settings.out_dir), "Directory to store sam files in [Default: temporary or BaseCalls directory");
+        ("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: temporary or BaseCalls directory");
 
     po::options_description io_settings("IO settings");
     io_settings.add_options()
@@ -105,12 +105,12 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     } 
 
     if (vm.count("OUTDIR"))
-        settings.out_dir = vm["OUTDIR"].as<std::string>();
+        settings.out_dir = boost::filesystem::path(vm["OUTDIR"].as<std::string>());
     else {
         if (settings.temp_dir == "") 
-            settings.out_dir = settings.root;
+            settings.out_dir = boost::filesystem::path(settings.root);
         else
-            settings.out_dir = settings.temp_dir;
+            settings.out_dir = boost::filesystem::path(settings.temp_dir);
     }
 
     // Parse read lengths and types. If read argument is missing, init for single-end and non-barcoded.
