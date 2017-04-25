@@ -725,7 +725,15 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* 
 			auto cPos1 = pos.begin(), cPos2 = pos.begin(); // sliding window [cPos1, cPos2)
       
 			for (auto cSeed = seeds.begin(); cSeed!=seeds.end(); ++cSeed ) {
-				PositionType seed_pos = (*cSeed)->start_pos + cycle -settings->kmer_span;
+
+				// Compute the last offset of the current seed
+				PositionType last_offset = prev((*cSeed)->cigar_data.end())->offset;
+				if(last_offset == NO_MATCH) {
+					last_offset = prev(prev((*cSeed)->cigar_data.end()))->offset;
+				}
+
+				// Compute the optimal match position for the next k-mer
+				PositionType seed_pos = (*cSeed)->start_pos + cycle -settings->kmer_span + last_offset;
 
                 // adjust the window in the position list
                 while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - settings->window) )
@@ -748,7 +756,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* 
         
 				// check if a best match was found for this seed
 				if (best_match != cPos2) {
-						if(extendSeed(*cSeed, best_offset, *settings))
+						if(extendSeed(*cSeed, best_offset + last_offset, *settings))
 		            		// if pos was used as match, mark it so that later it does not get converted into a new seed
 		            		posWasUsedForExtension[best_match-pos.begin()] = true;
                 }
