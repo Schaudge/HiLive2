@@ -114,11 +114,15 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         settings.lanes = vm["lanes"].as< std::vector<uint16_t> >();
     else
         settings.lanes = all_lanes();
+    std::sort( settings.lanes.begin(), settings.lanes.end() );
+    settings.lanes.erase( std::unique( settings.lanes.begin(), settings.lanes.end() ), settings.lanes.end() );
 
     if (vm.count("tiles"))
         settings.tiles = vm["tiles"].as< std::vector<uint16_t> >();
     else
         settings.tiles = all_tiles();
+    std::sort( settings.tiles.begin(), settings.tiles.end() );
+    settings.tiles.erase( std::unique( settings.tiles.begin(), settings.tiles.end() ), settings.tiles.end() );
 
     settings.barcodeVector.clear();
     settings.seqlen = settings.rlen;
@@ -162,7 +166,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     else { // the default case, meaning as much as physically useful
         uint32_t n_cpu = std::thread::hardware_concurrency();
         if (n_cpu > 1)
-            settings.num_threads = n_cpu;
+            settings.num_threads = std::min( n_cpu, uint32_t( settings.lanes.size() * settings.tiles.size() ) );
         else
             settings.num_threads = 1;
     }
