@@ -460,15 +460,13 @@ void ReadAlignment::convertPlaceholder(GenomePosListType& pos, AlignmentSettings
 
 // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
 void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension) {
-    // TODO this function misbehaves when using demultiplexing. Reads might be preferred, kicking others only to get discarded due to barcode in the end.
-    // compute possible remaining matches
     int possibleRemainingMatches = settings.seqlen - cycle + settings.kmer_span - 1;
     if (cycle == settings.seqlen)
         possibleRemainingMatches = 0;
 
     // compute threshold for number of matching bases a seed must already have to have a chance of getting printed in the end
     // adjust threshold via adapted q-gram-lemma
-    int num_matches_threshold = settings.seqlen - settings.min_errors*(settings.kmer_span) - possibleRemainingMatches;
+    int num_matches_threshold = cycle - ( settings.min_errors * settings.kmer_span ) - ( settings.kmer_span - K_HiLive );
 
     if ((settings.all_best_hit_mode) || (settings.any_best_hit_mode)) {
         int max_num_matches = 0;
@@ -476,6 +474,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
             max_num_matches = std::max(max_num_matches, (int) (*sd)->num_matches);
         num_matches_threshold = std::max(num_matches_threshold, (int) max_num_matches - possibleRemainingMatches);
     }
+
     if (settings.all_best_n_scores_mode && settings.best_n > 0) {
         std::vector<CountType> num_matches_vector;
         for (SeedVecIt it=seeds.begin(); it!=seeds.end();++it)
@@ -494,19 +493,25 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
     SeedVecIt it=seeds.begin();
     bool foundHit = false;
     while ( it!=seeds.end()) {
-        if ((*it)->num_matches < num_matches_threshold)
+        if ((*it)->num_matches < num_matches_threshold) {
             it = seeds.erase(it);
-        else if (settings.discard_ohw && (cycle>settings.start_ohw) && ((*it)->num_matches <= K_HiLive)) // remove one-hit-wonders
+            continue;
+        }
+        else if (settings.discard_ohw && (cycle>settings.start_ohw) && ((*it)->num_matches <= K_HiLive)) { // remove one-hit-wonders
             it = seeds.erase(it);
-        else if (cycle == settings.seqlen && settings.any_best_hit_mode && foundHit)
+            continue;
+        }
+        else if (cycle == settings.seqlen && settings.any_best_hit_mode && foundHit) {
             it = seeds.erase(it);
+            continue;
+        }
         else
             ++it;
         foundHit = true;
     }
 
     // if a new seed would have a chance then create it
-    if (num_matches_threshold <= 1) // new seed would have 1 more match than expected by possibleRemainingMatches
+    if ( cycle <= ( settings.min_errors + 1 ) * settings.kmer_span )
         add_new_seeds(pos, posWasUsedForExtension, settings);
 }
 
