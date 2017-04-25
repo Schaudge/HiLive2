@@ -364,7 +364,9 @@ void ReadAlignment::appendNucleotideToSequenceStoreVector(char nuc) {
 
 // helper function for add_new_seeds
 bool seed_compare_pos (const USeed & i, const USeed & j) { 
-  return (i->start_pos < j->start_pos); 
+	if ( i->start_pos == j->start_pos )
+		return i->gid < j->gid;
+	return (i->start_pos < j->start_pos);
 }
 
 

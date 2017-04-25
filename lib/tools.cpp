@@ -2,7 +2,9 @@
 
 // compares two genome positions by position (not by genome id)
 bool gp_compare (GenomePosType i,GenomePosType j) { 
-  return (i.pos < j.pos); 
+	if ( i.pos == j.pos )
+		return i.gid < j.gid;
+	return (i.pos < j.pos);
 }
 
 // reads a binary file from hdd and stores its raw content in a char vector
