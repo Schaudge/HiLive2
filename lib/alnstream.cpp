@@ -403,7 +403,7 @@ ReadAlignment* iAlnStream::get_alignment() {
 
   // finally, deserialize the alignment
   ReadAlignment* ra = new ReadAlignment();
-  ra->set_rlen(rlen);
+  ra->set_total_cycles(rlen);
   ra->deserialize(data.data());
   
   num_loaded++;
@@ -451,10 +451,9 @@ StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) 
   return *this;
 }
 
-std::string StreamedAlignment::get_bcl_file(uint16_t cycle) {
+std::string StreamedAlignment::get_bcl_file(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number) {
   std::ostringstream path_stream;
-
-  path_stream << root << "/L00" << lane << "/C" << cycle << ".1/s_"<< lane <<"_" << tile << ".bcl";
+  path_stream << root << "/L00" << lane << "/C" << getSeqCycle(cycle, settings, read_number) << ".1/s_"<< lane <<"_" << tile << ".bcl";
   return path_stream.str();
 }
 
@@ -462,12 +461,12 @@ std::string StreamedAlignment::get_bcl_file(uint16_t cycle) {
 // get the path to the alignment file. The alignment file is located in
 // <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
 // if base == "": base = root
-std::string StreamedAlignment::get_alignment_file(uint16_t cycle, std::string base){
+std::string StreamedAlignment::get_alignment_file(uint16_t cycle, uint16_t mate, std::string base){
   if (base == "") {
     base = root;
   }
   std::ostringstream path_stream;
-  path_stream << base << "/L00" << lane << "/s_"<< lane << "_" << tile << "." << cycle << ".align";
+  path_stream << base << "/L00" << lane << "/s_"<< lane << "_" << tile << "." << mate << "."<< cycle << ".align";
   return path_stream.str();
 }
 
@@ -493,7 +492,7 @@ void StreamedAlignment::create_directories() {
   boost::filesystem::create_directories(path_stream.str());
 
   std::ostringstream sam_stream;
-  sam_stream << globalAlignmentSettings.get_out_dir();
+  sam_stream << globalAlignmentSettings.get_out_dir().string();
   sam_stream << "/L00" << lane;
   
   boost::filesystem::create_directories(sam_stream.str());
@@ -501,11 +500,11 @@ void StreamedAlignment::create_directories() {
 
 
 // initialize empty alignment. Creates alignment files for a virtual Cycle 0
-void StreamedAlignment::init_alignment() {
-  std::string out_fname = get_alignment_file(0, globalAlignmentSettings.get_temp_dir());
+void StreamedAlignment::init_alignment(uint16_t mate) {
+	std::string out_fname = get_alignment_file(0, mate, globalAlignmentSettings.get_temp_dir());
 
   // get the number of reads in this tile by looking in the first bcl file
-  std::string first_cycle = get_bcl_file(1);
+  std::string first_cycle = get_bcl_file(1, 0);
 
   // extract the number of reads
   uint32_t num_reads = num_reads_from_bcl(first_cycle);
@@ -517,7 +516,7 @@ void StreamedAlignment::init_alignment() {
   // write empty read alignments for each read
   for (uint32_t i = 0; i < num_reads; ++i) {
     ReadAlignment * ra = new ReadAlignment();
-    ra->set_rlen(rlen);
+    ra->set_total_cycles(rlen);
     output.write_alignment(ra);
     delete ra;
   }
@@ -530,12 +529,12 @@ void StreamedAlignment::init_alignment() {
 
 
 // extend an existing alignment from cycle <cycle-1> to <cycle>. returns the number of seeds
-uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index) {
+uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index) {
 
   // 1. Open the input file
   //-----------------------
-  std::string in_fname = get_alignment_file(cycle-1, globalAlignmentSettings.get_temp_dir());
-  std::string bcl_fname = get_bcl_file(cycle);
+  std::string in_fname = get_alignment_file(cycle-1, mate, globalAlignmentSettings.get_temp_dir());
+  std::string bcl_fname = get_bcl_file(cycle, read_no); // TODO: correct cycle
   std::string filter_fname = get_filter_file();
 
   iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
@@ -551,7 +550,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index) {
 
   // 2. Open output stream
   //----------------------------------------------------------
-  std::string out_fname = get_alignment_file(cycle, globalAlignmentSettings.get_temp_dir());
+  std::string out_fname = get_alignment_file(cycle, mate, globalAlignmentSettings.get_temp_dir());
   oAlnStream output (lane, tile, cycle, root, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
 
@@ -622,11 +621,81 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index) {
   return num_seeds;
 }
 
+void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, uint16_t read_no, uint16_t mate) {
+
+	// 1. Open the input file
+	//-----------------------
+
+	std::string in_fname = get_alignment_file(read_cycle, mate, globalAlignmentSettings.get_temp_dir());
+	  std::string bcl_fname = get_bcl_file(bc_cycle, read_no);
+	  std::string filter_fname = get_filter_file();
+
+	  iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
+	  input.open(in_fname);
+	  assert(input.get_cycle() == read_cycle);
+	  assert(input.get_lane() == lane);
+	  assert(input.get_tile() == tile);
+	  assert(input.get_root() == root);
+
+	  uint32_t num_reads = input.get_num_reads();
+
+
+	  // 2. Open output stream
+	  //----------------------------------------------------------
+	  std::string out_fname = in_fname + ".temp";
+	  oAlnStream output (lane, tile, read_cycle, root, input.get_rlen(), num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+	  output.open(out_fname);
+
+
+
+	  // 3. Read the full BCL file (this is not too much)
+	  //-------------------------------------------------
+	  BclParser basecalls;
+	  basecalls.open(bcl_fname);
+
+	  // extract the number of reads from the BCL file
+	  uint32_t num_base_calls = basecalls.size();
+	  assert(num_base_calls == num_reads);
+
+	  // 4. Extend barcode sequence
+	  //-------------------------------------------------
+	  for (uint64_t i = 0; i < num_reads; ++i) {
+		char bc = basecalls.next() & 3; // only the nucleotide, ignore the quality.
+	    ReadAlignment* ra = input.get_alignment();
+	    ra->appendNucleotideToSequenceStoreVector(revtwobit_repr(bc), true);
+
+	    // filter invalid barcodes if new barcode fragment is completed
+	    // TODO: Is done for each mate. Check if it's worth to change it (runtime should not be too high?)
+	    if ( !globalAlignmentSettings.get_keep_all_barcodes() && bc_cycle == globalAlignmentSettings.get_seqs()[read_no].length && ra->getBarcodeIndex() == NO_MATCH ) {
+	    	ra->disable();
+	    }
+
+	    output.write_alignment(ra);
+	    delete ra;
+	  }
+
+	  // 5. Close files
+	  //-------------------------------------------------
+	  if (!(input.close() && output.close())) {
+	    std::cerr << "Could not finish alignment!" << std::endl;
+	  }
+
+	  // 6. Move temp out file to the original file.
+	  //-------------------------------------------
+	  std::rename(out_fname.c_str(), in_fname.c_str());
+
+}
+
+
 //-------------------------------------------------------------------//
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, KixRun* index) {
+uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, CountType mate, KixRun* index) {
+
+  SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
+	if ( seqEl == NULLSEQ ) return 0;
+
   // set the file names
   std::string temp;
   if (globalAlignmentSettings.get_temp_dir() == "")
@@ -634,10 +703,9 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
   else
     temp = globalAlignmentSettings.get_temp_dir();
 
-  std::string sam_dir = globalAlignmentSettings.get_out_dir();
   std::string filter_fname = filter_name(rt, ln, tl);
-  std::string alignment_fname = alignment_name(temp, ln, tl, rl);
-  std::string sam_fname = sam_tile_name(sam_dir, ln, tl, globalAlignmentSettings.get_write_bam());
+  std::string alignment_fname = alignment_name(ln, tl, rl, mate, temp);
+  std::string sam_fname = sam_tile_name(globalAlignmentSettings.get_out_dir().string(), ln, tl, mate, globalAlignmentSettings.get_write_bam());
 
   // check if files exist
   if ( !file_exists(alignment_fname) )
@@ -786,12 +854,12 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
             if (elem->operation == 'D')
                 deletionSum += elem->count;
         }
-        if (cigarElemSum != globalAlignmentSettings.get_seqlen()) {
+        if (cigarElemSum != seqEl.length) {
             std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << ra->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
             it = ra->seeds.erase(it);
             continue;
         }
-        if (deletionSum >= globalAlignmentSettings.get_seqlen()) {
+        if (deletionSum >= seqEl.length) {
             std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << ra->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
             it = ra->seeds.erase(it);
             continue;
@@ -800,9 +868,23 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
         // tags
         seqan::BamTagsDict dict;
         seqan::appendTagValue(dict, "AS", (*it)->num_matches);
-        if (globalAlignmentSettings.get_seqlen() < globalAlignmentSettings.get_rlen()) // if demultiplexing is on
-            seqan::appendTagValue(dict, "BC", ra->getBarcodeString());
-        seqan::appendTagValue(dict, "NM", deletionSum + globalAlignmentSettings.get_seqlen() - (*it)->num_matches);
+        if (ra->getBarcodeString()!="") {// if demultiplexing is on
+
+        	// insert "-" as delimiter between the single barcodes
+        	uint16_t bc_counter = 0;
+        	std::string barcode = ra->getBarcodeString();
+        	for ( uint16_t i = 0; i != globalAlignmentSettings.get_seqs().size(); i++) {
+        		if ( globalAlignmentSettings.getSeqById(i).isBarcode() ) {
+        			bc_counter += globalAlignmentSettings.getSeqById(i).length;
+        			if (barcode.length() <= bc_counter)
+        				break;
+        			barcode.insert(bc_counter, "-");
+        			bc_counter++;
+        		}
+        	}
+            seqan::appendTagValue(dict, "BC", barcode);
+        }
+        seqan::appendTagValue(dict, "NM", deletionSum + seqEl.length - (*it)->num_matches);
         record.tags = seqan::host(dict);
 
 

@@ -61,12 +61,17 @@ typedef SeedVec::iterator SeedVecIt;
 class ReadAlignment {
 
  private:
-  // read length
-  CountType rlen;
 
-  // sequence of the read so far, saved as vector<uint8_t> so interpretation is not that trivial. Contains barcode
+  // read length
+  CountType total_cycles;
+
+  // sequence of the read so far, saved as vector<uint8_t> so interpretation is not that trivial.
   CountType sequenceLen=0;
   std::vector<uint8_t> sequenceStoreVector;
+
+  // sequence of the barcode so far, saved as vector<uint8_t> so interpretation is not that trivial
+  CountType barcodeLen=0;
+  std::vector<uint8_t> barcodeStoreVector;
 
   // Extend or create a placeholder seed for read with only trimmed matches
   void create_placeholder_seed();
@@ -104,7 +109,7 @@ class ReadAlignment {
   CountType max_num_matches;
 
   // set the read_length
-  void set_rlen(CountType r);
+  void set_total_cycles(CountType c);
   
   // get the size of the serialized object
   uint64_t serialize_size();
@@ -118,11 +123,32 @@ class ReadAlignment {
   // convert and return sequence of the read as string (without barcode)
   std::string getSequenceString();
 
-  // convert and return sequence of the barcode
+  /**
+   * Convert and return sequence of the barcode. Multiple barcodes are concatenated (without delimiter).
+   * @return The Barcode as string
+   * @author Tobias Loka
+   */
   std::string getBarcodeString();
 
-  // append one nucleotide to sequenceStoreVector
-  void appendNucleotideToSequenceStoreVector(char nuc);
+  /**
+     * Check whether the barcode of this read fulfills the criteria of at least one user-defined barcode.
+     * The nucleotides are only compared pairwise, not allowing for Indels.
+     * @param settings Object containing the program settings.
+     * @return The index of the matching barcode in AlignmentSettings::multiBarcodeVector. NO_MATCH, if none.
+     * Also return NO_MATCH, if demultiplexing is not activated.
+     * @author 	Tobias Loka
+     */
+  CountType getBarcodeIndex(AlignmentSettings* settings) ;
+
+
+  /**
+   * Append one nucleotide to sequenceStoreVector
+   * @param nucl The nucleotide. Must be 2-bit-formatted.
+   * @param appendToBarcode If true, the nucleotide is appended to the barcode instead of the read sequence (default: false).
+   * @return
+   * @author Jakob Schulze
+   */
+  void appendNucleotideToSequenceStoreVector(char nuc, bool appendToBarcode=false);
 
   // extend the alignment by one basecall using reference database index
   void extend_alignment(char bc, KixRun* index);

@@ -203,30 +203,37 @@ std::string bcl_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl) {
 
 
 // construct alignment file name from: root, lane, tile, cycle
-std::string alignment_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl) {
+std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt, std::string base){
   std::ostringstream path_stream;
-  path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << cl << ".align";
+  path_stream << base << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mt << "."<< cl << ".align";
   return path_stream.str();
 }
 
 // construct tile-wise SAM file name from: root, lane, tile
-std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, bool write_bam) {
+std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t mate, bool write_bam) {
   std::ostringstream path_stream;
   if (write_bam)
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".bam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".bam";
   else
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".sam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".sam";
   return path_stream.str();
 }
 
 // construct lane-wise SAM file name from: root, lane
-std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam) {
+std::string sam_lane_name(std::string rt, uint16_t ln, uint16_t mate, bool write_bam) {
   std::ostringstream path_stream;
   if (write_bam)
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << ".bam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "." << mate << ".bam";
   else
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << ".sam";
+    path_stream << rt << "/L00" << ln << "/s_"<< ln << "." << mate << ".sam";
   return path_stream.str();
+}
+
+uint16_t getSeqCycle(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number) {
+	uint16_t seq_cycle = cycle;
+	for ( int i = 0; i < read_number; i++ )
+		seq_cycle += settings->getSeqById(i).length;
+	return seq_cycle;
 }
 
 // construct filter file name from: root, lane, tile
@@ -241,4 +248,99 @@ std::string position_name(std::string rt, uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
   path_stream << rt << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
   return path_stream.str();
+}
+
+void split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+}
+
+void joinSamFiles(AlignmentSettings& settings) {
+    // collect fileNames
+    std::vector<std::string> fileNames = {};
+    for (std::vector<uint16_t>::iterator laneIt = settings.lanes.begin(); laneIt!=settings.lanes.end(); ++laneIt)
+        for (std::vector<uint16_t>::iterator tileIt = settings.tiles.begin(); tileIt!=settings.tiles.end(); ++tileIt)
+            for (uint16_t mate = 1; mate<=settings.mates; ++mate)
+                fileNames.push_back(sam_tile_name(settings.out_dir.string(), *laneIt, *tileIt, mate, settings.write_bam));
+
+    // read header.
+    seqan::BamFileIn bamHeaderIn(fileNames[0].c_str());
+    seqan::BamHeader header;
+    seqan::readHeader(header, bamHeaderIn);
+
+    // read and copy records
+    if (!settings.barcodeVector.size()>0) { // If there are no specified barcodes
+
+        // Prepare Files
+        boost::filesystem::path file("finalSamFile.sam");
+        seqan::BamFileOut bamFileOut(seqan::context(bamHeaderIn), (settings.out_dir / file).string().c_str());
+        seqan::writeHeader(bamFileOut, header);
+
+        // Copy records.
+        seqan::BamAlignmentRecord record;
+        for (auto filename:fileNames) {
+            seqan::BamFileIn bamFileIn(filename.c_str());
+            while (!seqan::atEnd(bamFileIn))
+            {
+                seqan::readHeader(header, bamFileIn);
+                seqan::readRecord(record, bamFileIn);
+                seqan::writeRecord(bamFileOut, record);
+            }
+        }
+    }
+
+    else { // There are barcodes
+
+        // prepare list of barCodeStrings
+        std::vector<std::string> barCodeStrings;
+        for (auto e:settings.barcodeVector) {
+            std::string barcode;
+            for (uint16_t mate = 1; mate<=settings.mates; ++mate) {
+                barcode += e[mate-1];
+                if (mate!=settings.mates)
+                    barcode += "-";
+            }
+            barCodeStrings.push_back(barcode);
+        }
+
+        // Prepare Files
+        std::vector<seqan::BamFileOut*> outFiles;
+        for (auto e:barCodeStrings) {
+            boost::filesystem::path file("finalSamFile_" + e + ".sam");
+            seqan::BamFileOut* bamFileOut = new seqan::BamFileOut(seqan::context(bamHeaderIn), (settings.out_dir / file).string().c_str());
+            seqan::writeHeader(*bamFileOut, header);
+            outFiles.push_back(bamFileOut);
+        }
+
+        // Copy records.
+        seqan::BamAlignmentRecord record;
+        for (auto filename:fileNames) {
+            //std::cout << "Reading " << filename << " ..." << std::endl;
+            seqan::BamFileIn bamFileIn(filename.c_str());
+            while (!seqan::atEnd(bamFileIn))
+            {
+                seqan::readHeader(header, bamFileIn);
+                seqan::readRecord(record, bamFileIn);
+
+                unsigned seqansBarcodeTagId;
+                seqan::BamTagsDict tags(record.tags);
+                seqan::findTagKey(seqansBarcodeTagId, tags, seqan::CharString("BC"));
+                seqan::CharString barcodeSequence_seqan;
+                seqan::extractTagValue(barcodeSequence_seqan, tags, seqansBarcodeTagId);
+                std::string barcodeSequence(seqan::toCString(barcodeSequence_seqan));
+
+                std::vector<std::string>::iterator posIt = std::find(barCodeStrings.begin(), barCodeStrings.end(), barcodeSequence);
+                if (posIt != barCodeStrings.end()) {
+                    seqan::writeRecord(*(outFiles[posIt-barCodeStrings.begin()]), record);
+                }
+            }
+        }
+
+        for (auto outfile:outFiles)
+            delete outfile;
+    }
 }

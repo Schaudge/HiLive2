@@ -165,8 +165,8 @@ uint16_t Seed::deserialize(char* d) {
 }
 
 
-void ReadAlignment::set_rlen(CountType r) {
-    rlen = r;
+void ReadAlignment::set_total_cycles(CountType c) {
+    total_cycles = c;
 }
 
 
@@ -179,6 +179,8 @@ uint64_t ReadAlignment::serialize_size() {
   
   total_size += sizeof(CountType); // the sequence length
   total_size += sequenceStoreVector.size()*(sizeof(uint8_t)); // the sequence information itself
+  total_size += sizeof(CountType); // The barcode length
+  total_size += barcodeStoreVector.size()*(sizeof(uint8_t)); // the barcode sequence information
 
   // total number of seeds
   total_size += sizeof(uint32_t);
@@ -219,6 +221,16 @@ std::vector<char> ReadAlignment::serialize() {
 
   // write the sequenceStoreVector
   for (auto it = sequenceStoreVector.begin(); it != sequenceStoreVector.end(); ++it) {
+    memcpy(d,&(*it),sizeof(uint8_t));
+    d += sizeof(uint8_t);
+  }
+
+  // write the barcode length
+  memcpy(d,&barcodeLen,sizeof(CountType));
+  d += sizeof(CountType);
+
+  // write the barcodeStoreVector
+  for (auto it = barcodeStoreVector.begin(); it != barcodeStoreVector.end(); ++it) {
     memcpy(d,&(*it),sizeof(uint8_t));
     d += sizeof(uint8_t);
   }
@@ -276,6 +288,22 @@ uint64_t ReadAlignment::deserialize(char* d) {
     sequenceStoreVector.push_back(elem);
   }
 
+  // read the barcode length
+  barcodeLen = 0;
+  memcpy(&barcodeLen,d+bytes,sizeof(CountType));
+  bytes += sizeof(CountType);
+
+  // read the barcode
+  unsigned barVec_size = (unsigned) std::ceil((float) barcodeLen / 4.0);
+  barcodeStoreVector.clear();
+  barcodeStoreVector.reserve(barVec_size);
+  for (unsigned i = 0; i <barVec_size; ++i) {
+    uint8_t elem;
+    memcpy(&(elem),d+bytes,sizeof(uint8_t));
+    bytes += sizeof(uint8_t);
+    barcodeStoreVector.push_back(elem);
+  }
+
   // read the number of seeds
   uint32_t num_seeds = 0;
   memcpy(&num_seeds,d+bytes,sizeof(uint32_t));
@@ -316,48 +344,51 @@ std::string ReadAlignment::getSequenceString() {
         seq.pop_back();
 
     // return sequence without barcode
-    return seq.substr(0,globalAlignmentSettings.get_seqlen());
+    return seq;
 }
 
 
-// convert and return barcode
 std::string ReadAlignment::getBarcodeString() {
     std::string seq = "";
     // append one 4 base block at a time
-    for (unsigned i = 0; i<sequenceStoreVector.size(); i++)
-        seq.append(unhash(sequenceStoreVector[i], 4)); // 4 because 4 nucleotides fit in one element of sequenceStoreVector, namely a uint8_t
+    for (unsigned i = 0; i<barcodeStoreVector.size(); i++)
+        seq.append(unhash(barcodeStoreVector[i], 4)); // 4 because 4 nucleotides fit in one element of sequenceStoreVector, namely a uint8_t
 
     // delete last few bases, because sequence is only len long
-    for (unsigned i = sequenceLen; i<4*sequenceStoreVector.size(); ++i)
+    for (unsigned i = barcodeLen; i<4*barcodeStoreVector.size(); ++i)
         seq.pop_back();
 
-    // return only barcode of sequence
-    return seq.substr(globalAlignmentSettings.get_seqlen());
+    // return barcode sequence
+    return seq;
 }
 
 
 // append one nucleotide to sequenceStoreVector
-void ReadAlignment::appendNucleotideToSequenceStoreVector(char nuc) {
+void ReadAlignment::appendNucleotideToSequenceStoreVector(char nuc, bool appendToBarCode) {
+
+	CountType & len = appendToBarCode ? barcodeLen : sequenceLen;
+	std::vector<uint8_t> & seqVector = appendToBarCode ? barcodeStoreVector : sequenceStoreVector;
+
     // check if all bits from sequenceStoreVector are used
-    if (sequenceLen % 4 == 0) { // yes, all used => new 8 Bit block needs to be created
+    if (len % 4 == 0) { // yes, all used => new 8 Bit block needs to be created
         uint8_t newBlock = twobit_repr(nuc);
         newBlock = newBlock << 6; // 'empty' bits are on the right side
-        sequenceStoreVector.push_back(newBlock);
-        ++sequenceLen;
+        seqVector.push_back(newBlock);
+        ++len;
     }
     else { // not all bits are used. At least the last two are unoccupied
         // append new 2 bits to the right of the old bits
-        if (sequenceLen % 4 == 1) // 6 bits empty
-            sequenceStoreVector.back() = sequenceStoreVector.back() >> 4;
-        if (sequenceLen % 4 == 2) // 4 bits empty
-            sequenceStoreVector.back() = sequenceStoreVector.back() >> 2;
-        sequenceStoreVector.back() = sequenceStoreVector.back() | twobit_repr(nuc);
-        ++sequenceLen;
+        if (len % 4 == 1) // 6 bits empty
+            seqVector.back() = seqVector.back() >> 4;
+        if (len % 4 == 2) // 4 bits empty
+            seqVector.back() = seqVector.back() >> 2;
+        seqVector.back() = seqVector.back() | twobit_repr(nuc);
+        ++len;
         // shift used bits until they are left aligned
-        if (sequenceLen % 4 == 2) // 4 bits empty
-            sequenceStoreVector.back() = sequenceStoreVector.back() << 4;
-        if (sequenceLen % 4 == 3) // 2 bits empty
-            sequenceStoreVector.back() = sequenceStoreVector.back() << 2;
+        if (len % 4 == 2) // 4 bits empty
+            seqVector.back() = seqVector.back() << 4;
+        if (len % 4 == 3) // 2 bits empty
+            seqVector.back() = seqVector.back() << 2;
     }
 }
 
@@ -462,13 +493,13 @@ void ReadAlignment::convertPlaceholder(GenomePosListType& pos){
 void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension) {
     // TODO this function misbehaves when using demultiplexing. Reads might be preferred, kicking others only to get discarded due to barcode in the end.
     // compute possible remaining matches
-    int possibleRemainingMatches = globalAlignmentSettings.get_seqlen() - cycle + globalAlignmentSettings.get_kmer_span() - 1;
-    if (cycle == globalAlignmentSettings.get_seqlen())
+    int possibleRemainingMatches = total_cycles - cycle + globalAlignmentSettings.get_kmer_span() - 1;
+    if (cycle == total_cycles)
         possibleRemainingMatches = 0;
 
     // compute threshold for number of matching bases a seed must already have to have a chance of getting printed in the end
     // adjust threshold via adapted q-gram-lemma
-    int num_matches_threshold = globalAlignmentSettings.get_seqlen() - globalAlignmentSettings.get_min_errors()*(globalAlignmentSettings.get_kmer_span()) - possibleRemainingMatches;
+    int num_matches_threshold = total_cycles - globalAlignmentSettings.get_min_errors()*(globalAlignmentSettings.get_kmer_span()) - possibleRemainingMatches;
 
     if ((globalAlignmentSettings.get_all_best_hit_mode()) || (globalAlignmentSettings.get_any_best_hit_mode())) {
         int max_num_matches = 0;
@@ -498,7 +529,7 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
             it = seeds.erase(it);
         else if (globalAlignmentSettings.get_discard_ohw() && (cycle>globalAlignmentSettings.get_start_ohw()) && ((*it)->num_matches <= globalAlignmentSettings.get_kmer_weight())) // remove one-hit-wonders
             it = seeds.erase(it);
-        else if (cycle == globalAlignmentSettings.get_seqlen() && globalAlignmentSettings.get_any_best_hit_mode() && foundHit)
+        else if (cycle == total_cycles && globalAlignmentSettings.get_any_best_hit_mode() && foundHit)
             it = seeds.erase(it);
         else
             ++it;
@@ -656,22 +687,17 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 	// move to the next cycle
 	cycle += 1;
 
+    // cycle is not allowed to be > total_cycles
+    assert( total_cycles >= cycle );
+
 	// update the last k-mer
 	uint8_t qual = ((bc >> 2) & 63); // get bits 3-8
 	if ( (bc == 0) || (qual < globalAlignmentSettings.get_min_qual()) ){ // no call if all 0 bits or quality below threshold
-		last_invalid = cycle; // TODO append an N as basecall? Could be a bad idea
+		last_invalid = last_invalid > cycle ? last_invalid : cycle; // TODO append an N as basecall? Could be a bad idea
 	}
     unsigned mask = 3;
     if (flags != 0) // if read is valid
         appendNucleotideToSequenceStoreVector(revtwobit_repr(bc & mask)); // get the nucleotide as an actual character, disregarding the quality
-
-    // do not update the alignments when reading barcode
-    if (cycle > globalAlignmentSettings.get_seqlen()) {
-        if (cycle == rlen)
-            if (std::find(globalAlignmentSettings.get_barcodeVector().begin(), globalAlignmentSettings.get_barcodeVector().end(), getBarcodeString()) == globalAlignmentSettings.get_barcodeVector().end())
-                this->disable();
-        return;
-    }
 
     // do not update the alignments when reading the first kmer_span-1 cycles
     if (cycle < globalAlignmentSettings.get_kmer_span())
@@ -758,12 +784,66 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 	return;
 }
 
+CountType ReadAlignment::getBarcodeIndex(AlignmentSettings* settings) {
+
+	// Get the barcodes of the read
+	std::string read_bc = getBarcodeString();
+
+	uint16_t fragment_errors = 0;
+	uint16_t fragment_pos = 0;
+	uint16_t fragment_num = 0;
+	uint16_t matching_bc = NO_MATCH;
+
+	// Iterate through all user-defined (multi-)barcodes
+	// That's quite complicated since the read barcodes are consecutive and the user barcodes are divided in vectors. // TODO: change that?
+	for ( uint16_t barcodeIndex = 0; barcodeIndex < settings->barcodeVector.size(); barcodeIndex++ ) {
+
+		// reset values for the barcode
+		fragment_errors = 0;
+		fragment_pos = 0;
+		fragment_num = 0;
+		matching_bc = barcodeIndex;
+
+		// for each base of the read barcode
+		for ( uint16_t nucl = 0; nucl < read_bc.length(); nucl++ ) {
+
+			// reset values for each barcode fragment
+			if ( fragment_pos >= (settings->barcodeVector[barcodeIndex])[fragment_num].length() ) {
+				fragment_pos = 0;
+				fragment_num += 1;
+				fragment_errors = 0;
+				assert( fragment_num < (settings->barcodeVector[barcodeIndex]).size() );
+			}
+
+			// compare nucleotides and increase the number of fragment errors if not equal
+			if ( read_bc.at(nucl) != (settings->barcodeVector[barcodeIndex])[fragment_num].at(fragment_pos) ) {
+				fragment_errors++;
+			}
+
+			// if too many errors in a fragment, break the loop for the barcode
+			if ( fragment_errors > settings->barcode_errors[fragment_num] ) {
+				matching_bc = NO_MATCH;
+				break;
+			}
+
+			fragment_pos += 1; // increment the fragment position
+
+		}
+
+		// if one barcode fulfilled the criteria, we can stop.
+		if ( matching_bc != NO_MATCH )
+			break;
+	}
+
+	return matching_bc;
+}
+
 
 
 // disable this alignment, i.e. delete all seeds and set the last_invalid indicator to the
 // end of the read. --> This read will not be aligned and consumes almost no space.
 void ReadAlignment::disable() {
-  last_invalid = globalAlignmentSettings.get_seqlen();
+  last_invalid = total_cycles;
   seeds.clear();
   flags = 0;
   sequenceLen=0;
@@ -776,9 +856,9 @@ PositionType ReadAlignment::get_SAM_start_pos(USeed & sd) {
   PositionType pos = sd->start_pos;
   if (pos < 0) {
     if (sd->cigar_data.back().offset == NO_MATCH)
-        pos = -pos - globalAlignmentSettings.get_seqlen() + globalAlignmentSettings.get_kmer_span() - (++sd->cigar_data.rbegin())->offset;
+        pos = -pos - total_cycles + globalAlignmentSettings.get_kmer_span() - (++sd->cigar_data.rbegin())->offset;
     else
-        pos = -pos - globalAlignmentSettings.get_seqlen() + globalAlignmentSettings.get_kmer_span() - (sd->cigar_data.rbegin())->offset;
+        pos = -pos - total_cycles + globalAlignmentSettings.get_kmer_span() - (sd->cigar_data.rbegin())->offset;
   }
   return pos;
 }

@@ -23,7 +23,10 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
         ("keep-files,k", po::bool_switch()->default_value(false), "Keep intermediate alignment files [Default: false]")
         ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
-        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, i.e. -b AGGATC -b CCCTTT [Default: no demultiplexing]");
+        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
+    	("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
+		("keep-all-barcodes", po::bool_switch(&settings.keep_all_barcodes)->default_value(false), "Align and output all barcodes [Default: false]")
+		("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes.");
 
     po::options_description alignment("Alignment settings");
     alignment.add_options()
@@ -117,12 +120,20 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
 
 
     if (vm.count("OUTDIR"))
-        globalAlignmentSettings.set_out_dir(vm["OUTDIR"].as<std::string>());
+        globalAlignmentSettings.set_out_dir(boost::filesystem::path(vm["OUTDIR"].as<std::string>()));
     else {
         if (globalAlignmentSettings.get_temp_dir() == "") 
-            globalAlignmentSettings.set_out_dir(globalAlignmentSettings.get_root());
+            globalAlignmentSettings.set_out_dir(boost::filesystem::path(globalAlignmentSettings.get_root()));
         else
-            globalAlignmentSettings.set_out_dir(globalAlignmentSettings.get_temp_dir());
+            globalAlignmentSettings.set_out_dir(boost::filesystem::path(globalAlignmentSettings.get_temp_dir()));
+    }
+
+    // Parse read lengths and types. If read argument is missing, init for single-end and non-barcoded.
+    if ( vm.count("reads") && !parseReadsArgument(vm["reads"].as< std::vector<std::string> >()) )
+    	return -1;
+    else if ( !vm.count("reads") ) {
+    	globalAlignmentSettings.set_seqs(std::vector<SequenceElement> {SequenceElement(0,1,globalAlignmentSettings.get_cycles())});
+    	globalAlignmentSettings.set_mates(1);
     }
 
     if (vm.count("lanes"))
@@ -135,10 +146,29 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     else
         globalAlignmentSettings.set_tiles(all_tiles());
 
-    globalAlignmentSettings.set_seqlen(globalAlignmentSettings.get_rlen());
+
+
     if (vm.count("barcodes")) {
-        globalAlignmentSettings.set_barcodeVector(vm["barcodes"].as< std::vector<std::string> >());
-        globalAlignmentSettings.set_seqlen(globalAlignmentSettings.get_rlen() - globalAlignmentSettings.get_barcodeVector()[0].size());
+        if( !parseBarcodeArgument(vm["barcodes"].as< std::vector<std::string> >()) ) {
+        	std::cerr << "Parsing error: Invalid barcode(s) detected. Please ensure that you used \'-\' "
+        			"as duplex delimiter and that all barcodes have the correct length. Only use A,C,G and T as bases!" << std::endl;
+        	return -1;
+        }
+    }
+
+    if ( globalAlignmentSettings.get_barcodeVector().size() != 0 ) {
+    	if ( vm.count("barcode-errors") ) {
+    		globalAlignmentSettings.set_barcode_errors(vm["barcode-errors"].as< std::vector<uint16_t> >());
+    		if ( globalAlignmentSettings.get_barcodeVector()[0].size() != globalAlignmentSettings.get_barcode_errors().size() ) {
+    			std::cerr << "Parsing error: Number of barcode errors does not equal the number of barcodes." << std::endl;
+    			return -1;
+    		}
+    	} else {
+          std::vector<uint16_t> temp;
+        	for ( uint16_t i = 0; i < globalAlignmentSettings.get_barcodeVector()[0].size(); i++ )
+        		temp.push_back(1);
+          globalAlignmentSettings.set_barcode_errors(temp);
+    	}
     }
 
     if (vm["all-hits"].as<bool>()) {
@@ -229,7 +259,14 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
         std::cout << ln << " ";
     std::cout << std::endl;
     std::cout << "K-mer index:              " << globalAlignmentSettings.get_index_fname() << std::endl;
-    std::cout << "Read length:              " << globalAlignmentSettings.get_rlen() << std::endl;
+    std::cout << "Read lengths:             ";
+    std::string barcode_suffix;
+    for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
+    	std::cout << globalAlignmentSettings.getSeqById(read).length;
+    	barcode_suffix = globalAlignmentSettings.getSeqById(read).isBarcode() ? "B" : "R";
+    	std::cout << barcode_suffix << " ";
+    }
+    std::cout << std::endl;
     std::cout << "Mapping error:            " << globalAlignmentSettings.get_min_errors() << std::endl;
     if (globalAlignmentSettings.get_any_best_hit_mode()) 
         std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
@@ -242,4 +279,91 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     std::cout << std::endl;
 
     return 0;
+}
+
+
+bool parseReadsArgument(std::vector< std::string > readsArg){
+
+	CountType lenSum = 0;
+	CountType length = 0;
+	std::string length_string = "";
+	char type;
+	unsigned mates = 0;
+  std::vector<SequenceElement> temp;
+
+	for ( auto read = readsArg.begin(); read != readsArg.end(); ++read ) {
+
+		length_string = (*read).substr(0,(*read).length()-1);
+		type = (*(*read).rbegin());
+
+		try{
+		std::stringstream( length_string ) >> length;
+		} catch( std::bad_cast & ex ){
+			std::cerr << "Error while casting length " << length_string << " to type uint16_t" << std::endl;
+		}
+
+		if ( type!='B' && type!='R' ) {
+			std::cerr << "\'" << type << "\'" << " is no valid read type. Please use " << "\'R\'" << " for sequencing reads or "
+					"\'B\'" << " for barcode reads." << std::endl;
+			return false;
+		}
+
+		temp.push_back(SequenceElement(temp.size(), (type == 'R') ? ++mates : 0, length));
+		lenSum += length;
+
+	}
+  globalAlignmentSettings.set_seqs(temp);
+  globalAlignmentSettings.set_mates(mates);
+
+	if ( lenSum!=globalAlignmentSettings.get_cycles() ) {
+		std::cerr << "Sum of defined reads does not equal the given number of cycles." << std::endl;
+		return false;
+	}
+
+	return true;
+}
+
+
+bool parseBarcodeArgument(std::vector< std::string > barcodeArg ) {
+
+	std::vector<uint16_t> barcode_lengths;
+
+	for ( uint16_t seq_num = 0; seq_num < globalAlignmentSettings.get_seqs().size(); seq_num++ ) {
+
+		// We are only interesed in Barcode sequences
+		if ( !globalAlignmentSettings.getSeqById(seq_num).isBarcode() )
+			continue;
+
+		barcode_lengths.push_back( globalAlignmentSettings.getSeqById(seq_num).length );
+	}
+
+  std::vector<std::vector<std::string> > barcodeVector;
+	for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {
+
+		std::string valid_chars = seq_chars + "-";
+		for(CountType i = 0; i != (*barcode).length(); i++){
+			char c = (*barcode)[i];
+			if ( valid_chars.find(c) == std::string::npos )
+				return false;
+		}
+
+		std::vector<std::string> fragments;
+		split(*barcode, '-', fragments);
+
+		// check validity of barcode
+		if ( barcode_lengths.size() != fragments.size())
+			return false;
+
+		for ( uint16_t num = 0; num != fragments.size(); num++ ) {
+			if ( fragments[num].length() != barcode_lengths[num] ) {
+				return false;
+			}
+		}
+
+		// push back the fragments vector
+		barcodeVector.push_back(fragments);
+	}
+	globalAlignmentSettings.set_barcodeVector(barcodeVector);
+
+	return true;
 }

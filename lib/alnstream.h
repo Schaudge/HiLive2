@@ -143,12 +143,12 @@ class StreamedAlignment {
   uint64_t write_alignment(ReadAlignment& ral);
 
   // get the path to the bcl file of a given cycle
-  std::string get_bcl_file(uint16_t cycle);
+  std::string get_bcl_file(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number);
 
   // get the path to the alignment file. The alignment file is located in
   // <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
   // if base == "": base = root
-  std::string get_alignment_file(uint16_t cycle, std::string base = "");
+  std::string get_alignment_file(uint16_t cycle, uint16_t mate, std::string base = "");
 
   // get the path to the filter file. The illumina filter information is located in
   // <root>/L00<lane>/s_<lane>_<tile>.filter
@@ -163,10 +163,23 @@ class StreamedAlignment {
   void create_directories();
 
   // initialize empty alignment. Creates files for a virtual Cycle 0
-  void init_alignment();
+  void init_alignment(uint16_t mate);
   
   // extend an existing alignment from cycle <cycle-1> to <cycle>
-  uint64_t extend_alignment(uint16_t cycle, KixRun* index);
+  uint64_t extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index);
+
+  /**
+   * Extend the barcode for all reads with the information of the current sequencing cycle.
+   * @param bc_cycle The cycle of the barcode read.
+   * @param read_cycle The last handled cycle for the respective mate (should always be 0 or the full length)
+   * @param read_no The number of the sequence read for which the barcode will be extended (:= index in AlignmentSettings::seqs).
+   * @param mate The read mate to extend the barcode.
+   * @param settings Object containing the program settings.
+   * @return
+   * @author Tobias Loka
+   */
+  void extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, uint16_t read_no, uint16_t mate, AlignmentSettings* settings);
+
 }; /* END class StreamedAlignment */
 
 
@@ -176,7 +189,7 @@ class StreamedAlignment {
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, KixRun* index);
+uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, CountType mate, KixRun* index);
 
 
 #endif /* ALNSTREAM_H */

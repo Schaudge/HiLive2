@@ -8,27 +8,66 @@
 
 //------ Threading tools --------------------------------------------//
 
-// Task data structure. Contains all information for a thread to 
-// process a BCL file.
+/**
+ * Task data structure. Contains all information for a thread to process a BCL file.
+ * @author Martin Lindner
+ */
 struct Task {
-  // dataset information
+  /** The lane of the task. */
   uint16_t lane;
+  /** The tile of the task. */
   uint16_t tile;
+  /** Struct containing the read properties (Barcode vs. sequence; length; mate). */
+  SequenceElement seqEl;
+  /** Current cycle of the particular read (in general, this does NOT equal the sequencing cycle!). Must be <=seqEl.length. */
   uint16_t cycle;
-  uint16_t rlen;
+  /** Base call root directory */
   std::string root;
 
-  // constructor initializes all member variables
- Task(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t rl, std::string rt): lane(ln), tile(tl), cycle(cl), rlen(rl), root(rt) {};
+  /**
+   * Constructor for a NULL task.
+   * @author Tobias Loka
+   */
+  Task() : lane(255), tile(0), seqEl(NULLSEQ), cycle(0), root("") {};
 
-  // overload << operator for printing
+  /**
+   * Constructor for a valid task.
+   * @param ln The lane number.
+   * @param tl The tile number.
+   * @param seq The respective seqEl element for the current read containing information about length, type (barcode vs. sequence), mate number ...
+   * @param cl The cycle of the current read (in general, this does NOT equal the sequencing cycle!). Must be <=seqEl.length.
+   * @param rt Base call root directory.
+   * @author Martin Lindner
+   */
+ Task(uint16_t ln, uint16_t tl, SequenceElement seq, uint16_t cl, std::string rt):
+	 lane(ln), tile(tl), seqEl(seq), cycle(cl), root(rt) {};
+
+  /**
+   * Overload of the << operator. Defines the cout form of a task.
+   * @author Martin Lindner
+   */
   friend std::ostream& operator<<(std::ostream& os, const Task& t);
 };
 
-inline bool operator==(const Task& l, const Task& r){ return (r.lane==l.lane)&&(r.tile==l.tile)&&(r.cycle==l.cycle)&&(r.rlen==l.rlen)&&(r.root==l.root); }
+/**
+ * Overload of the == operator.
+ * @return true, if all fields/variables of the compared tasks equal.
+ * @author Martin Lindner
+ */
+inline bool operator==(const Task& l, const Task& r){ return (r.lane==l.lane)&&(r.tile==l.tile)&&(r.cycle==l.cycle)&&(r.seqEl==l.seqEl)&&(r.root==l.root); }
+
+/**
+ * Overload of the != operator.
+ * @return true, if at least one field/variable of the compared tasks is different.
+ * @author Martin Lindner
+ */
 inline bool operator!=(const Task& l, const Task& r){ return !(l==r); }
 
-const Task NO_TASK (255,0,0,0,"");
+/**
+ * Definition of a NULL task.
+ * @author Martin Lindner
+ */
+const Task NO_TASK (255,0,NULLSEQ,0,"");
 
 // Task queue data structure. Manages a list of task objects in a thread safe way.
 class TaskQueue {
@@ -74,16 +113,17 @@ class Agenda {
   uint16_t rlen;
   std::vector<uint16_t> lanes;
   std::vector<uint16_t> tiles;
+  AlignmentSettings* settings;
 
  public:
   // initialize agenda with root directory and read length only (all lanes, all tiles)
-  Agenda (std::string rt, uint16_t rl);
+  Agenda (std::string rt, uint16_t rl, AlignmentSettings* set);
 
   // initialize agenda with root directory, read length, and lanes (all tiles)
-  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln);
+  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, AlignmentSettings* set);
 
   // initialize agenda with root directory, read length, lanes, and tiles
-  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl);
+  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, AlignmentSettings* set);
 
   // check for BCL files and update item status
   void update_status();
@@ -92,7 +132,7 @@ class Agenda {
   Task get_task();
 
   // set the status of a task
-  void set_status(Task t, ItemStatus status);
+  void set_status(Task t, ItemStatus status, AlignmentSettings* set);
 
   // get the status of a task
   ItemStatus get_status(Task t);

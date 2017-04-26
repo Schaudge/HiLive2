@@ -34,10 +34,25 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
             // Execute the task
             bool success = true;
             try {
-                StreamedAlignment s (t.lane, t.tile, t.root, t.rlen);
+
+                StreamedAlignment s (t.lane, t.tile, t.root, t.seqEl.length);
                 uint64_t num_seeds;
-                num_seeds = s.extend_alignment(t.cycle,idx);
-                std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+
+                // Seed extension if current read is no barcode.
+                if ( !t.seqEl.isBarcode() ) {
+                	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate,idx);
+                	std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+
+                // If current read is barcode, extend barcode sequence in all sequence read align files
+                } else {
+                	CountType mate = 1;
+                	for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
+                		SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
+                		CountType current_mate_cycle = t.seqEl.id < seqEl.id ? 0 : seqEl.length;
+                		s.extend_barcode(t.cycle, current_mate_cycle, t.seqEl.id, mate);
+                	}
+                	std::cout << "Task [" << t << "]: Extended barcode of " << --mate << " mates." << std::endl;
+                }
             }
             catch (const std::exception &e) {
                 std::cerr << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
@@ -69,7 +84,7 @@ void sam_worker (TaskQueue & tasks, KixRun* idx) {
         Task t = tasks.pop();
         if ( t != NO_TASK ) {
             // Execute the task
-            alignments_to_sam(t.lane,t.tile,t.root,t.rlen, idx);
+            alignments_to_sam(t.lane,t.tile,t.root,t.seqEl.length,t.seqEl.mate,idx);
         }
         else {
             return;
@@ -95,7 +110,7 @@ int main(int argc, const char* argv[]) {
     std::cout << "K-mer weight:             " << unsigned(globalAlignmentSettings.get_kmer_weight()) << std::endl << std::endl;
 
     // Create the overall agenda
-    Agenda agenda (globalAlignmentSettings.get_root(), globalAlignmentSettings.get_rlen(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
+    Agenda agenda (globalAlignmentSettings.get_root(), globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
 
 
     // prepare the alignment
@@ -111,7 +126,7 @@ int main(int argc, const char* argv[]) {
         first_cycle_available = true;
         for ( auto ln : globalAlignmentSettings.get_lanes() ) {
             for ( auto tl : globalAlignmentSettings.get_tiles() ) {
-                if ( agenda.get_status(Task(ln,tl,1,globalAlignmentSettings.get_rlen(),"")) != BCL_AVAILABLE) {
+                if ( agenda.get_status(Task(ln,tl,globalAlignmentSettings.getSeqById(0),1,"")) != BCL_AVAILABLE) {
                     first_cycle_available = false;
                 }
             }
@@ -123,12 +138,15 @@ int main(int argc, const char* argv[]) {
 
     std::cout << "First cycle complete. Starting alignment." << std::endl;
 
-    // write empty alignment file for each tile
+    // write empty alignment file for each tile and for each sequence read
     for (uint16_t ln : globalAlignmentSettings.get_lanes()) {
         for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
-            StreamedAlignment s (ln, tl, globalAlignmentSettings.get_root(), globalAlignmentSettings.get_rlen());
-            s.create_directories();
-            s.init_alignment();
+            CountType mate = 1;
+            for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
+                StreamedAlignment s (ln, tl, globalAlignmentSettings.get_root(), globalAlignmentSettings.getSeqByMate(mate).length);
+                s.create_directories();
+                s.init_alignment(mate);
+            }
         }
     }
 
@@ -200,7 +218,9 @@ int main(int argc, const char* argv[]) {
     std::cout << "All threads joined." << std::endl;
 
     
-    std::cout << "Writing SAM files." << std::endl;
+    std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl;
+
+    std::cout << "Writing SAM files per tile." << std::endl;
     // Create individual SAM files for every tile
     TaskQueue sam_tasks; 
     std::vector<Task> tv = agenda.get_SAM_tasks();
@@ -216,9 +236,14 @@ int main(int argc, const char* argv[]) {
     for (auto& w : workers) {
         w.join();
     }
+    
+    delete index;
 
+
+    // join SAM files into N files, where N is max(1,#barcodes)
+    std::cout << "Joining SAM files." << std::endl;
+    joinSamFiles();
 
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
-    delete index;
     return 1;
 }

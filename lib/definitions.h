@@ -91,4 +91,48 @@ struct CigarElement {
 // CigarVector containing CIGAR string like information about the alignments
 typedef std::list<CigarElement> CigarVector;
 
+/**
+ * Struct containing information about the user-defined sequencing reads. This can be barcode or sequence fragments.
+ * @author Tobias Loka
+ */
+struct SequenceElement {
+
+	/** The id of the read. Equals the position in the argument list and in the AlignmentSettings::seqs vector (0-based). */
+	CountType id;
+	/** The mate number. 0 for barcodes, increasing for sequence reads in the given order (1-based). */
+	CountType mate;
+	/** The length of the respective read. */
+	CountType length;
+
+	/**
+	 * Constructor of a SequenceElement NULL object.
+	 * @author Tobias Loka
+	 */
+	SequenceElement () : id(0), mate(0), length(0) {};
+
+	/**
+	 * Constructor of a valid SequenceElement object.
+	 * @param id The id of the read.
+	 * @param m The mate number of the read (0 for barcodes, incrementing for sequence reads)
+	 * @param l The length of the read
+	 * @author Tobias Loka
+	 */
+	SequenceElement (CountType id, CountType m, CountType l): id(id), mate(m), length(l) {};
+
+	/**
+	 * Check whether the SequenceElement object is a barcode or not.
+	 * @return true, if SequenceElement is a barcode. False if not.
+	 * @author Tobias Loka
+	 */
+	bool isBarcode() { return (mate==0);}
+};
+
+/** Checks for equality of two SequenceElement objects*/
+inline bool operator==(const SequenceElement l, const SequenceElement r) {return (l.length==r.length) && (l.mate==r.mate) && (l.id==r.id);}
+/** Checks for inequality of two SequenceElement objects*/
+inline bool operator!=(const SequenceElement l, const SequenceElement r) {return !(l==r);}
+/** Defines a null-SequenceElement. */
+const SequenceElement NULLSEQ = SequenceElement();
+
+
 #endif /* DEFINITIONS_H */
