@@ -95,31 +95,74 @@ class AlignmentSettings {
   bool        index_fname_setFlag=false;
 
   // PARAMETER: read length of all reads (including barcodes)
-  CountType rlen;
-  bool      rlen_setFlag=false;
+  CountType cycles;
+  bool      cycles_setFlag=false;
 
   // PARAMETER: length of the sequence of all reads (excluding barcodes)
   CountType seqlen;
   bool      seqlen_setFlag=false;
 
-  // PARAMETER: vector containing all barcodes of the reads which should be outputted
-  std::vector<std::string> barcodeVector;
-  bool                     barcodeVector_setFlag=false;
+  //PARAMETER: Stores the barcodes defined by the user. The inner vector contains the single fragments of multi-barcodes.
+  std::vector<std::vector<std::string>> barcodeVector;
+  bool                                  barcodeVector_setFlag=false;
 
   // PARAMETER: directory in which to create the output directory structure 
-  std::string out_dir;
-  bool        out_dir_setFlag=false;
+  boost::filesystem::path out_dir;
+  bool                    out_dir_setFlag=false;
 
   // PARAMETER: number of threads to use
   CountType num_threads;
   bool      num_threads_setFlag=false;
 
+  /**
+   * Contains the read information of the sequencing machine (as SequenceElement objects). Includes sequence reads and barcodes.
+   * Arbitrary numbers and orders of reads are supported. The summed length of all elements must equal the number of sequencing cycles.
+   * @author Tobias Loka
+   */
+  std::vector<SequenceElement> seqs;
+  bool                         seqs_setFlag=false;
+
+  // Number of mates (information taken from the seqLengths parameter), (Hint: corresponding indeces are 1-based)
+  uint16_t mates;
+  bool     mates_setFlag=false;
+
+  // PARAMETER: number of allowed errors for the single barcodes
+  std::vector<uint16_t> barcode_errors;
+  bool                  barcode_errors_setFlag=false;
+
+  // SWITCH: if true, keep all barcodes (disables barcode filtering).
+  bool keep_all_barcodes;
+  bool keep_all_barcodes_setFlag=false;
+
+
+
+ public:
+  /**
+   * Get a SequenceElement object from the seqs vector by using the id
+   * @param id The id of the SequenceElement.
+   * @return The respective SequenceElement object for the given id.
+   * @author Tobias Loka
+   */
+  SequenceElement getSeqById(CountType id) {return seqs[id];}
+
+  /**
+   * Get a SequenceElement object from the seqs vector by using the mate number
+   * @param id The mate number of the SequenceElement.
+   * @return The respective SequenceElement object for the given mate number. NULLSEQ if mate==0 (barcodes).
+   * @author Tobias Loka
+   */
+  SequenceElement getSeqByMate(CountType mate) {
+	  if ( mate == 0 ) return NULLSEQ;
+	  for (uint16_t i = 0; i != seqs.size(); i++) {
+		  if(seqs[i].mate == mate) return seqs[i];
+	  }
+	  return NULLSEQ;
+  }
  
 
 
 
  // getter and setter, all build up the same way, except the first four
- public:
   std::string get_kmer_structure() {
       return(this->kmer_structure);
   }
@@ -391,16 +434,16 @@ class AlignmentSettings {
   }
 
 
-  void set_rlen(CountType value) {
-      if (!rlen_setFlag) {
-          rlen_setFlag = true;
-          this->rlen = value;
+  void set_cycles(CountType value) {
+      if (!cycles_setFlag) {
+          cycles_setFlag = true;
+          this->cycles = value;
       }
       else
-          std::cerr << "Warning: rlen can only be set once." << std::endl;
+          std::cerr << "Warning: cycles can only be set once." << std::endl;
   }
-  CountType get_rlen() {
-      return(this->rlen);
+  CountType get_cycles() {
+      return(this->cycles);
   }
 
 
@@ -417,7 +460,7 @@ class AlignmentSettings {
   }
 
 
-  void set_barcodeVector(std::vector<std::string> value) {
+  void set_barcodeVector(std::vector<std::vector<std::string> > value) {
       if (!barcodeVector_setFlag) {
           barcodeVector_setFlag = true;
           this->barcodeVector = value;
@@ -425,12 +468,12 @@ class AlignmentSettings {
       else
           std::cerr << "Warning: barcodeVector can only be set once." << std::endl;
   }
-  std::vector<std::string> get_barcodeVector() {
+  std::vector<std::vector<std::string> > get_barcodeVector() {
       return(this->barcodeVector);
   }
 
 
-  void set_out_dir(std::string value) {
+  void set_out_dir(boost::filesystem::path value) {
       if (!out_dir_setFlag) {
           out_dir_setFlag = true;
           this->out_dir = value;
@@ -438,7 +481,7 @@ class AlignmentSettings {
       else
           std::cerr << "Warning: out_dir can only be set once." << std::endl;
   }
-  std::string get_out_dir() {
+  boost::filesystem::path get_out_dir() {
       return(this->out_dir);
   }
 
@@ -453,6 +496,58 @@ class AlignmentSettings {
   }
   CountType get_num_threads() {
       return(this->num_threads);
+  }
+
+
+  void set_seqs(std::vector<SequenceElement> value) {
+      if (!seqs_setFlag) {
+          seqs_setFlag = true;
+          this->seqs = value;
+      }
+      else
+          std::cerr << "Warning: seqs can only be set once." << std::endl;
+  }
+  std::vector<SequenceElement> get_seqs() {
+      return(this->seqs);
+  }
+
+
+  void set_mates(uint16_t value) {
+      if (!mates_setFlag) {
+          mates_setFlag = true;
+          this->mates = value;
+      }
+      else
+          std::cerr << "Warning: mates can only be set once." << std::endl;
+  }
+  uint16_t get_mates() {
+      return(this->mates);
+  }
+
+
+  void set_barcode_errors(std::vector<uint16_t> value) {
+      if (!barcode_errors_setFlag) {
+          barcode_errors_setFlag = true;
+          this->barcode_errors = value;
+      }
+      else
+          std::cerr << "Warning: barcode_errors can only be set once." << std::endl;
+  }
+  std::vector<uint16_t> get_barcode_errors() {
+      return(this->barcode_errors);
+  }
+
+
+  void set_keep_all_barcodes(bool value) {
+      if (!keep_all_barcodes_setFlag) {
+          keep_all_barcodes_setFlag = true;
+          this->keep_all_barcodes = value;
+      }
+      else
+          std::cerr << "Warning: keep_all_barcodes can only be set once." << std::endl;
+  }
+  bool get_keep_all_barcodes() {
+      return(this->keep_all_barcodes);
   }
 };
 

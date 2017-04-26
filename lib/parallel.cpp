@@ -71,35 +71,34 @@ std::vector<uint16_t> one_tile(uint16_t t) {
 
 
 // initialize agenda with root directory and read length only (all lanes, all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl, AlignmentSettings* set) {
+Agenda::Agenda (std::string rt, uint16_t rl) {
   
   // add lanes 1-8 to the list
   std::vector<uint16_t> ln = all_lanes();
   
   // call the tiles constructor
-  Agenda(rt, rl, ln, set);
+  Agenda(rt, rl, ln);
 
 }
 
 // initialize agenda with root directory, read length, and lanes (all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, AlignmentSettings* set) {
+Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln) {
 
   // add all tiles to the list
   std::vector<uint16_t> tl = all_tiles();
   
   // call the full constructor
-  Agenda (rt, rl, ln, tl, set);
+  Agenda (rt, rl, ln, tl);
 
 }
 
 // initialize agenda with root directory, read length, lanes, and tiles
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, AlignmentSettings* set) {
+Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) {
 
   root = rt;
   rlen = rl;
   lanes = ln;
   tiles = tl;
-  settings = set;
 
   // set up the agenda
   items.clear();
@@ -160,11 +159,11 @@ Task Agenda::get_task(){
 			if ( unprocessed != items[ln_id][tl_id].size() ) {
 				uint16_t cycle = unprocessed + 1;
 				uint16_t read_no = 0;
-				while ( cycle > settings->getSeqById(read_no).length) {
-					cycle -= settings->getSeqById(read_no).length;
+				while ( cycle > globalAlignmentSettings.getSeqById(read_no).length) {
+					cycle -= globalAlignmentSettings.getSeqById(read_no).length;
 					read_no += 1;
 				}
-				Task t (lanes[ln_id], tiles[tl_id], settings->getSeqById(read_no), cycle, root);
+				Task t (lanes[ln_id], tiles[tl_id], globalAlignmentSettings.getSeqById(read_no), cycle, root);
 				return t;
 			}
 		}
@@ -175,7 +174,7 @@ Task Agenda::get_task(){
 
 
 // set a status
-void Agenda::set_status(Task t, ItemStatus status, AlignmentSettings* set) {
+void Agenda::set_status(Task t, ItemStatus status) {
   // get the lane index
   uint64_t diff = std::find(lanes.begin(), lanes.end(), t.lane) - lanes.begin();
   if ( diff >= lanes.size() ) {
@@ -194,7 +193,7 @@ void Agenda::set_status(Task t, ItemStatus status, AlignmentSettings* set) {
   if ( (t.cycle > rlen) || (t.cycle == 0) ) {
     throw std::out_of_range("Cycle out of range.");
   }
-  uint16_t cl_id = getSeqCycle(t.cycle,set,t.seqEl.id) -1;
+  uint16_t cl_id = getSeqCycle(t.cycle,t.seqEl.id) -1;
 
   items[ln_id][tl_id][cl_id] = status;
 }
@@ -278,10 +277,10 @@ std::vector<Task> Agenda::get_SAM_tasks() {
   // find tiles that are completely mapped
   for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
     for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
-      if ( items[ln_id][tl_id][settings->cycles-1] == FINISHED ) {
+      if ( items[ln_id][tl_id][globalAlignmentSettings.get_cycles()-1] == FINISHED ) {
     	  CountType mate = 1;
-    	  for ( ; mate <= settings->mates; mate++ ) {
-    		  SequenceElement seqEl = settings->getSeqByMate(mate);
+    	  for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
+    		  SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
     		  tv.push_back(Task(lanes[ln_id],tiles[tl_id],seqEl,seqEl.length,root));
     	  }
       }

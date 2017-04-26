@@ -149,7 +149,8 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
     case 1: written = gzwrite(ozfile, buffer.data(), buffer.size()); break;
     case 2: written = lz4write(buffer.data(), buffer.size()); break;
     }
-    assert(written == buf_size);
+    if(written != buf_size)
+      throw std::runtime_error("Could not write out buffer 1 in oAlnStream::write_alignment.");
 
     // copy remaining data
     memcpy(buffer.data(),temp.data()+first_part,sizeof(uint32_t)-first_part);
@@ -172,7 +173,8 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
       case 1: written = gzwrite(ozfile, buffer.data(), buffer.size()); break;
       case 2: written = lz4write(buffer.data(), buffer.size()); break;
       }
-      assert(written == buf_size);
+      if(written != buf_size)
+        throw std::runtime_error("Could not write out buffer 2 in oAlnStream::write_alignment.");
       buf_pos = 0;
     }
   }
@@ -192,7 +194,8 @@ bool oAlnStream::close() {
     case 1: written = gzwrite(ozfile, buffer.data(), buf_pos); break;
     case 2: written = lz4write(buffer.data(), buf_pos); break;
     }
-    assert(written == buf_pos);
+    if(written != buf_size)
+      throw std::runtime_error("Could not write out buffer in oAlnStream::close.");
     buf_pos = 0;
     if (num_written == num_reads) {
       switch (format) {
@@ -349,19 +352,15 @@ ReadAlignment* iAlnStream::get_alignment() {
     memcpy(temp.data(),buffer.data()+buf_pos,first_part);
 
     // load new buffer
-    uint64_t loaded;
     switch (format) {
     case 0:
-      loaded = fread(buffer.data(),1,buf_size,ifile);
-      assert( (loaded == buf_size) || feof(ifile) );
+      fread(buffer.data(),1,buf_size,ifile);
       break;
     case 1:
-      loaded = gzread(izfile,buffer.data(),buf_size);    
-      assert( (loaded == buf_size) || gzeof(izfile) );
+      gzread(izfile,buffer.data(),buf_size);    
       break;
     case 2:
-      loaded = lz4read_block();    
-      assert( loaded>0 || feof(ifile) );
+      lz4read_block();    
       break;
     }
 
@@ -382,20 +381,16 @@ ReadAlignment* iAlnStream::get_alignment() {
 
     // read new buffer from disk if necessary
     if(buf_pos >= buf_size){
-      uint64_t loaded;
       switch (format) {
       case 0:
-	loaded = fread(buffer.data(),1,buf_size,ifile);
-	assert( (loaded == buf_size) || feof(ifile) );
-	break;
+        fread(buffer.data(),1,buf_size,ifile);
+        break;
       case 1:
-	loaded = gzread(izfile,buffer.data(),buf_size);    
-	assert( (loaded == buf_size) || gzeof(izfile) );
-	break;
+        gzread(izfile,buffer.data(),buf_size);    
+        break;
       case 2:
-	loaded = lz4read_block();    
-	assert( loaded>0 || feof(ifile) );
-	break;
+        lz4read_block();    
+        break;
       }
       buf_pos = 0;
     }
@@ -451,9 +446,9 @@ StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) 
   return *this;
 }
 
-std::string StreamedAlignment::get_bcl_file(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number) {
+std::string StreamedAlignment::get_bcl_file(uint16_t cycle, uint16_t read_number) {
   std::ostringstream path_stream;
-  path_stream << root << "/L00" << lane << "/C" << getSeqCycle(cycle, settings, read_number) << ".1/s_"<< lane <<"_" << tile << ".bcl";
+  path_stream << root << "/L00" << lane << "/C" << getSeqCycle(cycle, read_number) << ".1/s_"<< lane <<"_" << tile << ".bcl";
   return path_stream.str();
 }
 
@@ -555,15 +550,10 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   output.open(out_fname);
 
 
-  
   // 3. Read the full BCL file (this is not too much)
   //-------------------------------------------------
   BclParser basecalls;
   basecalls.open(bcl_fname);
-  
-  // extract the number of reads from the BCL file
-  uint32_t num_base_calls = basecalls.size();
-  assert(num_base_calls == num_reads);
 
 
   // 4. Load the filter flags if filter file is available
@@ -647,15 +637,11 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	  output.open(out_fname);
 
 
-
 	  // 3. Read the full BCL file (this is not too much)
 	  //-------------------------------------------------
 	  BclParser basecalls;
 	  basecalls.open(bcl_fname);
 
-	  // extract the number of reads from the BCL file
-	  uint32_t num_base_calls = basecalls.size();
-	  assert(num_base_calls == num_reads);
 
 	  // 4. Extend barcode sequence
 	  //-------------------------------------------------

@@ -74,7 +74,7 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
 
   if (!ofile) {
     std::cerr << "Error serializing object to file " << fname << ": Could not open file for writing." << std::endl;
-    return 0;
+    return 1;
   }
 
   // write all data
@@ -106,7 +106,10 @@ uint32_t num_reads_from_bcl(std::string bcl) {
   // extract the number of reads
   uint32_t num_reads;
   bool res = fread(&num_reads, 1, sizeof(uint32_t), ifile);
-  assert(res); // fread(&num_reads, 1, sizeof(uint32_t), ifile)
+  if (!res) {
+    std::cerr << "Error extracting number of reads from BCL file " << bcl << std::endl;
+    return 0;
+  }
 
   // close file
   fclose (ifile);
@@ -152,7 +155,9 @@ HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
 /* calculates the first forward k-mer in the string <kmer> */
 std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h)
 {
-  assert(it+globalAlignmentSettings.get_kmer_span()-1 < end);
+  if (!(it+globalAlignmentSettings.get_kmer_span()-1 < end)) {
+    std::cerr << "Error: hash_fw was called using an begin position which had not at least kmer_span bases behind it." << std::endl;
+  }
   HashIntoType h = 0;
   std::string::const_iterator last_invalid = it-1;
 
@@ -229,10 +234,10 @@ std::string sam_lane_name(std::string rt, uint16_t ln, uint16_t mate, bool write
   return path_stream.str();
 }
 
-uint16_t getSeqCycle(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number) {
+uint16_t getSeqCycle(uint16_t cycle, uint16_t read_number) {
 	uint16_t seq_cycle = cycle;
 	for ( int i = 0; i < read_number; i++ )
-		seq_cycle += settings->getSeqById(i).length;
+		seq_cycle += globalAlignmentSettings.getSeqById(i).length;
 	return seq_cycle;
 }
 
@@ -259,13 +264,13 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems) {
     }
 }
 
-void joinSamFiles(AlignmentSettings& settings) {
+void joinSamFiles() {
     // collect fileNames
     std::vector<std::string> fileNames = {};
-    for (std::vector<uint16_t>::iterator laneIt = settings.lanes.begin(); laneIt!=settings.lanes.end(); ++laneIt)
-        for (std::vector<uint16_t>::iterator tileIt = settings.tiles.begin(); tileIt!=settings.tiles.end(); ++tileIt)
-            for (uint16_t mate = 1; mate<=settings.mates; ++mate)
-                fileNames.push_back(sam_tile_name(settings.out_dir.string(), *laneIt, *tileIt, mate, settings.write_bam));
+    for (std::vector<uint16_t>::iterator laneIt = globalAlignmentSettings.get_lanes().begin(); laneIt!=globalAlignmentSettings.get_lanes().end(); ++laneIt)
+        for (std::vector<uint16_t>::iterator tileIt = globalAlignmentSettings.get_tiles().begin(); tileIt!=globalAlignmentSettings.get_tiles().end(); ++tileIt)
+            for (uint16_t mate = 1; mate<=globalAlignmentSettings.get_mates(); ++mate)
+                fileNames.push_back(sam_tile_name(globalAlignmentSettings.get_out_dir().string(), *laneIt, *tileIt, mate, globalAlignmentSettings.get_write_bam()));
 
     // read header.
     seqan::BamFileIn bamHeaderIn(fileNames[0].c_str());
@@ -273,11 +278,11 @@ void joinSamFiles(AlignmentSettings& settings) {
     seqan::readHeader(header, bamHeaderIn);
 
     // read and copy records
-    if (!settings.barcodeVector.size()>0) { // If there are no specified barcodes
+    if (!globalAlignmentSettings.get_barcodeVector().size()>0) { // If there are no specified barcodes
 
         // Prepare Files
         boost::filesystem::path file("finalSamFile.sam");
-        seqan::BamFileOut bamFileOut(seqan::context(bamHeaderIn), (settings.out_dir / file).string().c_str());
+        seqan::BamFileOut bamFileOut(seqan::context(bamHeaderIn), (globalAlignmentSettings.get_out_dir() / file).string().c_str());
         seqan::writeHeader(bamFileOut, header);
 
         // Copy records.
@@ -297,11 +302,11 @@ void joinSamFiles(AlignmentSettings& settings) {
 
         // prepare list of barCodeStrings
         std::vector<std::string> barCodeStrings;
-        for (auto e:settings.barcodeVector) {
+        for (auto e:globalAlignmentSettings.get_barcodeVector()) {
             std::string barcode;
-            for (uint16_t mate = 1; mate<=settings.mates; ++mate) {
+            for (uint16_t mate = 1; mate<=globalAlignmentSettings.get_mates(); ++mate) {
                 barcode += e[mate-1];
-                if (mate!=settings.mates)
+                if (mate!=globalAlignmentSettings.get_mates())
                     barcode += "-";
             }
             barCodeStrings.push_back(barcode);
@@ -311,7 +316,7 @@ void joinSamFiles(AlignmentSettings& settings) {
         std::vector<seqan::BamFileOut*> outFiles;
         for (auto e:barCodeStrings) {
             boost::filesystem::path file("finalSamFile_" + e + ".sam");
-            seqan::BamFileOut* bamFileOut = new seqan::BamFileOut(seqan::context(bamHeaderIn), (settings.out_dir / file).string().c_str());
+            seqan::BamFileOut* bamFileOut = new seqan::BamFileOut(seqan::context(bamHeaderIn), (globalAlignmentSettings.get_out_dir() / file).string().c_str());
             seqan::writeHeader(*bamFileOut, header);
             outFiles.push_back(bamFileOut);
         }

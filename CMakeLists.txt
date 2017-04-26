@@ -5,14 +5,14 @@ cmake_minimum_required (VERSION 2.8)
 project (HiLive)
 
 # Set the version number 
-set (HiLive_VERSION_MAJOR 0)
-set (HiLive_VERSION_MINOR 3)
+add_definitions(-DHiLive_VERSION_MAJOR=0)
+add_definitions(-DHiLive_VERSION_MINOR=3)
 
 # Set the k-mer length
 set (HiLive_K 15 CACHE INT "Set the k-mer length for index and mapper")
 
 # Set flags for compilation
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++11 -O0")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++14 -O0")
 
 # add the binary tree to the search path for include files
 include_directories("${PROJECT_BINARY_DIR}")
@@ -22,8 +22,8 @@ include_directories("${PROJECT_BINARY_DIR}")
 #############################
 ### setup seqan libraries ###
 
-set (CMAKE_MODULE_PATH "/home/schulzeja/masterthesis/tools/seqan-src/util/cmake") # adjust this to [pathToSeqanCode]/util/cmake
-set (SEQAN_INCLUDE_PATH "/home/schulzeja/masterthesis/tools/seqan-src/include/") # adjust this to [pathToSeqanCode]/include
+set (CMAKE_MODULE_PATH "/home/schulzeja/masterthesis/tools/seqan-src-master/util/cmake") # adjust this to [pathToSeqanCode]/util/cmake
+set (SEQAN_INCLUDE_PATH "/home/schulzeja/masterthesis/tools/seqan-src-master/include/") # adjust this to [pathToSeqanCode]/include
 
 # Configure SeqAn, enabling features for libbz2 and zlib.
 #set (SEQAN_FIND_DEPENDENCIES ZLIB BZip2) # original version from seqan tutorial

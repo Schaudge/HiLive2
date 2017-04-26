@@ -113,17 +113,16 @@ class Agenda {
   uint16_t rlen;
   std::vector<uint16_t> lanes;
   std::vector<uint16_t> tiles;
-  AlignmentSettings* settings;
 
  public:
   // initialize agenda with root directory and read length only (all lanes, all tiles)
-  Agenda (std::string rt, uint16_t rl, AlignmentSettings* set);
+  Agenda (std::string rt, uint16_t rl);
 
   // initialize agenda with root directory, read length, and lanes (all tiles)
-  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, AlignmentSettings* set);
+  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln);
 
   // initialize agenda with root directory, read length, lanes, and tiles
-  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, AlignmentSettings* set);
+  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl);
 
   // check for BCL files and update item status
   void update_status();
@@ -132,7 +131,7 @@ class Agenda {
   Task get_task();
 
   // set the status of a task
-  void set_status(Task t, ItemStatus status, AlignmentSettings* set);
+  void set_status(Task t, ItemStatus status);
 
   // get the status of a task
   ItemStatus get_status(Task t);

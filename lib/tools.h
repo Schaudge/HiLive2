@@ -49,12 +49,11 @@ std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam);
 
 /** Get the current sequencing cycle using the current alignment cycle and read number.
  * @param cycle The read cycle.
- * @param settings Object containing the program settings.
- * @param read_number The read number (:= index of settings.seqs)
+ * @param read_number The read number (:= index of globalAlignmentSettings.seqs)
  * @return The sequencing cycle.
  * @author Tobias Loka
  */
-uint16_t getSeqCycle(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number=1);
+uint16_t getSeqCycle(uint16_t cycle, uint16_t read_number=1);
 
 /**
  * Split a string by a delimiter.
@@ -66,6 +65,6 @@ uint16_t getSeqCycle(uint16_t cycle, AlignmentSettings* settings, uint16_t read_
  */
 void split(const std::string &s, char delim, std::vector<std::string> &elems);
 
-void joinSamFiles(AlignmentSettings& settings);
+void joinSamFiles();
 
 #endif /* TOOLS_H */

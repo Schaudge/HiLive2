@@ -25,7 +25,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
         ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
     	("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
-		("keep-all-barcodes", po::bool_switch(&settings.keep_all_barcodes)->default_value(false), "Align and output all barcodes [Default: false]")
+		("keep-all-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]")
 		("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes.");
 
     po::options_description alignment("Alignment settings");
@@ -106,10 +106,11 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
 
     globalAlignmentSettings.set_root(vm["BC_DIR"].as<std::string>());
     globalAlignmentSettings.set_index_fname(vm["INDEX"].as<std::string>());
-    globalAlignmentSettings.set_rlen(vm["CYCLES"].as<CountType>());
+    globalAlignmentSettings.set_cycles(vm["CYCLES"].as<CountType>());
     globalAlignmentSettings.set_temp_dir(vm["temp"].as<std::string>());
     //globalAlignmentSettings.set_write_bam(vm["bam"].as<bool>());
     globalAlignmentSettings.set_keep_aln_files(vm["keep-files"].as<bool>());
+    globalAlignmentSettings.set_keep_all_barcodes(vm["keep-all-barcodes"].as<bool>());
     globalAlignmentSettings.set_min_errors(vm["min-errors"].as<CountType>());
 
     globalAlignmentSettings.set_discard_ohw(vm["disable-ohw-filter"].as<bool>());

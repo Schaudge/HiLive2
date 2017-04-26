@@ -784,7 +784,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 	return;
 }
 
-CountType ReadAlignment::getBarcodeIndex(AlignmentSettings* settings) {
+CountType ReadAlignment::getBarcodeIndex() {
 
 	// Get the barcodes of the read
 	std::string read_bc = getBarcodeString();
@@ -796,7 +796,7 @@ CountType ReadAlignment::getBarcodeIndex(AlignmentSettings* settings) {
 
 	// Iterate through all user-defined (multi-)barcodes
 	// That's quite complicated since the read barcodes are consecutive and the user barcodes are divided in vectors. // TODO: change that?
-	for ( uint16_t barcodeIndex = 0; barcodeIndex < settings->barcodeVector.size(); barcodeIndex++ ) {
+	for ( uint16_t barcodeIndex = 0; barcodeIndex < globalAlignmentSettings.get_barcodeVector().size(); barcodeIndex++ ) {
 
 		// reset values for the barcode
 		fragment_errors = 0;
@@ -808,20 +808,20 @@ CountType ReadAlignment::getBarcodeIndex(AlignmentSettings* settings) {
 		for ( uint16_t nucl = 0; nucl < read_bc.length(); nucl++ ) {
 
 			// reset values for each barcode fragment
-			if ( fragment_pos >= (settings->barcodeVector[barcodeIndex])[fragment_num].length() ) {
+			if ( fragment_pos >= (globalAlignmentSettings.get_barcodeVector()[barcodeIndex])[fragment_num].length() ) {
 				fragment_pos = 0;
 				fragment_num += 1;
 				fragment_errors = 0;
-				assert( fragment_num < (settings->barcodeVector[barcodeIndex]).size() );
+				assert( fragment_num < (globalAlignmentSettings.get_barcodeVector()[barcodeIndex]).size() );
 			}
 
 			// compare nucleotides and increase the number of fragment errors if not equal
-			if ( read_bc.at(nucl) != (settings->barcodeVector[barcodeIndex])[fragment_num].at(fragment_pos) ) {
+			if ( read_bc.at(nucl) != (globalAlignmentSettings.get_barcodeVector()[barcodeIndex])[fragment_num].at(fragment_pos) ) {
 				fragment_errors++;
 			}
 
 			// if too many errors in a fragment, break the loop for the barcode
-			if ( fragment_errors > settings->barcode_errors[fragment_num] ) {
+			if ( fragment_errors > globalAlignmentSettings.get_barcode_errors()[fragment_num] ) {
 				matching_bc = NO_MATCH;
 				break;
 			}

@@ -143,7 +143,7 @@ class StreamedAlignment {
   uint64_t write_alignment(ReadAlignment& ral);
 
   // get the path to the bcl file of a given cycle
-  std::string get_bcl_file(uint16_t cycle, AlignmentSettings* settings, uint16_t read_number);
+  std::string get_bcl_file(uint16_t cycle, uint16_t read_number);
 
   // get the path to the alignment file. The alignment file is located in
   // <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
@@ -172,13 +172,12 @@ class StreamedAlignment {
    * Extend the barcode for all reads with the information of the current sequencing cycle.
    * @param bc_cycle The cycle of the barcode read.
    * @param read_cycle The last handled cycle for the respective mate (should always be 0 or the full length)
-   * @param read_no The number of the sequence read for which the barcode will be extended (:= index in AlignmentSettings::seqs).
+   * @param read_no The number of the sequence read for which the barcode will be extended (:= index in globalAlignmentSettings.seqs).
    * @param mate The read mate to extend the barcode.
-   * @param settings Object containing the program settings.
    * @return
    * @author Tobias Loka
    */
-  void extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, uint16_t read_no, uint16_t mate, AlignmentSettings* settings);
+  void extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, uint16_t read_no, uint16_t mate);
 
 }; /* END class StreamedAlignment */
 
