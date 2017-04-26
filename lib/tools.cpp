@@ -105,7 +105,8 @@ uint32_t num_reads_from_bcl(std::string bcl) {
 
   // extract the number of reads
   uint32_t num_reads;
-  assert(fread(&num_reads, 1, sizeof(uint32_t), ifile));
+  bool res = fread(&num_reads, 1, sizeof(uint32_t), ifile);
+  assert(res); // fread(&num_reads, 1, sizeof(uint32_t), ifile)
 
   // close file
   fclose (ifile);
