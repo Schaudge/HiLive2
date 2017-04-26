@@ -98,6 +98,10 @@ class AlignmentSettings {
   CountType cycles;
   bool      cycles_setFlag=false;
 
+  // PARAMETER: read length of all reads (including barcodes)
+  std::string runInfo_fname;
+  bool        runInfo_fname_setFlag=false;
+
   // PARAMETER: length of the sequence of all reads (excluding barcodes)
   CountType seqlen;
   bool      seqlen_setFlag=false;
@@ -444,6 +448,19 @@ class AlignmentSettings {
   }
   CountType get_cycles() {
       return(this->cycles);
+  }
+
+
+  void set_runInfo_fname(std::string value) {
+      if (!runInfo_fname_setFlag) {
+          runInfo_fname_setFlag = true;
+          this->runInfo_fname = value;
+      }
+      else
+          std::cerr << "Warning: runInfo_fname can only be set once." << std::endl;
+  }
+  std::string get_runInfo_fname() {
+      return(this->runInfo_fname);
   }
 
 

@@ -71,12 +71,14 @@ link_directories( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 ${CMAKE_CURRENT_BINAR
 ##############################
 ### setup HiLive libraries ###
 include_directories("${PROJECT_SOURCE_DIR}/lib")
+include_directories("${PROJECT_SOURCE_DIR}/tinyxml2")
 # make a list of HiLive libraries
 set (LIB_NAMES tools alnread alnstream illumina_parsers kindex parallel argument_parser)
 set(LIB_LIST "")
 foreach (x ${LIB_NAMES})
 	list(APPEND LIB_LIST "lib/${x}.cpp")
 endforeach()
+list(APPEND LIB_LIST "tinyxml2/tinyxml2.cpp")
 add_library(HiLiveLibs ${LIB_LIST})
 
 
