@@ -267,10 +267,10 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems) {
 void joinSamFiles() {
     // collect fileNames
     std::vector<std::string> fileNames = {};
-    for (std::vector<uint16_t>::iterator laneIt = globalAlignmentSettings.get_lanes().begin(); laneIt!=globalAlignmentSettings.get_lanes().end(); ++laneIt)
-        for (std::vector<uint16_t>::iterator tileIt = globalAlignmentSettings.get_tiles().begin(); tileIt!=globalAlignmentSettings.get_tiles().end(); ++tileIt)
+    for (auto &lane:globalAlignmentSettings.get_lanes())
+        for (auto &tile:globalAlignmentSettings.get_tiles())
             for (uint16_t mate = 1; mate<=globalAlignmentSettings.get_mates(); ++mate)
-                fileNames.push_back(sam_tile_name(globalAlignmentSettings.get_out_dir().string(), *laneIt, *tileIt, mate, globalAlignmentSettings.get_write_bam()));
+                fileNames.push_back(sam_tile_name(globalAlignmentSettings.get_out_dir().string(), lane, tile, mate, globalAlignmentSettings.get_write_bam()));
 
     // read header.
     seqan::BamFileIn bamHeaderIn(fileNames[0].c_str());

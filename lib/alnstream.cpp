@@ -194,7 +194,7 @@ bool oAlnStream::close() {
     case 1: written = gzwrite(ozfile, buffer.data(), buf_pos); break;
     case 2: written = lz4write(buffer.data(), buf_pos); break;
     }
-    if(written != buf_size)
+    if(written != buf_pos)
       throw std::runtime_error("Could not write out buffer in oAlnStream::close.");
     buf_pos = 0;
     if (num_written == num_reads) {
