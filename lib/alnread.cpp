@@ -495,7 +495,18 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
     SeedVecIt it=seeds.begin();
     bool foundHit = false;
     while ( it!=seeds.end()) {
-        if ((*it)->num_matches < num_matches_threshold) {
+
+    	// Don't filter placeholder seeds in all cycles except the last.
+    	if ( (*it)->gid == TRIMMED ) {
+    		if ( cycle != settings.seqlen ) {
+    			++it;
+    			continue;
+    		} else {
+    			it = seeds.erase(it);
+    			continue;
+    		}
+    	}
+    	else if ((*it)->num_matches < num_matches_threshold) {
             it = seeds.erase(it);
             continue;
         }
