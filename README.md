@@ -136,7 +136,7 @@ Contact
 Please consult the HiLive project website for questions!
 
 If this does not help, please feel free to consult:
- * [Martin S. Lindner](mailto:martin@mail-lindner.de "Mail Martin S. Lindner") (technical contact)
+ * [Tobias P. Loka](mailto:lokat@rki.de "Mail Tobias P. Loka") and [Simon H. Tausch](mailto:tauschs@rki.de "Mail Simon H. Tausch") (technical contact)
  * [Bernhard Y. Renard](mailto:renardb@rki.de "Mail Bernhard Y. Renard") (project head)
 
 
