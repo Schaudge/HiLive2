@@ -7,7 +7,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 	seqan::CigarElement<> cigarElem;
 	int last_offset = 0;
 	for (CigarVector::const_iterator it = cigar_data.begin(); it != cigar_data.end(); ++it) { // for every element in cigar_data
-		if (it == cigar_data.begin() && (*it).offset==NO_MATCH) { // Alignment begins with NO_MATCH region => Softclipped start 
+		if (it == cigar_data.begin() && ( (*it).offset==NO_MATCH || (*it).offset==TRIMMED_MATCH ) ) { // Alignment begins with NO_MATCH region => Softclipped start
 			cigarElem.operation='S';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
@@ -437,7 +437,7 @@ void ReadAlignment::convertPlaceholder(GenomePosListType& pos, AlignmentSettings
 		    newSeed->start_pos = p->pos - (cycle - settings.kmer_span);
 		    newSeed->num_matches = matches;
 		    newSeed->cigar_data.clear();
-            newSeed->cigar_data.emplace_back(cycle - settings.kmer_span,NO_MATCH);
+            newSeed->cigar_data.emplace_back(cycle - settings.kmer_span,TRIMMED_MATCH);
 
             // set correct matches and mismatches depending on kmer mask
             std::vector<unsigned> gapVec = settings.kmer_gaps;
