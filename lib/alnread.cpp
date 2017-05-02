@@ -459,42 +459,120 @@ void ReadAlignment::convertPlaceholder(GenomePosListType& pos, AlignmentSettings
 	}
 }
 
+CountType ReadAlignment::min_errors(USeed & s, AlignmentSettings* settings) {
+
+        CigarVector* c = &(s->cigar_data);
+
+        // Catch elements with length 1 beforehand to save runtime. There can't be any errors.
+        if ( (*c).size() <= 1 )
+                return 0;
+
+        CountType minErr = 0;
+        bool minOne = false;
+
+		DiffType last_offset = NO_MATCH;
+
+        // estimate the number of errors. we only handle mismatch regions (no deletions that are represented by two consecutive match regions)
+
+        // since 1 insertion region and 1 deletion region can result from a single SNP in repetative regions.
+        for ( auto el = (*c).begin(); el!=(*c).end(); ++el) {
+
+        		// If two consecutive, different offsets of that none is a NO_MATCH means that there is a deletion.
+        		// This is only counted as 1 errors since by desing 3D...3I can occur for 1 single SNP in repetitive regions.
+        		if ( el != (*c).begin() && (*el).offset != last_offset && last_offset != NO_MATCH )
+        			minOne = true;
+
+                if ( (*el).offset == NO_MATCH ) {
+
+                        // Consider leading softclip (Make kmer_span+1 to catch reads that seem to have more errors due to false-positive ohw (SNP on Pos k+1)
+
+                        if ( el == (*c).begin() ) {
+                                minErr += ( ( (*el).length - 1 ) / ( settings->kmer_span + 1 ) ) + 1;
+                        }
+
+                        // Consider trailing error region (K+1 can still be 1 error when there is an insertion).
+                        else if ( el == --(*c).end() ) {
+                                if ( (*el).length <= ( settings->kmer_span + 1) )
+                                        minErr += 1;
+                                else
+                                        minErr += ( (*el).length + settings->kmer_span -1 ) / settings->kmer_span;
+                        }
+
+                        // Consider all other error regions (1 error for length 1, 2 errors for 2 to kmer_span+1, ...)
+                        else {
+                                minErr += ( 1 + ( ( (*el).length + settings->kmer_span - 2 ) / settings->kmer_span ) );
+                        }
+                }
+
+                last_offset = (*el).offset;
+        }
+
+        if ( minOne )
+        	minErr = std::max( minErr, CountType(1) );
+
+        return minErr;
+}
+
 
 // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
 void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension) {
-    int possibleRemainingMatches = settings.seqlen - cycle + settings.kmer_span - 1;
-    if (cycle == settings.seqlen)
-        possibleRemainingMatches = 0;
 
-    // compute threshold for number of matching bases a seed must already have to have a chance of getting printed in the end
-    // adjust threshold via adapted q-gram-lemma
-    int num_matches_threshold = cycle - ( settings.min_errors * settings.kmer_span ) - ( settings.kmer_span - K_HiLive );
+	// TODO: Doesn't support gapped k-mers
+	CountType possible_remaining_errors = cycle == settings.seqlen ? 0 : ( ( settings.seqlen - cycle ) / settings.kmer_span ) + 1;
 
-    if ((settings.all_best_hit_mode) || (settings.any_best_hit_mode)) {
-        int max_num_matches = 0;
-        for(SeedVecIt sd = seeds.begin() ; sd !=seeds.end(); ++sd)
-            max_num_matches = std::max(max_num_matches, (int) (*sd)->num_matches);
-        num_matches_threshold = std::max(num_matches_threshold, (int) max_num_matches - possibleRemainingMatches);
-    }
+	CountType min_num_errors = settings.min_errors;
+	CountType max_num_matches = 0; 	// only required for any best mode in last cycle
 
-    if (settings.all_best_n_scores_mode && settings.best_n > 0) {
-        std::vector<CountType> num_matches_vector;
-        for (SeedVecIt it=seeds.begin(); it!=seeds.end();++it)
-            num_matches_vector.push_back((*it)->num_matches);
-        std::sort(num_matches_vector.begin(), num_matches_vector.end(), std::greater<CountType>()); // sort in decreasing order
-        unsigned numberOfUniques = std::unique(num_matches_vector.begin(), num_matches_vector.end()) - num_matches_vector.begin(); // uniques are in front of vector now
-        if (numberOfUniques > settings.best_n) {
-            CountType nth_best_num_matches = num_matches_vector[settings.best_n - 1];
-            num_matches_threshold = std::max(num_matches_threshold, (int) nth_best_num_matches - possibleRemainingMatches);
-        }
-    }
-    // else nothing has to be done for all-hit-mode
-    
+	if ( settings.all_best_hit_mode || settings.any_best_hit_mode ) {
+		for(SeedVecIt sd = seeds.begin() ; sd !=seeds.end(); ++sd) {
+
+			// catch trimmed k-mers
+			if ( (*sd)->gid == TRIMMED ) {
+				continue;
+			}
+
+//			// reduce number of possible errors if last region is NO_MATCH and only 1 error less can occur
+//			if ( (*sd)->cigar_data.back().offset == NO_MATCH && cycle != settings.seqlen ) {
+//				if ( ( ( (settings.seqlen - cycle) % settings.kmer_span ) + ( (*sd)->cigar_data.back().length % settings.kmer_span ) ) <= settings.kmer_span ) {
+//					possible_remaining_errors -= 1;
+//				}
+//			}
+
+			// update values if seed could have the best score
+			CountType max_seed_errors = min_errors(*sd, &settings) + possible_remaining_errors;
+			if ( max_seed_errors < min_num_errors ) {
+				min_num_errors = max_seed_errors;
+				max_num_matches = (*sd)->num_matches;
+			} else if ( max_seed_errors == min_num_errors ) {
+				max_num_matches = std::max( max_num_matches, (*sd)->num_matches );
+			}
+		}
+	}
+	else if ( settings.all_best_n_scores_mode && settings.best_n > 0 ) {
+		std::set<CountType> all_min_errors;
+		for(SeedVecIt sd = seeds.begin() ; sd !=seeds.end(); ++sd) {
+			if ( (*sd)->gid == TRIMMED ) {
+				continue;
+			}
+			all_min_errors.insert( min_errors(*sd,&settings) );
+		}
+		auto it = all_min_errors.begin();
+		if ( all_min_errors.size() > 0 ) {
+			std::advance(it, std::min( int(settings.best_n - 1 ) , int (all_min_errors.size() - 1 ) ) );
+			min_num_errors = (*it) + possible_remaining_errors;
+		}
+	}
+	else { // all hit mode
+		min_num_errors = settings.min_errors;
+	}
+
 
     // delete all seeds which do not reach threshold
     SeedVecIt it=seeds.begin();
     bool foundHit = false;
     while ( it!=seeds.end()) {
+
+    	CountType seed_errors = min_errors(*it, &settings);
 
     	// Don't filter placeholder seeds in all cycles except the last.
     	if ( (*it)->gid == TRIMMED ) {
@@ -506,7 +584,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
     			continue;
     		}
     	}
-    	else if ((*it)->num_matches < num_matches_threshold) {
+    	else if ( seed_errors > min_num_errors ) {
             it = seeds.erase(it);
             continue;
         }
@@ -514,7 +592,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
             it = seeds.erase(it);
             continue;
         }
-        else if (cycle == settings.seqlen && settings.any_best_hit_mode && foundHit) {
+        else if (cycle == settings.seqlen && settings.any_best_hit_mode && ( (*it)->num_matches < max_num_matches || foundHit ) ) {
             it = seeds.erase(it);
             continue;
         }

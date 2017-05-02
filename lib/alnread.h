@@ -77,6 +77,8 @@ class ReadAlignment {
   // Create new seeds from a list of kmer positions and add to current seeds
   void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension, AlignmentSettings & settings);
 
+  CountType min_errors(USeed & s, AlignmentSettings * settings);
+
   // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
   void filterAndCreateNewSeeds(AlignmentSettings & settings, GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension);
 

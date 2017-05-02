@@ -585,6 +585,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
   //-------------------------------------------------
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
+
     ReadAlignment* ra = input.get_alignment();
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
