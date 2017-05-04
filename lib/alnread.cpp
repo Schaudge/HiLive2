@@ -392,7 +392,9 @@ void ReadAlignment::add_new_seeds(GenomePosListType& pos, std::vector<bool> & po
 	// If no PLACEHOLDER exist, create initial CIGAR vector
 	else {
 
-		front.emplace_back(cycle-settings.kmer_span, NO_MATCH);
+		if ( cycle > settings.kmer_span ) {
+			front.emplace_back(cycle-settings.kmer_span, NO_MATCH);
+		}
 		front.emplace_back(0,0);
 
 	}
@@ -436,19 +438,27 @@ void ReadAlignment::add_new_seeds(GenomePosListType& pos, std::vector<bool> & po
 // Extend or create a placeholder seed for read with only trimmed matches
 void ReadAlignment::create_placeholder_seed(AlignmentSettings & settings) {
 
-	// Only create PLACEHOLDER if not existing yet
-	if ( seeds.size() == 0 || (*seeds.begin())->gid != TRIMMED ) {
-		USeed s (new Seed);
-		s->gid = TRIMMED;
-		s->num_matches = 1;
-		s->cigar_data.clear();
-		if ( cycle > settings.kmer_span )
-			s->cigar_data.emplace_back(cycle - settings.kmer_span, NO_MATCH);
-		s->cigar_data.emplace_back(1,0);
-
-        // PLACEHOLDER is always at the first position of the vector
-        seeds.push_front(std::move(s));
+	// Don't create PLACEHOLDER if already exist
+	if ( minErrors_in_region( cycle - settings.kmer_span, 1, &settings ) > settings.min_errors ) {
+		return;
 	}
+
+	// Don't create PLACEHOLDER if already existing
+	if ( seeds.size() > 0 && (*seeds.begin())->gid == TRIMMED ) {
+		return;
+	}
+
+	USeed s (new Seed);
+	s->gid = TRIMMED;
+	s->num_matches = 1;
+	s->cigar_data.clear();
+	if ( cycle > settings.kmer_span )
+		s->cigar_data.emplace_back(cycle - settings.kmer_span, NO_MATCH);
+	s->cigar_data.emplace_back(1,0);
+
+	// Put PLACEHOLDER to the first position of the vector
+	seeds.push_front(std::move(s));
+
 }
 
 CountType ReadAlignment::minErrors_in_region(CountType region_length, CountType border, AlignmentSettings* settings) {
@@ -613,7 +623,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
     if ( seeds.size() > 0 && (*seeds.begin())->gid == TRIMMED ) {
     	placeholder_matches = (*seeds.begin())->num_matches;
     }
-    if ( minErrors_in_region( cycle - placeholder_matches - settings.kmer_span, 1, &settings) <= min_num_errors )
+    if ( cycle < settings.rlen && minErrors_in_region( cycle - placeholder_matches - settings.kmer_span, 1, &settings) <= min_num_errors )
         add_new_seeds(pos, posWasUsedForExtension, settings);
 }
 

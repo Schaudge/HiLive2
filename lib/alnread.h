@@ -77,8 +77,28 @@ class ReadAlignment {
   // Create new seeds from a list of kmer positions and add to current seeds
   void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension, AlignmentSettings & settings);
 
+  /**
+   * This function is the modified pigeonhole principle holding for both spaced and unspaced kmers.
+   * It computes the minimum number of errors in an error region of a given CIGAR vector.
+   * An error region is a region that is surrounded by MATCH elements of length >= ( kmer_span - 1 ).
+   * The error region cannot contain MATCH elements of length >= ( kmer_span - 1 ).
+   *
+   * @param region_length Sum of all (!) elements within the error region, including involved MATCH elements.
+   * @param border Number of included borders of the CIGAR vector (begin and/or end). Must be in [0,2].
+   * @param settings Pointer to the alignment settings
+   * @return Minimum number of errors that caused a region of the given length.
+   * @author Tobias Loka, Jakob Schulze
+   */
   CountType minErrors_in_region(CountType region_length, CountType border, AlignmentSettings* settings);
 
+  /**
+   * Compute the minimum number of errors for a seed by using the modified pigeonhole principle implemented in ReadAlignment::minErrors_in_region.
+   *
+   * @param s The seed.
+   * @param settings Pointer to the alignment settings.
+   * @return The minimum number of errors for the given seed.
+   * @author Tobias Loka, Jakob Schulze
+   */
   CountType min_errors(USeed & s, AlignmentSettings * settings);
 
   // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
