@@ -72,10 +72,12 @@ class ReadAlignment {
   void create_placeholder_seed(AlignmentSettings & settings);
 
   // convert a placeholder seed to a set of normal seeds
-  void convertPlaceholder(GenomePosListType& pos, AlignmentSettings & settings);
+//  void convertPlaceholder(GenomePosListType& pos,  std::vector<bool> & posWasUsedForExtension, AlignmentSettings & settings);
 
   // Create new seeds from a list of kmer positions and add to current seeds
   void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension, AlignmentSettings & settings);
+
+  CountType minErrors_in_region(CountType region_length, CountType border, AlignmentSettings* settings);
 
   CountType min_errors(USeed & s, AlignmentSettings * settings);
 

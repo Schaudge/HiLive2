@@ -204,6 +204,36 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     }
 
 
+    // Compute maximal consecutive gaps in gap pattern
+    CountType current_consecutive_gaps = 0;
+    CountType last_gap = 0;
+
+    for ( auto el : settings.kmer_gaps ) {
+
+    	// init first gap
+    	if ( last_gap == 0 ) {
+    		current_consecutive_gaps = 1;
+    		last_gap = el;
+    		continue;
+    	}
+
+    	// handle consecutive gaps
+    	else if ( el == last_gap + 1 ){
+    		current_consecutive_gaps += 1;
+    		last_gap = el;
+    	}
+
+    	// handle end of gap region
+    	else {
+    		settings.max_consecutive_gaps = std::max ( settings.max_consecutive_gaps, current_consecutive_gaps );
+    		current_consecutive_gaps = 1;
+    		last_gap = el;
+    	}
+
+    }
+    settings.max_consecutive_gaps = std::max ( settings.max_consecutive_gaps, current_consecutive_gaps );
+
+
     // Report the basic settings
     std::cout << "Running HiLive with       " << settings.num_threads << " thread(s)." << std::endl;
     std::cout << "BaseCalls directory:      " << settings.root << std::endl;

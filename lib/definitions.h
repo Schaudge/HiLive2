@@ -105,6 +105,8 @@ struct AlignmentSettings {
   //std::vector<unsigned> kmer_gaps = {8, 14};
   std::vector<unsigned> kmer_gaps;
 
+  CountType max_consecutive_gaps = 0;
+
   // HARD CODED: kmer span (kmer weight is K_HiLive)
   //unsigned kmer_span = K_HiLive+2;
   unsigned kmer_span = K_HiLive;
