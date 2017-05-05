@@ -6,7 +6,6 @@
 //#include "kindex.h"
 //#include "alnstream.h"
 #include "parallel.h"
-#include "tinyxml2.h"
 
 /**
  * Parse the command line arguments. Checks all arguments for validity and prints a summary to the command line.

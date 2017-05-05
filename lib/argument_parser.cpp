@@ -135,51 +135,57 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     // Parse RunInfo.xml if present
     if (vm.count("runInfoPath")) {
       globalAlignmentSettings.set_runInfo_fname(vm["runInfoPath"].as<std::string>());
-      tinyxml2::XMLDocument doc;
-      if (!doc.LoadFile( globalAlignmentSettings.get_runInfo_fname().c_str() ))
-        if (doc.FirstChildElement("RunInfo"))
-          if (doc.FirstChildElement("RunInfo")->FirstChildElement("Run")) {
-            if (doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("Reads")) {
-              tinyxml2::XMLElement * reads = doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("Reads");
-              if (reads->FirstChildElement("Read")) {
-                tinyxml2::XMLElement * read = reads->FirstChildElement("Read");
-                unsigned lenSum = 0;
-                std::vector<SequenceElement> tempSeqs;
-                unsigned mates = 0; 
-                do {
-                  tempSeqs.push_back(SequenceElement(tempSeqs.size(), (*(read->Attribute("IsIndexedRead")) == 'N') ? ++mates : 0, read->IntAttribute("NumCycles")));
-                  lenSum += read->IntAttribute("NumCycles");
-                } while((read = read->NextSiblingElement()));
-                globalAlignmentSettings.set_seqs(tempSeqs);
-                globalAlignmentSettings.set_mates(mates);
-                if ( lenSum!=globalAlignmentSettings.get_cycles() ) {
-                  std::cerr << "Sum of parsed read lengths does not equal the given number of cycles." << std::endl;
-                  return false;
-                }
-              }
-            }
-            if (doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("FlowcellLayout")) {
-              tinyxml2::XMLElement * flowcellLayout = doc.FirstChildElement("RunInfo")->FirstChildElement("Run")->FirstChildElement("FlowcellLayout");
+      std::ifstream inputStream(globalAlignmentSettings.get_runInfo_fname());
 
-              std::vector<uint16_t> temp(flowcellLayout->IntAttribute("LaneCount"));
+      using boost::property_tree::ptree;
+      ptree tree;
+
+      read_xml(inputStream, tree);
+      if (!tree.empty() && tree.count("RunInfo")!=0) {
+        ptree ptree_RunInfo = tree.get_child("RunInfo");
+
+        if (ptree_RunInfo.count("Run")!=0) {
+          ptree ptree_Run = ptree_RunInfo.get_child("Run");
+
+          if (ptree_Run.count("Reads")!=0) {
+            ptree ptree_Reads = ptree_Run.get_child("Reads");
+            unsigned lenSum = 0;
+            std::vector<SequenceElement> tempSeqs;
+            unsigned mates = 0; 
+            for (const auto &read : ptree_Reads) {
+              tempSeqs.push_back(SequenceElement(tempSeqs.size(), (read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N") ? ++mates : 0, read.second.get<unsigned>("<xmlattr>.NumCycles")));
+              lenSum += read.second.get<unsigned>("<xmlattr>.NumCycles");
+            }
+            globalAlignmentSettings.set_seqs(tempSeqs);
+            globalAlignmentSettings.set_mates(mates);
+            if ( lenSum!=globalAlignmentSettings.get_cycles() ) {
+              std::cerr << "Sum of parsed read lengths does not equal the given number of cycles." << std::endl;
+              return false;
+            }
+
+            if (ptree_Run.count("FlowcellLayout")!=0) {
+            ptree ptree_FlowcellLayout = ptree_Run.get_child("FlowcellLayout");
+
+              std::vector<uint16_t> temp(ptree_FlowcellLayout.get<unsigned>("<xmlattr>.LaneCount"));
               std::iota(temp.begin(), temp.end(), 1);
               globalAlignmentSettings.set_lanes(temp);
-
               std::vector<uint16_t> temp2;
-              for (uint16_t l = 1; l <= flowcellLayout->IntAttribute("SurfaceCount"); l++)
-                for (uint16_t s = 1; s <= flowcellLayout->IntAttribute("SwathCount"); s++)
-                  for (uint16_t t = 1; t <= flowcellLayout->IntAttribute("TileCount"); t++)
+              for (uint16_t l = 1; l <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SurfaceCount"); l++)
+                for (uint16_t s = 1; s <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SwathCount"); s++)
+                  for (uint16_t t = 1; t <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.TileCount"); t++)
                     temp2.push_back( l*1000 + s*100 + t );
               globalAlignmentSettings.set_tiles(temp2);
             }
           }
+        }
+      }
     }
     
 
     // Parse read lengths and types.
     if ( vm.count("reads") && !parseReadsArgument(vm["reads"].as< std::vector<std::string> >()) )
     	return -1;
-    else if ( !vm.count("reads") ) {
+    else if ( !vm.count("reads") && globalAlignmentSettings.get_seqs().size() == 0 ) {
     	globalAlignmentSettings.set_seqs(std::vector<SequenceElement> {SequenceElement(0,1,globalAlignmentSettings.get_cycles())});
     	globalAlignmentSettings.set_mates(1);
     }

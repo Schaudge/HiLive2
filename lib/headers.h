@@ -24,3 +24,5 @@
 #include <stdexcept>
 #include <utility>
 #include <boost/filesystem.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
