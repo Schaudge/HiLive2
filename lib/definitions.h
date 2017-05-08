@@ -103,15 +103,15 @@ struct AlignmentSettings {
 
   // HARD CODED: kmer gap positions (one-based)
   //std::vector<unsigned> kmer_gaps = {8, 14};
-  std::vector<unsigned> kmer_gaps = {};
+  std::vector<unsigned> kmer_gaps = {8, 14, 15};
 
-  std::vector<unsigned> rev_kmer_gaps = {};
+  std::vector<unsigned> rev_kmer_gaps = {4, 5, 11};
 
   CountType max_consecutive_gaps = 0;
 
   // HARD CODED: kmer span (kmer weight is K_HiLive)
   //unsigned kmer_span = K_HiLive+2;
-  unsigned kmer_span = K_HiLive;
+  unsigned kmer_span = K_HiLive + 3;
 
   // PARAMETER: Base Call quality cutoff, treat BC with quality < bc_cutoff as miscall
   CountType min_qual;

@@ -775,7 +775,6 @@ bool ReadAlignment::extendSeed(USeed & s, DiffType offset, AlignmentSettings & s
 
 		if ( s->cigar_data.back().offset == TRIMMED_MATCH ) {
 			s->cigar_data.back().length += 1;
-			s->num_matches += 1;
 		}
 		else if ( s->cigar_data.back().offset == NO_MATCH ){
 			s->cigar_data.emplace_back(1,TRIMMED_MATCH);
