@@ -6,34 +6,54 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 	TSeqanCigarString seqanCigarString;
 	seqan::CigarElement<> cigarElem;
 	int last_offset = 0;
-	for (CigarVector::const_iterator it = cigar_data.begin(); it != cigar_data.end(); ++it) { // for every element in cigar_data
-		if (it == cigar_data.begin() && ( (*it).offset==NO_MATCH || (*it).offset==TRIMMED_MATCH ) ) { // Alignment begins with NO_MATCH region => Softclipped start
+	for (CigarVector::const_iterator it = cigar_data.begin(); it != cigar_data.end(); ++it) {
+
+		// Alignment begins with NO_MATCH region => Softclipped start
+		if (it == cigar_data.begin() && (*it).offset==NO_MATCH ) {
 			cigarElem.operation='S';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
 			continue;
 		}
-		if (it == --cigar_data.end() && (*it).offset==NO_MATCH) { // Alignment ends with NO_MATCH region => Softclipped end 
+
+		// Alignment ends with NO_MATCH region => Softclipped end
+		if (it == --cigar_data.end() && (*it).offset==NO_MATCH ) {
 			cigarElem.operation='S';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
 			continue;
 		}
-		if ((*it).offset==NO_MATCH) { // ??? -> Mismatch
+
+		// Alignment ends with NO_MATCH + TRIMMED_MATCH region => Softclipped end
+		if ( it == --(--cigar_data.end()) && (*it).offset==NO_MATCH && (--cigar_data.end())->offset==TRIMMED_MATCH ) {
+			cigarElem.operation='S';
+			cigarElem.count=( (*it).length + (*(++it)).length );
+			seqan::appendValue(seqanCigarString, cigarElem);
+			continue;
+		}
+
+		// Mismatch region
+		if ((*it).offset==NO_MATCH) {
 			cigarElem.operation='M';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
 			continue;
 		}
-		if ((*it).offset!=NO_MATCH) { // ??? -> Match
-            if (last_offset == (*it).offset) { // no offset change
+
+		// Match region
+		if ((*it).offset!=NO_MATCH) {
+
+			// no offset change
+            if (last_offset == (*it).offset) {
                 cigarElem.operation='M';
                 cigarElem.count=(*it).length;
                 seqan::appendValue(seqanCigarString, cigarElem);
                 last_offset = (*it).offset;
                 continue;
 			}
-			if (last_offset < (*it).offset) { // offset gets bigger => reference in alignment is longer than read => deletion in read (and thereby cigar string)
+
+            // offset gets bigger => reference in alignment is longer than read => deletion in read (and thereby cigar string)
+			if (last_offset < (*it).offset) {
 				cigarElem.operation='D';
 				cigarElem.count=(*it).offset - last_offset;
 				seqan::appendValue(seqanCigarString, cigarElem);
@@ -43,7 +63,9 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
                 last_offset = (*it).offset;
 				continue;
 			}
-			if (last_offset > (*it).offset) { // offset gets smaller => reference in alignment is smaller than read => insertion in read (and thereby cigar string)
+
+			// offset gets smaller => reference in alignment is smaller than read => insertion in read (and thereby cigar string)
+			if (last_offset > (*it).offset) {
 				cigarElem.operation='I';
 				cigarElem.count=last_offset - (*it).offset;
 				seqan::appendValue(seqanCigarString, cigarElem);
@@ -410,7 +432,8 @@ void ReadAlignment::add_new_seeds(GenomePosListType& pos, std::vector<bool> & po
     s->cigar_data = front;
 
     // set correct matches and mismatches depending on kmer mask
-    std::vector<unsigned> gapVec = settings.kmer_gaps;
+    std::vector<unsigned> gapVec = s->start_pos > 0 ? settings.kmer_gaps : settings.rev_kmer_gaps;
+
     gapVec.push_back(settings.kmer_span+1);
     unsigned lastProcessedGapPosition = 0;
     for (unsigned gapIndex = 0, nextGap; gapIndex < gapVec.size(); ++gapIndex) {
@@ -461,18 +484,20 @@ void ReadAlignment::create_placeholder_seed(AlignmentSettings & settings) {
 
 }
 
-CountType ReadAlignment::minErrors_in_region(CountType region_length, CountType border, AlignmentSettings* settings) {
+CountType ReadAlignment::minErrors_in_region(CountType region_length, CountType border, AlignmentSettings* settings, CountType offset_change) {
 
 	// Border must not be larger than 2
 	if ( border > 2 )
 		return 0;
 
 	// Estimate no errors for regions of length 0
-	if ( region_length == 0 )
-		return 0;
+	if ( region_length == 0 ) {
+		return offset_change;
+	}
 
 	// Magic formula to estimate the minimal number of matches (supports gapped/spaced kmers)
 	int minErr = ( 1 - border ) + ( ( region_length + border + settings->kmer_span + settings->max_consecutive_gaps - 2 ) / (settings->kmer_span + settings->max_consecutive_gaps) );
+	minErr = std::max( minErr, int(offset_change) );
 
 	// Catch negative values
 	if ( minErr < 0 )
@@ -494,14 +519,23 @@ CountType ReadAlignment::min_errors(USeed & s, AlignmentSettings* settings) {
         CountType border = 0;
         CountType region_length = 0;
 
+        DiffType last_offset = 0;
+
         // Iterate through all CIGAR elements
         for ( auto cig_el = (*c).begin(); cig_el != (*c).end(); ++cig_el ) {
 
+        	if ( cig_el == (--(*c).end()) && cig_el->offset == TRIMMED_MATCH ) {
+        		border += 1;
+        		continue;
+        	}
+
         	// Finish error region if CIGAR MATCH element spans a complete k-mer
         	if ( cig_el->offset != NO_MATCH && cig_el->length >= ( settings->kmer_span -1 ) ) {
-        		minErr += minErrors_in_region(region_length, border, settings);
+        		CountType offset_change = ( cig_el->offset > last_offset ) ? ( cig_el->offset - last_offset ) : ( last_offset - cig_el->offset );
+        		minErr += minErrors_in_region(region_length, border, settings, offset_change);
         		region_length = 0;
         		border = 0;
+        		last_offset = cig_el->offset;
         		continue;
         	}
 
@@ -513,8 +547,16 @@ CountType ReadAlignment::min_errors(USeed & s, AlignmentSettings* settings) {
         	}
         }
 
-        // Finish last region ( if this is no error region, the function will return 0 )
-        minErr += minErrors_in_region(region_length, border, settings);
+        DiffType final_offset = NO_MATCH;
+
+        // Compute offset of the last match CIGAR element
+        for ( auto cig_el = (*c).rbegin(); final_offset == NO_MATCH || final_offset == TRIMMED_MATCH; ++cig_el ) {
+        	final_offset = (*cig_el).offset;
+        }
+		CountType offset_change = ( final_offset > last_offset ) ? ( final_offset - last_offset ) : ( last_offset - final_offset );
+
+        // Finish last region
+        minErr += minErrors_in_region(region_length, border, settings, offset_change);
 
         return minErr;
 }
@@ -577,24 +619,27 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
     // delete all seeds which do not reach threshold
     SeedVecIt it=seeds.begin();
     bool foundHit = false;
+
     while ( it!=seeds.end()) {
 
-    	CountType seed_errors = min_errors(*it, &settings);
-
-    	// Don't filter PLACEHOLDER seeds in all cycles except the last.
+    	// Handle PLACEHOLDER seeds separately
     	if ( (*it)->gid == TRIMMED ) {
 
-    		if ( cycle != settings.seqlen ) {
-    			++it;
-    			continue;
-    		} else {
+    		// Filter if last cycle
+    		if ( cycle == settings.seqlen ) {
     			it = seeds.erase(it);
     			continue;
     		}
+
+    		// Keep it otherwise
+    		++it;
+    		continue;
     	}
 
+    	CountType seed_errors = min_errors(*it, &settings);
+
     	// Filter all seeds that have more errors than the threshold
-    	else if ( seed_errors > min_num_errors ) {
+    	if ( seed_errors > min_num_errors ) {
             it = seeds.erase(it);
             continue;
         }
@@ -682,7 +727,8 @@ void ReadAlignment::addMatchingKmer(USeed & s, DiffType offset, AlignmentSetting
     unsigned positionInKmer = 1;
     while (it != s->cigar_data.end()) {
         // if positionInKmer is not in kmer_gaps and cigar element was match
-        if ((*it).offset == NO_MATCH && std::find(settings.kmer_gaps.begin(), settings.kmer_gaps.end(), positionInKmer) == settings.kmer_gaps.end()) {
+    	std::vector<unsigned>* kmer_gaps = s->start_pos > 0 ? &(settings.kmer_gaps) : &(settings.rev_kmer_gaps);
+        if ( (*it).offset == NO_MATCH && std::find(kmer_gaps->begin(), kmer_gaps->end(), positionInKmer) == kmer_gaps->end()) {
             (*it).offset = offset;
             s->num_matches += 1;
         }
@@ -709,41 +755,36 @@ void ReadAlignment::addMatchingKmer(USeed & s, DiffType offset, AlignmentSetting
 // Extend an existing seed (to be precise, extend the CIGAR vector / data).
 bool ReadAlignment::extendSeed(USeed & s, DiffType offset, AlignmentSettings & settings){
 
+	// TODO: Do we need to handle this?
 	// Extend placeholder seed only with trimmed k-mer
 	if ( s->gid == TRIMMED ) {
 
+		// Extend PLACEHOLDER when last k-mer is trimmed
 		if ( offset == TRIMMED_MATCH ) {
 			s->cigar_data.back().length += 1;
 			s->num_matches += 1;
 			return true;
 		}
 
-		else {
-			return false;
-		}
-
+		// Everthing else can not happen, but if so, just return false.
+		return false;
 	}
 
 	// Extend CIGAR for TRIMMED k-mers
 	if ( offset == TRIMMED_MATCH ) {
 
-		// If last mismatch region is longer than kmer_span, assume that there is a match with the same offset as before.
-		if ( s->cigar_data.back().offset == NO_MATCH && s->cigar_data.back().length >= settings.kmer_span ) {
-			addMatchingKmer(s, (++(s->cigar_data.rbegin()))->offset, settings);
-			return true;
+		if ( s->cigar_data.back().offset == TRIMMED_MATCH ) {
+			s->cigar_data.back().length += 1;
+			s->num_matches += 1;
 		}
-
-		// Extend all other NO_MATCH regions with TRIMMED k-mer as NO_MATCH
-		if ( s->cigar_data.back().offset == NO_MATCH ) {
-			 s->cigar_data.back().length += 1;
-			 return false;
+		else if ( s->cigar_data.back().offset == NO_MATCH ){
+			s->cigar_data.emplace_back(1,TRIMMED_MATCH);
 		}
-
-		// Continue MATCH region with TRIMMED k-mer
-		if ( s->cigar_data.back().offset != NO_MATCH ) {
+		else {
 			addMatchingKmer(s, s->cigar_data.back().offset, settings);
-			return true;
 		}
+		return true;
+
 
 	}
 
@@ -755,6 +796,13 @@ bool ReadAlignment::extendSeed(USeed & s, DiffType offset, AlignmentSettings & s
 		if ( s->cigar_data.back().offset == NO_MATCH ) {
 			s->cigar_data.back().length += 1;
 			return false;
+		}
+
+		// TRIMMED_MATCH --> NO_MATCH
+		else if ( s->cigar_data.back().offset == TRIMMED_MATCH ) {
+			CountType trimmed_length = s->cigar_data.back().length;
+			s->cigar_data.erase( (--(s->cigar_data.end())) );
+			s->cigar_data.back().length += (trimmed_length + 1);
 		}
 
 		// MATCH --> NO_MATCH
@@ -788,6 +836,47 @@ bool ReadAlignment::extendSeed(USeed & s, DiffType offset, AlignmentSettings & s
                 s->cigar_data.back().length += 1;
                 return false;
             }
+		}
+
+		// TRIMMED_MATCH --> MATCH
+		else if ( s->cigar_data.back().offset == TRIMMED_MATCH ) {
+
+			CountType trimmed_length = s->cigar_data.back().length;
+			s->cigar_data.erase( (--(s->cigar_data.end())) );
+
+			int offset_change = offset - (++(s->cigar_data.rbegin()))->offset;
+
+			// Insertion or deletion in read
+			if ( offset_change != 0 ) {
+
+				// Offset change is only considered for Insertions (negative offset change)
+				int considered_offsetChange = (offset_change < 0) ? offset_change : 0;
+
+				// Move TRIMMED_MATCHES from TRIMMED_MATCH region to previous NO_MATCH region such that the offset criteria are fulfilled.
+				// If this is not possible, count all trimmed MATCHes and current MATCH as NO_MATCH.
+
+				if ( (s->cigar_data.back().length < settings.kmer_span - considered_offsetChange - 1) ) {
+
+					CountType required_nomatches = std::max(0, int(settings.kmer_span) - considered_offsetChange - 1 - s->cigar_data.back().length);
+
+					if ( trimmed_length >= required_nomatches ) {
+						trimmed_length -= required_nomatches;
+						s->cigar_data.back().length += required_nomatches;
+					}
+
+					else {
+						s->cigar_data.back().length += (trimmed_length + 1);
+						return false;
+					}
+				}
+			}
+
+			// Add all previous TRIMMED k-mers as MATCH k-mers.
+			for ( CountType i = 0; i < trimmed_length + 1; i++ ) {
+				addMatchingKmer(s, offset, settings);
+			}
+			return true;
+
 		}
 
 		// MATCH --> MATCH
@@ -869,12 +958,13 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* 
 
 		// check if the current k-mer was trimmed in the index
 		if ( (pos.size() == 1) && ((*pos.begin()).gid == TRIMMED) ) {
-				// pretend that all existing seeds could be extended
-				for(auto sd = seeds.begin() ; sd !=seeds.end(); ++sd)
-					extendSeed(*sd, TRIMMED_MATCH, *settings);
 
-				if ( seeds.size() == 0 || (*seeds.begin())->gid != TRIMMED )
-					create_placeholder_seed(*settings);
+			// pretend that all existing seeds could be extended
+			for(auto sd = seeds.begin() ; sd !=seeds.end(); ++sd)
+				extendSeed(*sd, TRIMMED_MATCH, *settings);
+
+			if ( seeds.size() == 0 || (*seeds.begin())->gid != TRIMMED )
+				create_placeholder_seed(*settings);
 			// clear the pos list so nothing bad happens in the next steps
 			pos.clear();
 		}
@@ -896,6 +986,8 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* 
 				PositionType last_offset = prev((*cSeed)->cigar_data.end())->offset;
 				if(last_offset == NO_MATCH) {
 					last_offset = prev(prev((*cSeed)->cigar_data.end()))->offset;
+				} else if ( last_offset == TRIMMED_MATCH ) {
+					last_offset = prev(prev(prev((*cSeed)->cigar_data.end())))->offset;
 				}
 
 				// Compute the optimal match position for the next k-mer
@@ -930,6 +1022,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, AlignmentSettings* 
 					// no position found to extend the current seed
 					extendSeed(*cSeed, NO_MATCH, *settings);
 				}
+
 			} // END: for(seeds...)
 		} // END: not trimmed
 	} // END: if last kmer is valid

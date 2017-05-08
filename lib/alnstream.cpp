@@ -586,6 +586,8 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
 
+	  bool testRead = i==5;
+
     ReadAlignment* ra = input.get_alignment();
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
@@ -607,6 +609,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
     output.write_alignment(ra);
     delete ra;
   }
+
 
   // 6. Close files
   //-------------------------------------------------
@@ -750,6 +753,15 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
     seqan::BamAlignmentRecord record;
     bool printedFirstSeed = false;
     for (SeedVecIt it = ra->seeds.begin(); it != ra->seeds.end(); ) {
+
+    	if ( (*ra->seeds.begin())->gid == TRIMMED ) {
+    		if (  (ra->seeds.size() == 1) ) {
+    			settings->trimmedReads.push_back(i);
+    		}
+    		++it;
+    		continue;
+    	}
+
         seqan::clear(record);
 
         record.qName = readname.str();
@@ -800,7 +812,7 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
 
         // tags
         seqan::BamTagsDict dict;
-        seqan::appendTagValue(dict, "AS", (*it)->num_matches);
+        seqan::appendTagValue(dict, "AS", ( settings->seqlen - ( ra->min_errors( (*it), settings) ) ) );
         if (settings->seqlen < settings->rlen) // if demultiplexing is on
             seqan::appendTagValue(dict, "BC", ra->getBarcodeString(*settings));
         seqan::appendTagValue(dict, "NM", deletionSum + settings->seqlen - (*it)->num_matches);

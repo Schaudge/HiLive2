@@ -217,6 +217,11 @@ int main(int argc, const char* argv[]) {
     }
 
 
+    std::cout << "Trimmed reads: " ;
+    for ( auto tr : settings.trimmedReads ) {
+    	std::cout << tr << ", ";
+    }
+    std::cout << std::endl;
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
     delete index;
     return 1;

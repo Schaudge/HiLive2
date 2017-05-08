@@ -86,20 +86,11 @@ class ReadAlignment {
    * @param region_length Sum of all (!) elements within the error region, including involved MATCH elements.
    * @param border Number of included borders of the CIGAR vector (begin and/or end). Must be in [0,2].
    * @param settings Pointer to the alignment settings
+   * @param Absolute number (positive) of the offset change during a region
    * @return Minimum number of errors that caused a region of the given length.
    * @author Tobias Loka, Jakob Schulze
    */
-  CountType minErrors_in_region(CountType region_length, CountType border, AlignmentSettings* settings);
-
-  /**
-   * Compute the minimum number of errors for a seed by using the modified pigeonhole principle implemented in ReadAlignment::minErrors_in_region.
-   *
-   * @param s The seed.
-   * @param settings Pointer to the alignment settings.
-   * @return The minimum number of errors for the given seed.
-   * @author Tobias Loka, Jakob Schulze
-   */
-  CountType min_errors(USeed & s, AlignmentSettings * settings);
+  CountType minErrors_in_region(CountType region_length, CountType border, AlignmentSettings* settings, CountType offset_change=0 );
 
   // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
   void filterAndCreateNewSeeds(AlignmentSettings & settings, GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension);
@@ -156,6 +147,16 @@ class ReadAlignment {
 
   // obtain start position of a seed according to SAM (leftmost) 
   PositionType get_SAM_start_pos(USeed & sd, AlignmentSettings & settings);
+
+  /**
+   * Compute the minimum number of errors for a seed by using the modified pigeonhole principle implemented in ReadAlignment::minErrors_in_region.
+   *
+   * @param s The seed.
+   * @param settings Pointer to the alignment settings.
+   * @return The minimum number of errors for the given seed.
+   * @author Tobias Loka, Jakob Schulze
+   */
+  CountType min_errors(USeed & s, AlignmentSettings * settings);
 
 }; // END class ReadAlignment 
 

@@ -103,7 +103,9 @@ struct AlignmentSettings {
 
   // HARD CODED: kmer gap positions (one-based)
   //std::vector<unsigned> kmer_gaps = {8, 14};
-  std::vector<unsigned> kmer_gaps;
+  std::vector<unsigned> kmer_gaps = {};
+
+  std::vector<unsigned> rev_kmer_gaps = {};
 
   CountType max_consecutive_gaps = 0;
 
@@ -179,6 +181,8 @@ struct AlignmentSettings {
 
   // PARAMETER: number of threads to use
   CountType num_threads;
+
+  std::vector<CountType> trimmedReads;
 };
 
 

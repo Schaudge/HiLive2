@@ -208,7 +208,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     CountType current_consecutive_gaps = 0;
     CountType last_gap = 0;
 
-    for ( auto el : settings.kmer_gaps ) {
+    for ( unsigned el : settings.kmer_gaps ) {
 
     	// init first gap
     	if ( last_gap == 0 ) {
@@ -218,7 +218,7 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
     	}
 
     	// handle consecutive gaps
-    	else if ( el == last_gap + 1 ){
+    	else if ( el == unsigned( last_gap + 1 ) ){
     		current_consecutive_gaps += 1;
     		last_gap = el;
     	}
