@@ -774,7 +774,8 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
             continue;
         }
 
-        record.cigar = (*it)->returnSeqanCigarString();
+        unsigned nm_i = 0;
+        record.cigar = (*it)->returnSeqanCigarString(&nm_i);
 
         // flag and seq
         record.flag = 0;
@@ -815,7 +816,7 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
         seqan::appendTagValue(dict, "AS", ( settings->seqlen - ( ra->min_errors( (*it), settings) ) ) );
         if (settings->seqlen < settings->rlen) // if demultiplexing is on
             seqan::appendTagValue(dict, "BC", ra->getBarcodeString(*settings));
-        seqan::appendTagValue(dict, "NM", deletionSum + settings->seqlen - (*it)->num_matches);
+        seqan::appendTagValue(dict, "NM", nm_i);
         record.tags = seqan::host(dict);
 
 

@@ -30,7 +30,7 @@ struct Seed {
   CigarVector cigar_data;
 
   // return Seqans String of CigarElement
-  seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
+  seqan::String<seqan::CigarElement<> > returnSeqanCigarString(unsigned* nm_i);
 
   // get the size of the serialized object
   uint16_t serialize_size();
