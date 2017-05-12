@@ -200,9 +200,9 @@ std::string unhash(HashIntoType myHash, unsigned hashLen)
 // file name construction functions
 
 // construct BCL file name from: root, lane, tile, cycle
-std::string bcl_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl) {
+std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl) {
   std::ostringstream path_stream;
-  path_stream << rt << "/L00" << ln << "/C" << cl << ".1/s_"<< ln <<"_" << tl << ".bcl";
+  path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/C" << cl << ".1/s_"<< ln <<"_" << tl << ".bcl";
   return path_stream.str();
 }
 
@@ -215,22 +215,22 @@ std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt, s
 }
 
 // construct tile-wise SAM file name from: root, lane, tile
-std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t mate, bool write_bam) {
+std::string sam_tile_name(uint16_t ln, uint16_t tl, uint16_t mate, bool write_bam) {
   std::ostringstream path_stream;
   if (write_bam)
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".bam";
+    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".bam";
   else
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".sam";
+    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".sam";
   return path_stream.str();
 }
 
 // construct lane-wise SAM file name from: root, lane
-std::string sam_lane_name(std::string rt, uint16_t ln, uint16_t mate, bool write_bam) {
+std::string sam_lane_name(uint16_t ln, uint16_t mate, bool write_bam) {
   std::ostringstream path_stream;
   if (write_bam)
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "." << mate << ".bam";
+    path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "." << mate << ".bam";
   else
-    path_stream << rt << "/L00" << ln << "/s_"<< ln << "." << mate << ".sam";
+    path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "." << mate << ".sam";
   return path_stream.str();
 }
 
@@ -242,16 +242,16 @@ uint16_t getSeqCycle(uint16_t cycle, uint16_t read_number) {
 }
 
 // construct filter file name from: root, lane, tile
-std::string filter_name(std::string rt, uint16_t ln, uint16_t tl) {
+std::string filter_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
-  path_stream << rt << "/L00" << ln << "/s_"<< ln << "_" << tl << ".filter";
+  path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".filter";
   return path_stream.str();
 }
 
 // construct position file name from: root, lane, tile
-std::string position_name(std::string rt, uint16_t ln, uint16_t tl) {
+std::string position_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
-  path_stream << rt << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
+  path_stream << globalAlignmentSettings.get_root() << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
   return path_stream.str();
 }
 
@@ -270,7 +270,7 @@ void joinSamFiles() {
     for (auto &lane:globalAlignmentSettings.get_lanes())
         for (auto &tile:globalAlignmentSettings.get_tiles())
             for (uint16_t mate = 1; mate<=globalAlignmentSettings.get_mates(); ++mate)
-                fileNames.push_back(sam_tile_name(globalAlignmentSettings.get_out_dir().string(), lane, tile, mate, globalAlignmentSettings.get_write_bam()));
+                fileNames.push_back(sam_tile_name(lane, tile, mate, globalAlignmentSettings.get_write_bam()));
 
     // read header.
     seqan::BamFileIn bamHeaderIn(fileNames[0].c_str());

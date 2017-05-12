@@ -6,8 +6,8 @@
 //-------------------------------------------------------------------//
 
 // new output Alignment Stream class
-oAlnStream::oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, std::string rt, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt):
-  lane(ln), tile(tl), cycle(cl), root(rt), rlen(rl), num_reads(nr), num_written(0), buffer(bs,0), buf_size(bs), buf_pos(0), format(fmt), ofile(NULL), ozfile(Z_NULL) {}
+oAlnStream::oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt):
+  lane(ln), tile(tl), cycle(cl), rlen(rl), num_reads(nr), num_written(0), buffer(bs,0), buf_size(bs), buf_pos(0), format(fmt), ofile(NULL), ozfile(Z_NULL) {}
 
 
 // write function for lz4 compression
@@ -62,11 +62,6 @@ uint64_t oAlnStream::open(std::string fname) {
   total_size += sizeof(uint16_t); // tile
   total_size += sizeof(CountType); // cycle
 
-  // root directory name
-  uint16_t root_size = root.size();
-  total_size += sizeof(uint16_t);
-  total_size += root_size;
-
   // read length
   total_size += sizeof(CountType);
 
@@ -88,13 +83,6 @@ uint64_t oAlnStream::open(std::string fname) {
   // write the cycle
   memcpy(d,&cycle,sizeof(CountType));
   d += sizeof(CountType);
-
-  // root directory name
-  memcpy(d,&root_size,sizeof(uint16_t));
-  d += sizeof(uint16_t);
-
-  memcpy(d,root.c_str(),root_size);
-  d += root_size;
 
   // write the read length
   memcpy(d,&rlen,sizeof(CountType));
@@ -223,7 +211,7 @@ bool oAlnStream::close() {
 
 // new Alignment Stream class
 iAlnStream::iAlnStream(uint64_t bs, uint8_t fmt):
-  lane(0), tile(0), cycle(0), root(""), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), ifile(NULL), izfile(Z_NULL) {}
+  lane(0), tile(0), cycle(0), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), ifile(NULL), izfile(Z_NULL) {}
 
 
 // read function for lz4 decompression, reads one block of data
@@ -276,7 +264,6 @@ uint64_t iAlnStream::open(std::string fname) {
   // load the header:
 
   uint64_t bytes = 0;
-  uint16_t root_size;
   switch (format) {
   case 0: case 2:
     {
@@ -286,14 +273,6 @@ uint64_t iAlnStream::open(std::string fname) {
       bytes += fread(&tile,sizeof(uint16_t),1,ifile);
       // read the cycle
       bytes += fread(&cycle,sizeof(CountType),1,ifile);
-      // root directory name size
-      bytes += fread(&root_size,sizeof(uint16_t),1,ifile);
-      // root name
-      char * tmp = new char[root_size+1];
-      bytes += fread(tmp,1,root_size,ifile);
-      tmp[root_size] = 0; // make the string null-terminated
-      root = tmp;
-      delete tmp;
       // read the read length
       bytes += fread(&rlen,sizeof(CountType),1,ifile);
       // read the number of reads
@@ -308,14 +287,6 @@ uint64_t iAlnStream::open(std::string fname) {
       bytes += gzread(izfile,&tile,sizeof(uint16_t));
       // read the cycle
       bytes += gzread(izfile,&cycle,sizeof(CountType));
-      // root directory name size
-      bytes += gzread(izfile,&root_size,sizeof(uint16_t));
-      // root name
-      char * tmp = new char[root_size+1];
-      bytes += gzread(izfile,tmp,root_size);
-      tmp[root_size] = 0; // make the string null-terminated
-      root = tmp;
-      delete tmp;
       // read the read length
       bytes += gzread(izfile,&rlen,sizeof(CountType));
       // read the number of reads
@@ -440,7 +411,6 @@ StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) 
   
   lane = other.lane;
   tile = other.tile;
-  root = other.root;
   rlen = other.rlen;
   
   return *this;
@@ -448,17 +418,17 @@ StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) 
 
 std::string StreamedAlignment::get_bcl_file(uint16_t cycle, uint16_t read_number) {
   std::ostringstream path_stream;
-  path_stream << root << "/L00" << lane << "/C" << getSeqCycle(cycle, read_number) << ".1/s_"<< lane <<"_" << tile << ".bcl";
+  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/C" << getSeqCycle(cycle, read_number) << ".1/s_"<< lane <<"_" << tile << ".bcl";
   return path_stream.str();
 }
 
 
 // get the path to the alignment file. The alignment file is located in
 // <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
-// if base == "": base = root
+// if base == "": base = globalAlignmentSettings.get_root()
 std::string StreamedAlignment::get_alignment_file(uint16_t cycle, uint16_t mate, std::string base){
   if (base == "") {
-    base = root;
+    base = globalAlignmentSettings.get_root();
   }
   std::ostringstream path_stream;
   path_stream << base << "/L00" << lane << "/s_"<< lane << "_" << tile << "." << mate << "."<< cycle << ".align";
@@ -468,16 +438,16 @@ std::string StreamedAlignment::get_alignment_file(uint16_t cycle, uint16_t mate,
 
 std::string StreamedAlignment::get_filter_file() {
   std::ostringstream path_stream;
-  path_stream << root << "/L00" << lane << "/s_"<< lane << "_" << tile << ".filter";
+  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/s_"<< lane << "_" << tile << ".filter";
   return path_stream.str();
 }
 
 
-// create directories required to store the alignment files (only if not stored in root)
+// create directories required to store the alignment files (only if not stored in globalAlignmentSettings.get_root())
 void StreamedAlignment::create_directories() {
   std::ostringstream path_stream;
   if (globalAlignmentSettings.get_temp_dir() == "") {
-    path_stream << root;
+    path_stream << globalAlignmentSettings.get_root();
   }
   else {
     path_stream << globalAlignmentSettings.get_temp_dir();
@@ -505,7 +475,7 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
   uint32_t num_reads = num_reads_from_bcl(first_cycle);
   
   // open output alignment stream
-  oAlnStream output (lane, tile, 0, root, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+  oAlnStream output (lane, tile, 0, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
 
   // write empty read alignments for each read
@@ -537,7 +507,6 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   assert(input.get_cycle() == cycle-1);
   assert(input.get_lane() == lane);
   assert(input.get_tile() == tile);
-  assert(input.get_root() == root);
   assert(input.get_rlen() == rlen);
 
   uint32_t num_reads = input.get_num_reads();
@@ -546,7 +515,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   // 2. Open output stream
   //----------------------------------------------------------
   std::string out_fname = get_alignment_file(cycle, mate, globalAlignmentSettings.get_temp_dir());
-  oAlnStream output (lane, tile, cycle, root, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+  oAlnStream output (lane, tile, cycle, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
 
 
@@ -625,7 +594,6 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	  assert(input.get_cycle() == read_cycle);
 	  assert(input.get_lane() == lane);
 	  assert(input.get_tile() == tile);
-	  assert(input.get_root() == root);
 
 	  uint32_t num_reads = input.get_num_reads();
 
@@ -633,7 +601,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	  // 2. Open output stream
 	  //----------------------------------------------------------
 	  std::string out_fname = in_fname + ".temp";
-	  oAlnStream output (lane, tile, read_cycle, root, input.get_rlen(), num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+	  oAlnStream output (lane, tile, read_cycle, input.get_rlen(), num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
 	  output.open(out_fname);
 
 
@@ -677,7 +645,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, CountType mate, KixRun* index) {
+uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, CountType rl, CountType mate, KixRun* index) {
 
   SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
 	if ( seqEl == NULLSEQ ) return 0;
@@ -685,13 +653,13 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
   // set the file names
   std::string temp;
   if (globalAlignmentSettings.get_temp_dir() == "")
-    temp = rt;
+    temp = globalAlignmentSettings.get_root();
   else
     temp = globalAlignmentSettings.get_temp_dir();
 
-  std::string filter_fname = filter_name(rt, ln, tl);
+  std::string filter_fname = filter_name(ln, tl);
   std::string alignment_fname = alignment_name(ln, tl, rl, mate, temp);
-  std::string sam_fname = sam_tile_name(globalAlignmentSettings.get_out_dir().string(), ln, tl, mate, globalAlignmentSettings.get_write_bam());
+  std::string sam_fname = sam_tile_name(ln, tl, mate, globalAlignmentSettings.get_write_bam());
 
   // check if files exist
   if ( !file_exists(alignment_fname) )

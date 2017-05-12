@@ -18,7 +18,6 @@ class oAlnStream {
   uint16_t lane;
   uint16_t tile;
   uint16_t cycle;
-  std::string root;
   CountType rlen;
   uint32_t num_reads;
 
@@ -49,7 +48,7 @@ class oAlnStream {
 
  public:
   // constructor initializes all member variables
-  oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, std::string rt, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt);
+  oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt);
 
   // open Alignment stream file and write header
   uint64_t open(std::string fname);
@@ -70,7 +69,6 @@ class iAlnStream {
   uint16_t lane;
   uint16_t tile;
   uint16_t cycle;
-  std::string root;
   CountType rlen;
   uint32_t num_reads;
 
@@ -117,7 +115,6 @@ class iAlnStream {
   inline uint16_t get_lane() {return lane;};
   inline uint16_t get_tile() {return tile;};
   inline uint16_t get_cycle() {return cycle;};
-  inline std::string get_root() {return root;};
   inline CountType get_rlen() {return rlen;};
   inline uint32_t get_num_reads() {return num_reads;};
   inline uint32_t get_num_loaded() {return num_loaded;};
@@ -133,7 +130,6 @@ class StreamedAlignment {
   // dataset information
   uint16_t lane;
   uint16_t tile;
-  std::string root; // the BaseCalls directory
   CountType rlen;
 
   // fetch the next read from the input stream
@@ -147,7 +143,7 @@ class StreamedAlignment {
 
   // get the path to the alignment file. The alignment file is located in
   // <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
-  // if base == "": base = root
+  // if base == "": base = globalAlignmentSettings.get_root()
   std::string get_alignment_file(uint16_t cycle, uint16_t mate, std::string base = "");
 
   // get the path to the filter file. The illumina filter information is located in
@@ -155,7 +151,7 @@ class StreamedAlignment {
   std::string get_filter_file();
 
  public:
-  StreamedAlignment(uint16_t ln, uint16_t tl, std::string rt, CountType rl): lane(ln), tile(tl), root(rt), rlen(rl) {};  
+  StreamedAlignment(uint16_t ln, uint16_t tl, CountType rl): lane(ln), tile(tl), rlen(rl) {};  
 
   StreamedAlignment& operator=(const StreamedAlignment& other);
   
@@ -188,7 +184,7 @@ class StreamedAlignment {
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, CountType mate, KixRun* index);
+uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, CountType rl, CountType mate, KixRun* index);
 
 
 #endif /* ALNSTREAM_H */

@@ -70,32 +70,31 @@ std::vector<uint16_t> one_tile(uint16_t t) {
 }
 
 
-// initialize agenda with root directory and read length only (all lanes, all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl) {
+// initialize agenda with read length only (all lanes, all tiles)
+Agenda::Agenda (uint16_t rl) {
   
   // add lanes 1-8 to the list
   std::vector<uint16_t> ln = all_lanes();
   
   // call the tiles constructor
-  Agenda(rt, rl, ln);
+  Agenda(rl, ln);
 
 }
 
-// initialize agenda with root directory, read length, and lanes (all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln) {
+// initialize agenda with read length and lanes (all tiles)
+Agenda::Agenda (uint16_t rl, std::vector<uint16_t> ln) {
 
   // add all tiles to the list
   std::vector<uint16_t> tl = all_tiles();
   
   // call the full constructor
-  Agenda (rt, rl, ln, tl);
+  Agenda (rl, ln, tl);
 
 }
 
-// initialize agenda with root directory, read length, lanes, and tiles
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) {
+// initialize agenda with read length, lanes, and tiles
+Agenda::Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) {
 
-  root = rt;
   rlen = rl;
   lanes = ln;
   tiles = tl;
@@ -130,7 +129,7 @@ void Agenda::update_status () {
 
 			// if there is one, check if there is a BCL file available
 			if ((first_unfinished != items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == WAITING)) {
-				std::string this_fname = bcl_name(root, lanes[ln_id], tiles[tl_id], first_unfinished+1);
+				std::string this_fname = bcl_name(lanes[ln_id], tiles[tl_id], first_unfinished+1);
 				// only change the status if the file exists
 				if ( file_exists(this_fname) ) {
 					// TODO: probably find a way to check if the machine currently writes to that file
@@ -163,7 +162,7 @@ Task Agenda::get_task(){
 					cycle -= globalAlignmentSettings.getSeqById(read_no).length;
 					read_no += 1;
 				}
-				Task t (lanes[ln_id], tiles[tl_id], globalAlignmentSettings.getSeqById(read_no), cycle, root);
+				Task t (lanes[ln_id], tiles[tl_id], globalAlignmentSettings.getSeqById(read_no), cycle);
 				return t;
 			}
 		}
@@ -281,7 +280,7 @@ std::vector<Task> Agenda::get_SAM_tasks() {
     	  CountType mate = 1;
     	  for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
     		  SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
-    		  tv.push_back(Task(lanes[ln_id],tiles[tl_id],seqEl,seqEl.length,root));
+    		  tv.push_back(Task(lanes[ln_id],tiles[tl_id],seqEl,seqEl.length));
     	  }
       }
     }

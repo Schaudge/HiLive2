@@ -35,7 +35,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
             bool success = true;
             try {
 
-                StreamedAlignment s (t.lane, t.tile, t.root, t.seqEl.length);
+                StreamedAlignment s (t.lane, t.tile, t.seqEl.length);
                 uint64_t num_seeds;
 
                 // Seed extension if current read is no barcode.
@@ -84,7 +84,7 @@ void sam_worker (TaskQueue & tasks, KixRun* idx) {
         Task t = tasks.pop();
         if ( t != NO_TASK ) {
             // Execute the task
-            alignments_to_sam(t.lane,t.tile,t.root,t.seqEl.length,t.seqEl.mate,idx);
+            alignments_to_sam(t.lane,t.tile,t.seqEl.length,t.seqEl.mate,idx);
         }
         else {
             return;
@@ -110,7 +110,7 @@ int main(int argc, const char* argv[]) {
     std::cout << "K-mer weight:             " << unsigned(globalAlignmentSettings.get_kmer_weight()) << std::endl << std::endl;
 
     // Create the overall agenda
-    Agenda agenda (globalAlignmentSettings.get_root(), globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
+    Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
 
 
     // prepare the alignment
@@ -126,7 +126,7 @@ int main(int argc, const char* argv[]) {
         first_cycle_available = true;
         for ( auto ln : globalAlignmentSettings.get_lanes() ) {
             for ( auto tl : globalAlignmentSettings.get_tiles() ) {
-                if ( agenda.get_status(Task(ln,tl,globalAlignmentSettings.getSeqById(0),1,"")) != BCL_AVAILABLE) {
+                if ( agenda.get_status(Task(ln,tl,globalAlignmentSettings.getSeqById(0),1)) != BCL_AVAILABLE) {
                     first_cycle_available = false;
                 }
             }
@@ -143,7 +143,7 @@ int main(int argc, const char* argv[]) {
         for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
             CountType mate = 1;
             for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
-                StreamedAlignment s (ln, tl, globalAlignmentSettings.get_root(), globalAlignmentSettings.getSeqByMate(mate).length);
+                StreamedAlignment s (ln, tl, globalAlignmentSettings.getSeqByMate(mate).length);
                 s.create_directories();
                 s.init_alignment(mate);
             }

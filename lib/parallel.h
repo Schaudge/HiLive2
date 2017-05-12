@@ -21,14 +21,12 @@ struct Task {
   SequenceElement seqEl;
   /** Current cycle of the particular read (in general, this does NOT equal the sequencing cycle!). Must be <=seqEl.length. */
   uint16_t cycle;
-  /** Base call root directory */
-  std::string root;
 
   /**
    * Constructor for a NULL task.
    * @author Tobias Loka
    */
-  Task() : lane(255), tile(0), seqEl(NULLSEQ), cycle(0), root("") {};
+  Task() : lane(255), tile(0), seqEl(NULLSEQ), cycle(0) {};
 
   /**
    * Constructor for a valid task.
@@ -36,11 +34,10 @@ struct Task {
    * @param tl The tile number.
    * @param seq The respective seqEl element for the current read containing information about length, type (barcode vs. sequence), mate number ...
    * @param cl The cycle of the current read (in general, this does NOT equal the sequencing cycle!). Must be <=seqEl.length.
-   * @param rt Base call root directory.
    * @author Martin Lindner
    */
- Task(uint16_t ln, uint16_t tl, SequenceElement seq, uint16_t cl, std::string rt):
-	 lane(ln), tile(tl), seqEl(seq), cycle(cl), root(rt) {};
+ Task(uint16_t ln, uint16_t tl, SequenceElement seq, uint16_t cl):
+	 lane(ln), tile(tl), seqEl(seq), cycle(cl) {};
 
   /**
    * Overload of the << operator. Defines the cout form of a task.
@@ -54,7 +51,7 @@ struct Task {
  * @return true, if all fields/variables of the compared tasks equal.
  * @author Martin Lindner
  */
-inline bool operator==(const Task& l, const Task& r){ return (r.lane==l.lane)&&(r.tile==l.tile)&&(r.cycle==l.cycle)&&(r.seqEl==l.seqEl)&&(r.root==l.root); }
+inline bool operator==(const Task& l, const Task& r){ return (r.lane==l.lane)&&(r.tile==l.tile)&&(r.cycle==l.cycle)&&(r.seqEl==l.seqEl); }
 
 /**
  * Overload of the != operator.
@@ -67,7 +64,7 @@ inline bool operator!=(const Task& l, const Task& r){ return !(l==r); }
  * Definition of a NULL task.
  * @author Martin Lindner
  */
-const Task NO_TASK (255,0,NULLSEQ,0,"");
+const Task NO_TASK (255,0,NULLSEQ,0);
 
 // Task queue data structure. Manages a list of task objects in a thread safe way.
 class TaskQueue {
@@ -109,20 +106,19 @@ class Agenda {
   std::vector< std::vector< std::vector<ItemStatus> > > items;
   
   // dataset information
-  std::string root;
   uint16_t rlen;
   std::vector<uint16_t> lanes;
   std::vector<uint16_t> tiles;
 
  public:
-  // initialize agenda with root directory and read length only (all lanes, all tiles)
-  Agenda (std::string rt, uint16_t rl);
+  // initialize agenda with read length only (all lanes, all tiles)
+  Agenda (uint16_t rl);
 
-  // initialize agenda with root directory, read length, and lanes (all tiles)
-  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln);
+  // initialize agenda with read length and lanes (all tiles)
+  Agenda (uint16_t rl, std::vector<uint16_t> ln);
 
-  // initialize agenda with root directory, read length, lanes, and tiles
-  Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl);
+  // initialize agenda with read length, lanes and tiles
+  Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl);
 
   // check for BCL files and update item status
   void update_status();
