@@ -183,6 +183,9 @@ struct AlignmentSettings {
   CountType num_threads;
 
   std::vector<CountType> trimmedReads;
+
+  // SWITCH: activate extended CIGAR annotation
+  bool extended_cigar;
 };
 
 

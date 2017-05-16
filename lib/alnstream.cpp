@@ -773,7 +773,7 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
         }
 
         unsigned nm_i = 0;
-        record.cigar = (*it)->returnSeqanCigarString(&nm_i);
+        record.cigar = (*it)->returnSeqanCigarString(&nm_i, settings);
 
         // flag and seq
         record.flag = 0;

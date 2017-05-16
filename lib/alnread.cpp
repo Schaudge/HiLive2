@@ -1,7 +1,7 @@
 #include "alnread.h"
 
 
-seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_i) {
+seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_i, AlignmentSettings* settings) {
 	typedef seqan::String<seqan::CigarElement<> > TSeqanCigarString;
 	TSeqanCigarString seqanCigarString;
 	seqan::CigarElement<> cigarElem;
@@ -34,7 +34,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
 
 		// Mismatch region
 		if ((*it).offset==NO_MATCH) {
-			cigarElem.operation='M';
+            cigarElem.operation = settings->extended_cigar ? 'X' : 'M';
 			cigarElem.count=(*it).length;
 			(*nm_i) += (*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
@@ -46,7 +46,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
 
 			// no offset change
             if (last_offset == (*it).offset) {
-                cigarElem.operation='M';
+                cigarElem.operation = settings->extended_cigar ? '=' : 'M';
                 cigarElem.count=(*it).length;
                 seqan::appendValue(seqanCigarString, cigarElem);
                 last_offset = (*it).offset;
@@ -59,7 +59,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
 				cigarElem.count=(*it).offset - last_offset;
 				(*nm_i) += (*it).offset - last_offset;
 				seqan::appendValue(seqanCigarString, cigarElem);
-				cigarElem.operation='M';
+                cigarElem.operation = settings->extended_cigar ? '=' : 'M';
 				cigarElem.count=(*it).length;
 				seqan::appendValue(seqanCigarString, cigarElem);
                 last_offset = (*it).offset;
@@ -72,7 +72,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
 				cigarElem.count=last_offset - (*it).offset;
 				(*nm_i) += last_offset - (*it).offset;
 				seqan::appendValue(seqanCigarString, cigarElem);
-				cigarElem.operation='M';
+                cigarElem.operation = settings->extended_cigar ? '=' : 'M';
 				cigarElem.count=(*it).length;
 				seqan::appendValue(seqanCigarString, cigarElem);
                 last_offset = (*it).offset;
@@ -81,9 +81,9 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
 		}
 	}
 
-    // collapse Neighboring match regions
+    // collapse Neighboring identical regions
 	for (unsigned k = 1; k<length(seqanCigarString); k++)
-		if ((seqanCigarString[k-1].operation == 'M') && (seqanCigarString[k].operation == 'M')) {
+		if ( seqanCigarString[k-1].operation == seqanCigarString[k].operation ) {
 			unsigned temp = seqanCigarString[k].count;
 			erase(seqanCigarString, k);
 			seqanCigarString[k-1].count += temp;

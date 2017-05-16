@@ -23,7 +23,8 @@ int parseCommandLineArguments(AlignmentSettings & settings, std::string license,
         ("keep-files,k", po::bool_switch(&settings.keep_aln_files)->default_value(false), "Keep intermediate alignment files [Default: false]")
         ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
-        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, i.e. -b AGGATC -b CCCTTT [Default: no demultiplexing]");
+        ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, i.e. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
+		("extended-cigar", po::bool_switch(&settings.extended_cigar)->default_value(false), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]");
 
     po::options_description alignment("Alignment settings");
     alignment.add_options()
