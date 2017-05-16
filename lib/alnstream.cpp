@@ -586,8 +586,6 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, KixRun* index, Alig
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
 
-	  bool testRead = i==5;
-
     ReadAlignment* ra = input.get_alignment();
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
@@ -794,11 +792,16 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
         // check if cigar string sums up to read length
         unsigned cigarElemSum = 0;
         unsigned deletionSum = 0;
+        unsigned asi_score = (*it)->num_matches;
         for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
             if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X')) 
                 cigarElemSum += elem->count;
-            if (elem->operation == 'D')
+            if ( (elem->operation == 'I') )
+            	asi_score += elem->count - 1;
+            if (elem->operation == 'D') {
                 deletionSum += elem->count;
+                asi_score -= 1;
+            }
         }
         if (cigarElemSum != settings->seqlen) {
             std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << ra->get_SAM_start_pos(*it, *settings) << " because its cigar vector had length " << cigarElemSum << std::endl;
@@ -813,7 +816,7 @@ uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType r
 
         // tags
         seqan::BamTagsDict dict;
-        seqan::appendTagValue(dict, "AS", ( settings->seqlen - ( ra->min_errors( (*it), settings) ) ) );
+        seqan::appendTagValue(dict, "AS", ( asi_score ) );
         if (settings->seqlen < settings->rlen) // if demultiplexing is on
             seqan::appendTagValue(dict, "BC", ra->getBarcodeString(*settings));
         seqan::appendTagValue(dict, "NM", nm_i);

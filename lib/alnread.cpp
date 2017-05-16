@@ -648,7 +648,7 @@ void ReadAlignment::filterAndCreateNewSeeds(AlignmentSettings & settings, Genome
         }
 
     	// Filter One-hit-Wonders
-        else if (settings.discard_ohw && (cycle>settings.start_ohw) && ((*it)->num_matches <= K_HiLive)) {
+        else if ( settings.discard_ohw && (cycle>settings.start_ohw) && ((*it)->num_matches <= K_HiLive) && ( (*it)->cigar_data.back().length > settings.max_consecutive_gaps ) ) {
             it = seeds.erase(it);
             continue;
         }
