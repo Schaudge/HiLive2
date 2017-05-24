@@ -41,11 +41,10 @@ std::string unhash(HashIntoType myHash, unsigned hashLen=globalAlignmentSettings
 
 // file name construction functions
 std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl);
-std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt, std::string base);
+std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt);
 std::string filter_name(uint16_t ln, uint16_t tl);
 std::string position_name(uint16_t ln, uint16_t tl);
-std::string sam_tile_name(uint16_t ln, uint16_t tl, uint16_t mate, bool write_bam);
-std::string sam_lane_name(uint16_t ln, bool write_bam);
+std::string sam_tile_name(uint16_t ln, uint16_t tl, bool write_bam);
 
 /** Get the current sequencing cycle using the current alignment cycle and read number.
  * @param cycle The read cycle.

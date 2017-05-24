@@ -208,29 +208,20 @@ std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl) {
 
 
 // construct alignment file name from: root, lane, tile, cycle
-std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt, std::string base){
+std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt){
   std::ostringstream path_stream;
+  std::string base = globalAlignmentSettings.get_temp_dir() != "" ? globalAlignmentSettings.get_temp_dir() : globalAlignmentSettings.get_root();
   path_stream << base << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mt << "."<< cl << ".align";
   return path_stream.str();
 }
 
 // construct tile-wise SAM file name from: root, lane, tile
-std::string sam_tile_name(uint16_t ln, uint16_t tl, uint16_t mate, bool write_bam) {
+std::string sam_tile_name(uint16_t ln, uint16_t tl, bool write_bam) {
   std::ostringstream path_stream;
   if (write_bam)
-    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".bam";
+    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".bam";
   else
-    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mate << ".sam";
-  return path_stream.str();
-}
-
-// construct lane-wise SAM file name from: root, lane
-std::string sam_lane_name(uint16_t ln, uint16_t mate, bool write_bam) {
-  std::ostringstream path_stream;
-  if (write_bam)
-    path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "." << mate << ".bam";
-  else
-    path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "." << mate << ".sam";
+    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".sam";
   return path_stream.str();
 }
 
@@ -265,33 +256,43 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems) {
 }
 
 void joinSamFiles() {
+    std::cout << "Checkpoint 1" << std::endl;
     // collect fileNames
     std::vector<std::string> fileNames = {};
     for (auto &lane:globalAlignmentSettings.get_lanes())
         for (auto &tile:globalAlignmentSettings.get_tiles())
-            for (uint16_t mate = 1; mate<=globalAlignmentSettings.get_mates(); ++mate)
-                fileNames.push_back(sam_tile_name(lane, tile, mate, globalAlignmentSettings.get_write_bam()));
+            fileNames.push_back(sam_tile_name(lane, tile, globalAlignmentSettings.get_write_bam()));
 
+    std::cout << "Checkpoint 2 " << fileNames[0].c_str() << std::endl;
     // read header.
     seqan::BamFileIn bamHeaderIn(fileNames[0].c_str());
     seqan::BamHeader header;
     seqan::readHeader(header, bamHeaderIn);
 
+    std::cout << "Checkpoint 3" << std::endl;
     // read and copy records
     if (!globalAlignmentSettings.get_barcodeVector().size()>0) { // If there are no specified barcodes
 
+    std::cout << "Checkpoint 4" << std::endl;
         // Prepare Files
-        boost::filesystem::path file("finalSamFile.sam");
+        std::string filename;
+        if (globalAlignmentSettings.get_write_bam())
+            filename = "finalBamFile.bam";
+        else
+            filename = "finalSamFile.sam";
+        boost::filesystem::path file(filename);
         seqan::BamFileOut bamFileOut(seqan::context(bamHeaderIn), (globalAlignmentSettings.get_out_dir() / file).string().c_str());
         seqan::writeHeader(bamFileOut, header);
 
+    std::cout << "Checkpoint 5" << std::endl;
         // Copy records.
         seqan::BamAlignmentRecord record;
         for (auto filename:fileNames) {
             seqan::BamFileIn bamFileIn(filename.c_str());
+            if (!seqan::atEnd(bamFileIn))
+              seqan::readHeader(header, bamFileIn);
             while (!seqan::atEnd(bamFileIn))
             {
-                seqan::readHeader(header, bamFileIn);
                 seqan::readRecord(record, bamFileIn);
                 seqan::writeRecord(bamFileOut, record);
             }
@@ -299,52 +300,73 @@ void joinSamFiles() {
     }
 
     else { // There are barcodes
+        std::cout << "Checkpoint 6" << std::endl;
 
         // prepare list of barCodeStrings
         std::vector<std::string> barCodeStrings;
+        std::vector<std::string> allBarcodeParts;
         for (auto e:globalAlignmentSettings.get_barcodeVector()) {
             std::string barcode;
-            for (uint16_t mate = 1; mate<=globalAlignmentSettings.get_mates(); ++mate) {
-                barcode += e[mate-1];
-                if (mate!=globalAlignmentSettings.get_mates())
+            for (unsigned barcodePartIndex = 0; barcodePartIndex < e.size(); ++barcodePartIndex) {
+                allBarcodeParts.push_back(e[barcodePartIndex]);
+                barcode += e[barcodePartIndex];
+                if (barcodePartIndex + 1 != e.size())
                     barcode += "-";
             }
             barCodeStrings.push_back(barcode);
         }
+        std::cout << "Checkpoint 7" << std::endl;
 
         // Prepare Files
         std::vector<seqan::BamFileOut*> outFiles;
         for (auto e:barCodeStrings) {
-            boost::filesystem::path file("finalSamFile_" + e + ".sam");
+            std::string filename;
+            if (globalAlignmentSettings.get_write_bam())
+                filename = "finalBamFile_" + e + ".bam";
+            else
+                filename = "finalSamFile_" + e + ".sam";
+            boost::filesystem::path file(filename);
             seqan::BamFileOut* bamFileOut = new seqan::BamFileOut(seqan::context(bamHeaderIn), (globalAlignmentSettings.get_out_dir() / file).string().c_str());
             seqan::writeHeader(*bamFileOut, header);
             outFiles.push_back(bamFileOut);
         }
 
+        std::cout << "Checkpoint 8" << std::endl;
         // Copy records.
         seqan::BamAlignmentRecord record;
         for (auto filename:fileNames) {
-            //std::cout << "Reading " << filename << " ..." << std::endl;
+            std::cout << "Reading " << filename << " ..." << std::endl; // Checkpoint for debugging
             seqan::BamFileIn bamFileIn(filename.c_str());
+            std::cout << "Checkpoint 8.1" << std::endl;
+            if (!seqan::atEnd(bamFileIn))
+              seqan::readHeader(header, bamFileIn);
+            std::cout << "Checkpoint 8.2" << std::endl;
             while (!seqan::atEnd(bamFileIn))
             {
-                seqan::readHeader(header, bamFileIn);
+                std::cout << "Checkpoint 8.2.1" << std::endl;
                 seqan::readRecord(record, bamFileIn);
-
+                std::cout << "Checkpoint 8.2.2" << std::endl;
                 unsigned seqansBarcodeTagId;
                 seqan::BamTagsDict tags(record.tags);
                 seqan::findTagKey(seqansBarcodeTagId, tags, seqan::CharString("BC"));
                 seqan::CharString barcodeSequence_seqan;
                 seqan::extractTagValue(barcodeSequence_seqan, tags, seqansBarcodeTagId);
                 std::string barcodeSequence(seqan::toCString(barcodeSequence_seqan));
+                std::cout << "Checkpoint 8.2.3 " << barcodeSequence << std::endl;
+                for (auto seq:barCodeStrings)
+                  std::cout << seq << " | ";
+                std::cout << std::endl;
 
                 std::vector<std::string>::iterator posIt = std::find(barCodeStrings.begin(), barCodeStrings.end(), barcodeSequence);
+                std::cout << "Checkpoint 8.2.4    (posIt != barCodeStrings.end()) == " << (posIt != barCodeStrings.end()) << std::endl;
                 if (posIt != barCodeStrings.end()) {
                     seqan::writeRecord(*(outFiles[posIt-barCodeStrings.begin()]), record);
                 }
+                std::cout << "Checkpoint 8.2.5" << std::endl;
             }
         }
 
+        std::cout << "Checkpoint 9" << std::endl;
         for (auto outfile:outFiles)
             delete outfile;
     }

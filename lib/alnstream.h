@@ -184,7 +184,7 @@ class StreamedAlignment {
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, CountType rl, CountType mate, KixRun* index);
+uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, CountType rl, KixRun* index);
 
 
 #endif /* ALNSTREAM_H */

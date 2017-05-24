@@ -19,7 +19,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     po::options_description io_settings("IO settings");
     io_settings.add_options()
         ("temp", po::value<std::string>()->default_value(""), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
-        //("bam,B", po::bool_switch()->default_value(false), "Create BAM files instead of SAM files [Default: false]")
+        ("bam,B", po::bool_switch()->default_value(false), "Create BAM files instead of SAM files [Default: false]")
         ("keep-files,k", po::bool_switch()->default_value(false), "Keep intermediate alignment files [Default: false]")
         ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
@@ -110,7 +110,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     globalAlignmentSettings.set_index_fname(vm["INDEX"].as<std::string>());
     globalAlignmentSettings.set_cycles(vm["CYCLES"].as<CountType>());
     globalAlignmentSettings.set_temp_dir(vm["temp"].as<std::string>());
-    //globalAlignmentSettings.set_write_bam(vm["bam"].as<bool>());
+    globalAlignmentSettings.set_write_bam(vm["bam"].as<bool>());
     globalAlignmentSettings.set_keep_aln_files(vm["keep-files"].as<bool>());
     globalAlignmentSettings.set_keep_all_barcodes(vm["keep-all-barcodes"].as<bool>());
     globalAlignmentSettings.set_min_errors(vm["min-errors"].as<CountType>());
@@ -302,10 +302,10 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     if (globalAlignmentSettings.get_temp_dir() != "") {
         std::cout << "Temporary directory:      " << globalAlignmentSettings.get_temp_dir() << std::endl;
     }
-    //if (!globalAlignmentSettings.get_write_bam())
-    std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
-    //else
-        //std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
+    if (!globalAlignmentSettings.get_write_bam())
+        std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
+    else
+        std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
     std::cout << "Lanes:                    ";
     for ( uint16_t ln : globalAlignmentSettings.get_lanes() )
         std::cout << ln << " ";

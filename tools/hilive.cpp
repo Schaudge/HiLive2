@@ -84,7 +84,7 @@ void sam_worker (TaskQueue & tasks, KixRun* idx) {
         Task t = tasks.pop();
         if ( t != NO_TASK ) {
             // Execute the task
-            alignments_to_sam(t.lane,t.tile,t.seqEl.length,t.seqEl.mate,idx);
+            alignments_to_sam(t.lane,t.tile,t.seqEl.length,idx);
         }
         else {
             return;
