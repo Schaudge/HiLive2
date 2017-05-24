@@ -75,25 +75,6 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
 }
 
 
-// create a special SAM worker, that writes out a SAM file for a tile
-void sam_worker (TaskQueue & tasks, KixRun* idx) {
-
-    // loop that keeps on running until the surrender flag is set
-    while ( true ) {
-        // try to obtain a new task
-        Task t = tasks.pop();
-        if ( t != NO_TASK ) {
-            // Execute the task
-            alignments_to_sam(t.lane,t.tile,t.seqEl.length,idx);
-        }
-        else {
-            return;
-        }
-    }  
-
-}
-
-
 AlignmentSettings globalAlignmentSettings;
 
 int main(int argc, const char* argv[]) {
@@ -215,34 +196,12 @@ int main(int argc, const char* argv[]) {
     for (auto& w : workers) {
         w.join();
     }
+
     std::cout << "All threads joined." << std::endl;
-
-    
     std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl;
-
-    std::cout << "Writing SAM files per tile." << std::endl;
-    // Create individual SAM files for every tile
-    TaskQueue sam_tasks; 
-    std::vector<Task> tv = agenda.get_SAM_tasks();
-    for ( auto t: tv ) {
-        sam_tasks.push(t);
-    }
-
-    workers.clear();
-    for (int i = 0; i < globalAlignmentSettings.get_num_threads(); i++) {
-        workers.push_back(std::thread(sam_worker, std::ref(sam_tasks), index));
-    }
-
-    for (auto& w : workers) {
-        w.join();
-    }
-    
+    std::cout << "Writing SAM file." << std::endl;
+    alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index);
     delete index;
-
-
-    // join SAM files into N files, where N is max(1,#barcodes)
-    std::cout << "Joining SAM files." << std::endl;
-    joinSamFiles();
 
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
     return 1;
