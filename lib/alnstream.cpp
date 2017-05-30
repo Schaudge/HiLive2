@@ -543,6 +543,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   //-------------------------------------------------
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
+
     ReadAlignment* ra = input.get_alignment();
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
@@ -564,6 +565,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
     output.write_alignment(ra);
     delete ra;
   }
+
 
   // 6. Close files
   //-------------------------------------------------
@@ -839,6 +841,14 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
           // for all seeds
           /////////////////////////////////////////////////////////////////////////////
           for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ) {
+            if ( (*it)->gid == TRIMMED ) {
+              if (mateAlignments[mateAlignmentIndex]->seeds.size() == 1) {
+                globalAlignmentSettings.add_trimmedRead(i);
+              }
+              ++it;
+              continue;
+            }
+
             seqan::clear(record);
 
             record.qName = readname.str();
@@ -851,7 +861,8 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
                 continue;
             }
 
-            record.cigar = (*it)->returnSeqanCigarString();
+            unsigned nm_i = 0;
+            record.cigar = (*it)->returnSeqanCigarString(&nm_i);
 
             // flag and seq
             record.flag = 0;
@@ -887,13 +898,19 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
             // TODO
             // Jakob: I have not seen such a warning in a long time and a correct algorithm should prevent these cases anyway.
             // Furthermore, this is a filtering step and potentially conflicts with the 'eachMateAligned' flag if done here.
+            // However, Tobi has done something here
             unsigned cigarElemSum = 0;
             unsigned deletionSum = 0;
+            unsigned asi_score = (*it)->num_matches;
             for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
                 if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X')) 
                     cigarElemSum += elem->count;
-                if (elem->operation == 'D')
+                if ( (elem->operation == 'I') )
+                  asi_score += elem->count - 1;
+                if (elem->operation == 'D') {
                     deletionSum += elem->count;
+                    asi_score -= 1;
+                }
             }
             if (cigarElemSum != globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length) {
                 std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
@@ -908,13 +925,15 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 
             // tags
+
+            // tags
             seqan::BamTagsDict dict;
-            seqan::appendTagValue(dict, "AS", (*it)->num_matches);
+            seqan::appendTagValue(dict, "AS", ( asi_score ) );
             if (barcode!="") { // if demultiplexing is on
               seqan::appendTagValue(dict, "BC", barcode);
               seqan::appendTagValue(dict, "pb", barCodeStrings[mateAlignments[mateAlignmentIndex]->getBarcodeIndex()]);
             }
-            seqan::appendTagValue(dict, "NM", deletionSum + globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length - (*it)->num_matches);
+            seqan::appendTagValue(dict, "NM", nm_i);
             record.tags = seqan::host(dict);
 
 

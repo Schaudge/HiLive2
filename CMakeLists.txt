@@ -89,9 +89,6 @@ target_link_libraries (hilive HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} $
 add_executable(hilive-build tools/build_index.cpp )
 target_link_libraries(hilive-build HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
 
-add_executable(debug debug.cpp )
-target_link_libraries(debug HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
-
 
 #####################
 ### for debugging ###

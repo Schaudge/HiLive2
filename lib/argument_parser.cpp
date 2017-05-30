@@ -20,6 +20,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     io_settings.add_options()
         ("temp", po::value<std::string>()->default_value(""), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
         ("bam,B", po::bool_switch()->default_value(false), "Create BAM files instead of SAM files [Default: false]")
+        ("extended-cigar", po::bool_switch()->default_value(false), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
         ("keep-files,k", po::bool_switch()->default_value(false), "Keep intermediate alignment files [Default: false]")
         ("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
         ("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
@@ -28,7 +29,6 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
         ("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
     	("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
 		("keep-all-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]");
-
 
     po::options_description alignment("Alignment settings");
     alignment.add_options()
@@ -111,6 +111,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     globalAlignmentSettings.set_cycles(vm["CYCLES"].as<CountType>());
     globalAlignmentSettings.set_temp_dir(vm["temp"].as<std::string>());
     globalAlignmentSettings.set_write_bam(vm["bam"].as<bool>());
+    globalAlignmentSettings.set_extended_cigar(vm["extended-cigar"].as<bool>());
     globalAlignmentSettings.set_keep_aln_files(vm["keep-files"].as<bool>());
     globalAlignmentSettings.set_keep_all_barcodes(vm["keep-all-barcodes"].as<bool>());
     globalAlignmentSettings.set_min_errors(vm["min-errors"].as<CountType>());
@@ -194,16 +195,23 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     if (vm.count("lanes"))
         globalAlignmentSettings.set_lanes(vm["lanes"].as< std::vector<uint16_t> >());
     else
-      if (globalAlignmentSettings.get_lanes().size() == 0)
-        globalAlignmentSettings.set_lanes(all_lanes());
+      if (globalAlignmentSettings.get_lanes().size() == 0) {
+        std::vector<uint16_t> tempLanes = all_lanes();
+        std::sort( tempLanes.begin(), tempLanes.end() );
+        tempLanes.erase( std::unique( tempLanes.begin(), tempLanes.end() ), tempLanes.end() );
+        globalAlignmentSettings.set_lanes(tempLanes);
+      }
 
     // Parse tiles
     if (vm.count("tiles"))
         globalAlignmentSettings.set_tiles(vm["tiles"].as< std::vector<uint16_t> >());
     else
-      if (globalAlignmentSettings.get_tiles().size() == 0)
-        globalAlignmentSettings.set_tiles(all_tiles());
-
+      if (globalAlignmentSettings.get_tiles().size() == 0) {
+        std::vector<uint16_t> tempTiles = all_tiles();
+        std::sort( tempTiles.begin(), tempTiles.end() );
+        tempTiles.erase( std::unique( tempTiles.begin(), tempTiles.end() ), tempTiles.end() );
+        globalAlignmentSettings.set_tiles(tempTiles);
+      }
 
 
     if (vm.count("barcodes")) {
@@ -264,7 +272,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     else { // the default case, meaning as much as physically useful
         uint32_t n_cpu = std::thread::hardware_concurrency();
         if (n_cpu > 1)
-            globalAlignmentSettings.set_num_threads(n_cpu);
+            globalAlignmentSettings.set_num_threads(std::min( n_cpu, uint32_t( globalAlignmentSettings.get_lanes().size() * globalAlignmentSettings.get_tiles().size() ) ) );
         else
             globalAlignmentSettings.set_num_threads(1);
     }
@@ -300,6 +308,37 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
             return -1;
         }
     }
+
+
+    // Compute maximal consecutive gaps in gap pattern
+    CountType current_consecutive_gaps = 0;
+    CountType last_gap = 0;
+    CountType temp_max_consecutive_gaps;
+
+    for ( unsigned el : globalAlignmentSettings.get_kmer_gaps() ) {
+
+    	// init first gap
+    	if ( last_gap == 0 ) {
+    		current_consecutive_gaps = 1;
+    		last_gap = el;
+    		continue;
+    	}
+
+    	// handle consecutive gaps
+    	else if ( el == unsigned( last_gap + 1 ) ){
+    		current_consecutive_gaps += 1;
+    		last_gap = el;
+    	}
+
+    	// handle end of gap region
+    	else {
+    		temp_max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
+    		current_consecutive_gaps = 1;
+    		last_gap = el;
+    	}
+
+    }
+    globalAlignmentSettings.set_max_consecutive_gaps(std::max ( temp_max_consecutive_gaps, current_consecutive_gaps ) );
 
 
     // Report the basic settings

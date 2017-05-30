@@ -30,7 +30,7 @@ struct Seed {
   CigarVector cigar_data;
 
   // return Seqans String of CigarElement
-  seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
+  seqan::String<seqan::CigarElement<> > returnSeqanCigarString(unsigned* nm_i);
 
   // get the size of the serialized object
   uint16_t serialize_size();
@@ -76,11 +76,22 @@ class ReadAlignment {
   // Extend or create a placeholder seed for read with only trimmed matches
   void create_placeholder_seed();
 
-  // convert a placeholder seed to a set of normal seeds
-  void convertPlaceholder(GenomePosListType& pos);
-
   // Create new seeds from a list of kmer positions and add to current seeds
   void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension);
+
+  /**
+   * This function is the modified pigeonhole principle holding for both spaced and unspaced kmers.
+   * It computes the minimum number of errors in an error region of a given CIGAR vector.
+   * An error region is a region that is surrounded by MATCH elements of length >= ( kmer_span - 1 ).
+   * The error region cannot contain MATCH elements of length >= ( kmer_span - 1 ).
+   *
+   * @param region_length Sum of all (!) elements within the error region, including involved MATCH elements.
+   * @param border Number of included borders of the CIGAR vector (begin and/or end). Must be in [0,2].
+   * @param Absolute number (positive) of the offset change during a region
+   * @return Minimum number of errors that caused a region of the given length.
+   * @author Tobias Loka, Jakob Schulze
+   */
+  CountType minErrors_in_region(CountType region_length, CountType border, CountType offset_change=0 );
 
   // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
   void filterAndCreateNewSeeds(GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension);
@@ -157,6 +168,15 @@ class ReadAlignment {
 
   // obtain start position of a seed according to SAM (leftmost) 
   PositionType get_SAM_start_pos(USeed & sd);
+
+  /**
+   * Compute the minimum number of errors for a seed by using the modified pigeonhole principle implemented in ReadAlignment::minErrors_in_region.
+   *
+   * @param s The seed.
+   * @return The minimum number of errors for the given seed.
+   * @author Tobias Loka, Jakob Schulze
+   */
+  CountType min_errors(USeed & s);
 
 }; // END class ReadAlignment 
 

@@ -203,6 +203,11 @@ int main(int argc, const char* argv[]) {
     alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index);
     delete index;
 
+    std::cout << "Trimmed reads: " ;
+    for ( auto tr : globalAlignmentSettings.get_trimmedReads() ) {
+    	std::cout << tr << ", ";
+    }
+    std::cout << std::endl;
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
     return 1;
 }

@@ -7,12 +7,14 @@
 class AlignmentSettings {
  private:
   // HARD CODED: kmer gap structure (this is not used anywhere, instead the kmer_gaps are parsed)
-  //std::string kmer_structure = "11111110111110111";
+  //std::string kmer_structure = "111111101111100111";
   std::string kmer_structure = "111111111111111";
 
   // HARD CODED: kmer gap positions (one-based)
-  //std::vector<unsigned> kmer_gaps = {8, 14};
+  //std::vector<unsigned> kmer_gaps = {8, 14, 15};
+  //std::vector<unsigned> rev_kmer_gaps = {4, 5, 11};
   std::vector<unsigned> kmer_gaps;
+  std::vector<unsigned> rev_kmer_gaps;
 
   // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
   uint8_t kmer_span;
@@ -21,6 +23,10 @@ class AlignmentSettings {
   // PARAMETER: Weight of the k-mers
   uint8_t kmer_weight;
   bool    kmer_weight_setFlag=false;
+
+  // VARIABLE: maximum number of consecutive gaps in the gap pattern (will be computed at runtime)
+  CountType max_consecutive_gaps;
+  bool max_consecutive_gaps_setFlag=false;
 
   // PARAMETER: Base Call quality cutoff, treat BC with quality < bc_cutoff as miscall
   CountType min_qual;
@@ -102,10 +108,6 @@ class AlignmentSettings {
   std::string runInfo_fname;
   bool        runInfo_fname_setFlag=false;
 
-  // PARAMETER: length of the sequence of all reads (excluding barcodes)
-  CountType seqlen;
-  bool      seqlen_setFlag=false;
-
   //PARAMETER: Stores the barcodes defined by the user. The inner vector contains the single fragments of multi-barcodes.
   std::vector<std::vector<std::string>> barcodeVector;
   bool                                  barcodeVector_setFlag=false;
@@ -117,6 +119,14 @@ class AlignmentSettings {
   // PARAMETER: number of threads to use
   CountType num_threads;
   bool      num_threads_setFlag=false;
+
+  // VARIABLE: list of trimmed reads for output generation
+  std::vector<CountType> trimmedReads;
+  bool                   trimmedReads_setFlag=false;
+
+  // SWITCH: activate extended CIGAR annotation
+  bool extended_cigar;
+  bool extended_cigar_setFlag=false;
 
   /**
    * Contains the read information of the sequencing machine (as SequenceElement objects). Includes sequence reads and barcodes.
@@ -174,6 +184,11 @@ class AlignmentSettings {
 
   std::vector<unsigned> get_kmer_gaps() {
       return(this->kmer_gaps);
+  }
+
+
+  std::vector<unsigned> get_rev_kmer_gaps() {
+      return(this->rev_kmer_gaps);
   }
 
 
@@ -464,19 +479,6 @@ class AlignmentSettings {
   }
 
 
-  void set_seqlen(CountType value) {
-      if (!seqlen_setFlag) {
-          seqlen_setFlag = true;
-          this->seqlen = value;
-      }
-      else
-          std::cerr << "Warning: seqlen can only be set once." << std::endl;
-  }
-  CountType get_seqlen() {
-      return(this->seqlen);
-  }
-
-
   void set_barcodeVector(std::vector<std::vector<std::string> > value) {
       if (!barcodeVector_setFlag) {
           barcodeVector_setFlag = true;
@@ -565,6 +567,49 @@ class AlignmentSettings {
   }
   bool get_keep_all_barcodes() {
       return(this->keep_all_barcodes);
+  }
+
+
+  void set_trimmedReads(std::vector<CountType> value) {
+      if (!trimmedReads_setFlag) {
+          trimmedReads_setFlag = true;
+          this->trimmedReads = value;
+      }
+      else
+          std::cerr << "Warning: trimmedReads can only be set once." << std::endl;
+  }
+  std::vector<CountType> get_trimmedReads() {
+      return(this->trimmedReads);
+  }
+  // TODO this does not belong in alignmentSettings
+  void add_trimmedRead(CountType value) {
+      this->trimmedReads.push_back(value);
+  }
+
+
+  void set_extended_cigar(bool value) {
+      if (!extended_cigar_setFlag) {
+          extended_cigar_setFlag = true;
+          this->extended_cigar = value;
+      }
+      else
+          std::cerr << "Warning: extended_cigar can only be set once." << std::endl;
+  }
+  bool get_extended_cigar() {
+      return(this->extended_cigar);
+  }
+
+
+  void set_max_consecutive_gaps(CountType value) {
+      if (!max_consecutive_gaps_setFlag) {
+          max_consecutive_gaps_setFlag = true;
+          this->max_consecutive_gaps = value;
+      }
+      else
+          std::cerr << "Warning: max_consecutive_gaps can only be set once." << std::endl;
+  }
+  CountType get_max_consecutive_gaps() {
+      return(this->max_consecutive_gaps);
   }
 };
 
