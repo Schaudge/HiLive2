@@ -707,16 +707,36 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
   seqan::BamFileOut bamFileOut(sam_fname.c_str());
   bamFileOut.context = bamIOContext;
 
+
   /////////////////
   // write SAM header
-  seqan::BamHeaderRecord headerRecord;
-  headerRecord.type = seqan::BAM_HEADER_FIRST;
-  seqan::resize(headerRecord.tags, 2);
-  headerRecord.tags[0].i1 = "VN";
-  headerRecord.tags[0].i2 = "1.5";
-  headerRecord.tags[1].i1 = "GO";
-  headerRecord.tags[1].i2 = "query";
-  seqan::writeHeader(bamFileOut, headerRecord);
+
+  std::stringstream ss;
+  ss.str(std::string());
+  ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
+
+  seqan::BamHeader header;
+  resize(header, 2);
+
+  // @HD header.
+  seqan::resize(header[0].tags, 2);
+  header[0].type = seqan::BAM_HEADER_FIRST;
+  header[0].tags[0].i1 = "VN";
+  header[0].tags[0].i2 = "1.5";
+  header[0].tags[1].i1 = "GO";
+  header[0].tags[1].i2 = "query";
+
+  // @PG header.
+  seqan::resize(header[1].tags, 3);
+  header[1].type = seqan::BAM_HEADER_PROGRAM;
+  header[1].tags[0].i1 = "ID";
+  header[1].tags[0].i2 = "hilive";
+  header[1].tags[1].i1 = "PN";
+  header[1].tags[1].i2 = "HiLive";
+  header[1].tags[2].i1 = "VN";
+  header[1].tags[2].i2 = ss.str();
+  seqan::writeHeader(bamFileOut, header);
+
   // TODO exchange single output file with one per barcode (i.e. one per element in sam_fnames)
   //// initialize BamFileOut object(s) and assign BamIOContext
   //std::vector<seqan::BamFileOut> bamFileOuts;
@@ -726,14 +746,32 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
     ///////////////////
     //// write SAM header
-    //seqan::BamHeaderRecord headerRecord;
-    //headerRecord.type = seqan::BAM_HEADER_FIRST;
-    //seqan::resize(headerRecord.tags, 2);
-    //headerRecord.tags[0].i1 = "VN";
-    //headerRecord.tags[0].i2 = "1.5";
-    //headerRecord.tags[1].i1 = "GO";
-    //headerRecord.tags[1].i2 = "query";
-    //seqan::writeHeader(bamFileOut, headerRecord);
+
+    //std::stringstream ss;
+    //ss.str(std::string());
+    //ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
+
+    //seqan::BamHeader header;
+    //resize(header, 2);
+
+    //// @HD header.
+    //seqan::resize(header[0].tags, 2);
+    //header[0].type = seqan::BAM_HEADER_FIRST;
+    //header[0].tags[0].i1 = "VN";
+    //header[0].tags[0].i2 = "1.5";
+    //header[0].tags[1].i1 = "GO";
+    //header[0].tags[1].i2 = "query";
+
+    //// @PG header.
+    //seqan::resize(header[1].tags, 3);
+    //header[1].type = seqan::BAM_HEADER_PROGRAM;
+    //header[1].tags[0].i1 = "ID";
+    //header[1].tags[0].i2 = "hilive";
+    //header[1].tags[1].i1 = "PN";
+    //header[1].tags[1].i2 = "HiLive";
+    //header[1].tags[2].i1 = "VN";
+    //header[1].tags[2].i2 = ss.str();
+    //seqan::writeHeader(bamFileOut, header);
 
     //bamFileOuts.push_back(std::move(bamFileOut));
   //}
