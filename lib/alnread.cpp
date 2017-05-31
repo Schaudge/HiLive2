@@ -702,7 +702,7 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
     if ( seeds.size() > 0 && (*seeds.begin())->gid == TRIMMED ) {
     	placeholder_matches = (*seeds.begin())->num_matches;
     }
-    if ( cycle < total_cycles && minErrors_in_region( cycle - placeholder_matches - globalAlignmentSettings.get_kmer_span(), 1) <= min_num_errors ) {
+    if ( pos.size() != 0 && cycle < total_cycles && minErrors_in_region( cycle - placeholder_matches - globalAlignmentSettings.get_kmer_span(), 1) <= min_num_errors ) {
         add_new_seeds(pos, posWasUsedForExtension);
     }
 }
