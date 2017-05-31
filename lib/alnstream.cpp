@@ -909,7 +909,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
                 seqan::reverseComplement(record.seq);
                 record.flag |= 16;
             }
-            if (printedMates > mateAlignments.size()) { // if current seed is secondary alignment
+            if (printedMates >= mateAlignments.size()) { // if current seed is secondary alignment
                 record.flag |= 256;
                 seqan::clear(record.seq);
                 seqan::clear(record.qual);
