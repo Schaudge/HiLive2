@@ -600,7 +600,7 @@ CountType ReadAlignment::min_errors(USeed & s) {
 void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension) {
 
 	// Compute the number of maximum estimated number of errors for the remaining cycles
-	CountType possible_remaining_errors = minErrors_in_region( globalAlignmentSettings.get_cycles() - cycle, 1);
+	CountType possible_remaining_errors = minErrors_in_region( total_cycles - cycle, 1);
 
 	CountType min_num_errors = globalAlignmentSettings.get_min_errors();
 	CountType max_num_matches = 0; 	// only required for any best mode in last cycle
@@ -702,8 +702,9 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
     if ( seeds.size() > 0 && (*seeds.begin())->gid == TRIMMED ) {
     	placeholder_matches = (*seeds.begin())->num_matches;
     }
-    if ( cycle < globalAlignmentSettings.get_cycles() && minErrors_in_region( cycle - placeholder_matches - globalAlignmentSettings.get_kmer_span(), 1) <= min_num_errors )
+    if ( cycle < total_cycles && minErrors_in_region( cycle - placeholder_matches - globalAlignmentSettings.get_kmer_span(), 1) <= min_num_errors ) {
         add_new_seeds(pos, posWasUsedForExtension);
+    }
 }
 
 
@@ -1017,7 +1018,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 				}
 
 				// Compute the optimal match position for the next k-mer
-				PositionType seed_pos = (*cSeed)->start_pos + cycle -globalAlignmentSettings.get_kmer_span();
+				PositionType seed_pos = (*cSeed)->start_pos + cycle - globalAlignmentSettings.get_kmer_span() + last_offset;
 
                 // adjust the window in the position list
                 while( (cPos1!=pos.end()) && (cPos1->pos < seed_pos - globalAlignmentSettings.get_window()) )

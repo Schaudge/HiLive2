@@ -313,7 +313,7 @@ int parseCommandLineArguments(std::string license, int argc, char const ** argv)
     // Compute maximal consecutive gaps in gap pattern
     CountType current_consecutive_gaps = 0;
     CountType last_gap = 0;
-    CountType temp_max_consecutive_gaps;
+    CountType temp_max_consecutive_gaps = 0;
 
     for ( unsigned el : globalAlignmentSettings.get_kmer_gaps() ) {
 
