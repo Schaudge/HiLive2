@@ -544,11 +544,13 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
 
+	  bool testRead = false;
+
     ReadAlignment* ra = input.get_alignment();
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
       if(filters.next()) {
-        ra->extend_alignment(basecalls.next(), index);
+        ra->extend_alignment(basecalls.next(), index, testRead);
         num_seeds += ra->seeds.size();
       }
       else {
@@ -558,7 +560,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
     }
     // filter file was not found -> treat every alignment as valid
     else {
-      ra->extend_alignment(basecalls.next(), index);
+      ra->extend_alignment(basecalls.next(), index, testRead);
       num_seeds += ra->seeds.size();
     }
 

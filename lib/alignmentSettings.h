@@ -7,14 +7,14 @@
 class AlignmentSettings {
  private:
   // HARD CODED: kmer gap structure (this is not used anywhere, instead the kmer_gaps are parsed)
-  //std::string kmer_structure = "111111101111100111";
-  std::string kmer_structure = "111111111111111";
+  std::string kmer_structure = "111111101111100111";
+//  std::string kmer_structure = "111111111111111";
 
   // HARD CODED: kmer gap positions (one-based)
-  //std::vector<unsigned> kmer_gaps = {8, 14, 15};
-  //std::vector<unsigned> rev_kmer_gaps = {4, 5, 11};
-  std::vector<unsigned> kmer_gaps;
-  std::vector<unsigned> rev_kmer_gaps;
+  std::vector<unsigned> kmer_gaps = {8, 14, 15};
+  std::vector<unsigned> rev_kmer_gaps = {4, 5, 11};
+//  std::vector<unsigned> kmer_gaps;
+//  std::vector<unsigned> rev_kmer_gaps;
 
   // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
   uint8_t kmer_span;

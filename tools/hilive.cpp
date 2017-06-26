@@ -93,7 +93,6 @@ int main(int argc, const char* argv[]) {
     // Create the overall agenda
     Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
 
-
     // prepare the alignment
     std::cout << "Initializing Alignment files. Waiting for the first cycle to finish." << std::endl;
     bool first_cycle_available = false;

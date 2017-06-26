@@ -939,7 +939,7 @@ bool ReadAlignment::extendSeed(USeed & s, DiffType offset){
 
 
 
-void ReadAlignment::extend_alignment(char bc, KixRun* index) {
+void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testRead) {
 
 	// move to the next cycle
 	cycle += 1;
@@ -1008,6 +1008,9 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 				if ( (*cSeed)->gid == TRIMMED ) {
 					continue;
 				}
+
+				if ( testRead )
+					std::cout << "Seed Position: " << (*cSeed)->start_pos << std::endl;
 
 				// Compute the last offset of the current seed
 				PositionType last_offset = prev((*cSeed)->cigar_data.end())->offset;

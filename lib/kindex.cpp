@@ -356,7 +356,6 @@ uint8_t KixRun::get_kmer_weight() {
   return(this->kmer_weight);
 }
 
-
 /* Retrieve all occurrences (fwd & rc) of kmer in the reference from the index */
 GenomePosListType KixRun::retrieve_positions(std::string kmerSpan) {
 

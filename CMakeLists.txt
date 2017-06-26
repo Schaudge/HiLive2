@@ -34,7 +34,8 @@ include_directories( ${Boost_INCLUDE_DIR} )
 ### setup Zlib and lz4 libraries ###
 
 find_package( ZLIB REQUIRED )
-set (LZ4_PATH /home/schulzeja/tools/lz4/lib) # possibly adjust this to [pathToLz4]/lib if using downloaded lz4 source code
+#set (LZ4_PATH /home/schulzeja/tools/lz4/lib) # possibly adjust this to [pathToLz4]/lib if using downloaded lz4 source code
+set (LZ4_PATH /usr/local/lib)
 include_directories(${LZ4_PATH})
 link_directories(${LZ4_PATH})
 set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
@@ -43,8 +44,8 @@ set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
 #############################
 ### setup seqan libraries ### needs to be done AFTER searching for Zlib
 
-set (CMAKE_MODULE_PATH "/home/schulzeja/tools/seqan/util/cmake") # adjust this to [pathToSeqanCode]/util/cmake
-set (SEQAN_INCLUDE_PATH "/home/schulzeja/tools/seqan/include/") # adjust this to [pathToSeqanCode]/include
+set (CMAKE_MODULE_PATH "/home/lokat/libs/seqan-v2.3.2/util/cmake") # adjust this to [pathToSeqanCode]/util/cmake
+set (SEQAN_INCLUDE_PATH "/home/lokat/libs/seqan-v2.3.2/include/") # adjust this to [pathToSeqanCode]/include
 
 # Configure SeqAn, enabling features for libbz2 and zlib.
 #set (SEQAN_FIND_DEPENDENCIES ZLIB BZip2) # original version from seqan tutorial
@@ -61,11 +62,11 @@ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
 #############################################
 ### download & build the Samtools library ###
 #file(DOWNLOAD "https://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download" ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2)
-execute_process(COMMAND tar xjf ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2 )
-execute_process(COMMAND { make -s -C samtools-1.2 ; } 2> /dev/null)
-include_directories( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 )
-include_directories( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
-link_directories( ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2 ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2/htslib-1.2.1 )
+#execute_process(COMMAND tar xjf ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2 )
+#execute_process(COMMAND { make -s -C samtools-1.2 ; } 2> /dev/null)
+include_directories( /home/lokat/libs/samtools-1.2 )
+include_directories( /home/lokat/libs/samtools-1.2/htslib-1.2.1 )
+link_directories( /home/lokat/libs/samtools-1.2 /home/lokat/libs/samtools-1.2/htslib-1.2.1 )
 
 
 ##############################

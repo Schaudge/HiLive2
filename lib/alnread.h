@@ -161,7 +161,7 @@ class ReadAlignment {
   void appendNucleotideToSequenceStoreVector(char nuc, bool appendToBarcode=false);
 
   // extend the alignment by one basecall using reference database index
-  void extend_alignment(char bc, KixRun* index);
+  void extend_alignment(char bc, KixRun* index, bool testRead=false);
 
   // disable this alignment
   void disable();

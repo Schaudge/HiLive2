@@ -139,12 +139,15 @@ HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
   r |= twobit_comp(kmer[globalAlignmentSettings.get_kmer_span()-1]);
 
   for (unsigned int i = 1, j = globalAlignmentSettings.get_kmer_span()-2; i < globalAlignmentSettings.get_kmer_span(); i++, j--) {
-    // if i not gap position
-    if (std::find(globalAlignmentSettings.get_kmer_gaps().begin(), globalAlignmentSettings.get_kmer_gaps().end(), i+1) == globalAlignmentSettings.get_kmer_gaps().end()) {
+	  // if i not gap position
+
+	  auto gaps_vec = globalAlignmentSettings.get_kmer_gaps();
+	  if (std::find(gaps_vec.begin(), gaps_vec.end(), i+1) == gaps_vec.end()) {
       h = h << 2;
       h |= twobit_repr(kmer[i]);
       r = r << 2;
       r |= twobit_comp(kmer[j]);
+
     }
   }
 
