@@ -96,6 +96,25 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
     return seqanCigarString;
 }
 
+void Seed::cout(){
+	std::cout << "----- SEED START -----" << std::endl;
+	std::cout << "gid: " << this->gid << std::endl;
+	std::cout << "start_pos: " << this->start_pos << std::endl;
+	std::cout << "num_matches: " << this->num_matches << std::endl;
+	std::cout << "CIGAR: ";
+	for ( auto el : this->cigar_data ) {
+		std::cout << el.length;
+		if ( el.offset == NO_MATCH ) {
+			std::cout << "X ";
+		} else if (el.offset == TRIMMED_MATCH ) {
+			std::cout << "T";
+		} else {
+			std::cout << "M(" << el.offset << ") ";
+		}
+	}
+	std::cout << std::endl << "------ SEED END ------" << std::endl;
+}
+
 uint16_t Seed::serialize_size() {
   // calculate total size
   uint16_t total_size = 0;
@@ -1001,6 +1020,9 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testRead) {
 
 			// find support for each candidate: iterate over seed candidates and positions simultaneously
 			auto cPos1 = pos.begin(), cPos2 = pos.begin(); // sliding window [cPos1, cPos2)
+//			if ( pos.size() > 0 ) {
+//				std::cout << cPos1->pos << std::endl;
+//			}
       
 			for (auto cSeed = seeds.begin(); cSeed!=seeds.end(); ++cSeed ) {
 
@@ -1008,9 +1030,6 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testRead) {
 				if ( (*cSeed)->gid == TRIMMED ) {
 					continue;
 				}
-
-				if ( testRead )
-					std::cout << "Seed Position: " << (*cSeed)->start_pos << std::endl;
 
 				// Compute the last offset of the current seed
 				PositionType last_offset = prev((*cSeed)->cigar_data.end())->offset;
@@ -1058,6 +1077,13 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testRead) {
 	} // END: if last kmer is valid
 
     filterAndCreateNewSeeds(pos, posWasUsedForExtension);
+
+    if ( testRead ) {
+    	for ( auto seed = seeds.begin(); seed != seeds.end(); ++seed ) {
+    		(*seed)->cout();
+    		std::cout << "Seed's min errors: " << min_errors((*seed)) << std::endl;;
+    	}
+    }
 
 	return;
 }

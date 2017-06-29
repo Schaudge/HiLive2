@@ -7,22 +7,23 @@
 class AlignmentSettings {
  private:
   // HARD CODED: kmer gap structure (this is not used anywhere, instead the kmer_gaps are parsed)
-  std::string kmer_structure = "111111101111100111";
+//  std::string kmer_structure = "111111101111100111";
 //  std::string kmer_structure = "111111111111111";
 
   // HARD CODED: kmer gap positions (one-based)
-  std::vector<unsigned> kmer_gaps = {8, 14, 15};
-  std::vector<unsigned> rev_kmer_gaps = {4, 5, 11};
+  std::vector<unsigned> kmer_gaps;
+  std::vector<unsigned> rev_kmer_gaps;
+  bool kmer_setFlag=false;
 //  std::vector<unsigned> kmer_gaps;
 //  std::vector<unsigned> rev_kmer_gaps;
 
   // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
   uint8_t kmer_span;
-  bool     kmer_span_setFlag=false;
+//  bool     kmer_span_setFlag=false;
 
   // PARAMETER: Weight of the k-mers
   uint8_t kmer_weight;
-  bool    kmer_weight_setFlag=false;
+//  bool    kmer_weight_setFlag=false;
 
   // VARIABLE: maximum number of consecutive gaps in the gap pattern (will be computed at runtime)
   CountType max_consecutive_gaps;
@@ -177,9 +178,9 @@ class AlignmentSettings {
 
 
  // getter and setter, all build up the same way, except the first four
-  std::string get_kmer_structure() {
-      return(this->kmer_structure);
-  }
+//  std::string get_kmer_structure() {
+//      return(this->kmer_structure);
+//  }
 
 
   std::vector<unsigned> get_kmer_gaps() {
@@ -191,29 +192,86 @@ class AlignmentSettings {
       return(this->rev_kmer_gaps);
   }
 
+  bool set_kmer( uint8_t kmer_weight, std::vector<unsigned> gaps ) {
 
-  void set_kmer_span(uint8_t value) {
-      if (!kmer_span_setFlag) {
-          kmer_span_setFlag = true;
-          this->kmer_span = value;
-      }
-      else
-          std::cerr << "Warning: kmer_span can only be set once." << std::endl;
+	  // Only set if unset
+	  if (!kmer_setFlag) {
+
+		  if ( gaps.size()==0 ) {
+			  this->kmer_weight = kmer_weight;
+			  this->kmer_span = kmer_weight;
+			  this->max_consecutive_gaps = 0;
+			  return true;
+		  }
+
+		  // Prepare user-defined list of gap positions (sort and erase duplicates)
+		  std::sort(gaps.begin(), gaps.end());
+		  gaps.erase( std::unique(gaps.begin(), gaps.end()), gaps.end());
+
+		  // Weight and gap positions not consistent
+		  if ( kmer_weight + gaps.size() <= *(std::max_element(gaps.begin(), gaps.end())) || *(std::min_element(gaps.begin(), gaps.end())) <= 1 ) {
+			  std::cerr << "Warning: k-mer weight and gap pattern not consistent. Ensure that the first gap positions is >1 and" <<
+					  "the maximal gap positions is lower than the total length of the k-mer pattern." << std::endl;
+			  return false;
+		  }
+
+		  // Compute and set variables
+		  this->kmer_weight = kmer_weight;
+		  this->kmer_gaps = gaps;
+		  this->kmer_span = kmer_weight + gaps.size();
+
+		  std::vector<unsigned> rev_kmer_gaps;
+		  for ( auto gap:gaps ) {
+			  rev_kmer_gaps.push_back(this->kmer_span - gap + 1);
+		  }
+		  std::reverse(rev_kmer_gaps.begin(), rev_kmer_gaps.end());
+		  this->rev_kmer_gaps = rev_kmer_gaps;
+
+		  // Compute maximal consecutive gaps in gap pattern
+		  CountType current_consecutive_gaps = 0;
+		  CountType last_gap = 0;
+		  CountType temp_max_consecutive_gaps = 0;
+
+		  for ( unsigned el : this->get_kmer_gaps() ) {
+
+			  // init first gap
+			  if ( last_gap == 0 ) {
+				  current_consecutive_gaps = 1;
+				  last_gap = el;
+				  continue;
+			  }
+
+			  // handle consecutive gaps
+			  else if ( el == unsigned( last_gap + 1 ) ){
+				  current_consecutive_gaps += 1;
+				  last_gap = el;
+			  }
+
+			  // handle end of gap region
+			  else {
+				  temp_max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
+				  current_consecutive_gaps = 1;
+				  last_gap = el;
+			  }
+
+		  }
+		  this->max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
+
+		  kmer_setFlag = true;
+		  return true;
+	  }
+	  else {
+		  std::cerr << "Warning: The k-mer can only be set once." << std::endl;
+		  return false;
+	  }
   }
+
+
+
   uint8_t get_kmer_span() {
       return(this->kmer_span);
   }
 
-
-  void set_kmer_weight(uint8_t value) {
-      if (!kmer_weight_setFlag) {
-          kmer_weight_setFlag = true;
-          this->kmer_weight = value;
-          this->set_kmer_span(this->kmer_weight + this->kmer_gaps.size());
-      }
-      else
-          std::cerr << "Warning: kmer_weight can only be set once." << std::endl;
-  }
   uint8_t get_kmer_weight() {
       return(this->kmer_weight);
   }
@@ -599,15 +657,6 @@ class AlignmentSettings {
       return(this->extended_cigar);
   }
 
-
-  void set_max_consecutive_gaps(CountType value) {
-      if (!max_consecutive_gaps_setFlag) {
-          max_consecutive_gaps_setFlag = true;
-          this->max_consecutive_gaps = value;
-      }
-      else
-          std::cerr << "Warning: max_consecutive_gaps can only be set once." << std::endl;
-  }
   CountType get_max_consecutive_gaps() {
       return(this->max_consecutive_gaps);
   }

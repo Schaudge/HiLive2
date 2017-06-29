@@ -20,17 +20,16 @@ std::string license =
 "\n"
 "THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.";
 
-
-
-
 // the worker function for the threads
 void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun* idx, bool & surrender ) {
 
     // loop that keeps on running until the surrender flag is set
     while ( !surrender ) {
+
         // try to obtain a new task
         Task t = tasks.pop();
         if ( t != NO_TASK ) {
+
             // Execute the task
             bool success = true;
             try {
@@ -71,38 +70,71 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
             std::this_thread::sleep_for (std::chrono::milliseconds(100));
         }
     }  
-
 }
 
 
 AlignmentSettings globalAlignmentSettings;
 
 int main(int argc, const char* argv[]) {
+
+	// Variable for runtime measurement
     time_t t_start = time(NULL);
 
-    // parse the command line arguments, store results in temporaryAlignmentSettings defined in hilive.cpp at the very top
-    if (parseCommandLineArguments(license, argc, argv)) // returns true if error occured 
-        return 1;
+    // Program start output
+	std::cout << std::endl << "------" << std::endl << "HiLive v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
+			" - Realtime Alignment of Illumina Reads" << std::endl << "------" << std::endl<< std::endl;
 
-    // load the index
+    // Parse command line arguments
+    HiLiveArgumentParser argumentParser(argc, argv);
+	int parser_returnStatus = argumentParser.parseCommandLineArguments();
+
+	// Successful execution of "help" or "license"
+	if ( parser_returnStatus == 1 ) {
+		exit(EXIT_SUCCESS);
+	}
+
+	// Parsing error
+	else if ( parser_returnStatus == -1 ) {
+		std::cout << "Parsing of command line options failed. For help, type 'hilive --help'." << std::endl;
+		exit(EXIT_FAILURE);
+	}
+
+    // Load the index
     std::cout << "Loading Index ... " << std::endl;
     KixRun* index = new KixRun();
-    index->deserialize_file(globalAlignmentSettings.get_index_fname()); // sets also globalAlignmentSettings.kmer_weight
-    std::cout << "K-mer weight:             " << unsigned(globalAlignmentSettings.get_kmer_weight()) << std::endl << std::endl;
+    index->deserialize_file(globalAlignmentSettings.get_index_fname());
+
+    // Report k-mer structure that was retrieved from the index
+    std::cout << "K-mer weight:        " << unsigned(globalAlignmentSettings.get_kmer_weight()) << std::endl;
+    std::cout << "K-mer span:          " << unsigned(globalAlignmentSettings.get_kmer_span()) << std::endl;
+    std::cout << "K-mer gap positions: ";
+
+      if ( globalAlignmentSettings.get_kmer_gaps().size() > 0 ) {
+    	  for ( auto pos : globalAlignmentSettings.get_kmer_gaps() ) {
+    		  if ( pos != *(globalAlignmentSettings.get_kmer_gaps().begin()) )
+    			  std::cout << ",";
+    		  std::cout << (uint16_t) pos;
+    	  }
+    	  std::cout << std::endl;
+      } else {
+    	  std::cout << "-" << std::endl;
+      }
+      std::cout << std::endl;
 
     // Create the overall agenda
     Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
 
-    // prepare the alignment
+    // Prepare the alignment
     std::cout << "Initializing Alignment files. Waiting for the first cycle to finish." << std::endl;
     bool first_cycle_available = false;
 
-    // wait for the first cycle to be written. Attention - this loop will wait infinitely long if no first cycle is found
+    // Wait for the first cycle to be written. Attention - this loop will wait infinitely long if no first cycle is found
     while ( !first_cycle_available ) {
-        // check for new BCL files and update the agenda status
+
+        // Check for new BCL files and update the agenda status
         agenda.update_status();
 
-        // check if the first cycle is available for all tiles
+        // Check if the first cycle is available for all tiles
         first_cycle_available = true;
         for ( auto ln : globalAlignmentSettings.get_lanes() ) {
             for ( auto tl : globalAlignmentSettings.get_tiles() ) {
@@ -112,13 +144,13 @@ int main(int argc, const char* argv[]) {
             }
         }
 
-        // take a small break
+        // Take a small break
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 
     std::cout << "First cycle complete. Starting alignment." << std::endl;
 
-    // write empty alignment file for each tile and for each sequence read
+    // Write empty alignment file for each tile and for each sequence read
     for (uint16_t ln : globalAlignmentSettings.get_lanes()) {
         for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
             CountType mate = 1;
@@ -132,7 +164,7 @@ int main(int argc, const char* argv[]) {
 
     if (globalAlignmentSettings.get_temp_dir() != "" && !is_directory(globalAlignmentSettings.get_temp_dir())){
         std::cerr << "Error: Could not find temporary directory " << globalAlignmentSettings.get_temp_dir() << std::endl;
-        return -1;
+        exit(EXIT_FAILURE);
     }
 
     // Set up the queues
@@ -198,15 +230,18 @@ int main(int argc, const char* argv[]) {
 
     std::cout << "All threads joined." << std::endl;
     std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl;
-    std::cout << "Writing SAM file." << std::endl;
+    std::cout << "Writing output file." << std::endl;
     alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index);
     delete index;
 
-    std::cout << "Trimmed reads: " ;
-    for ( auto tr : globalAlignmentSettings.get_trimmedReads() ) {
-    	std::cout << tr << ", ";
+    if ( globalAlignmentSettings.get_trimmedReads().size() > 0 ) {
+    	std::cout << "Trimmed reads: " ;
+    	for ( auto tr : globalAlignmentSettings.get_trimmedReads() ) {
+    		std::cout << tr << ", ";
+    	}
     }
+
     std::cout << std::endl;
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
-    return 1;
+    exit(EXIT_SUCCESS);
 }

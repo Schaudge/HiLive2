@@ -171,8 +171,9 @@ std::string::const_iterator hash_fw(std::string::const_iterator it, std::string:
   std::string::const_iterator kmerEnd = it+globalAlignmentSettings.get_kmer_span();
   ++it;
   int positionInKmer = 2;
+  auto kmer_gaps = globalAlignmentSettings.get_kmer_gaps();
   for (; it != kmerEnd; ++it, ++positionInKmer) {
-    if (std::find(globalAlignmentSettings.get_kmer_gaps().begin(), globalAlignmentSettings.get_kmer_gaps().end(), positionInKmer) != globalAlignmentSettings.get_kmer_gaps().end())
+    if (std::find(kmer_gaps.begin(), kmer_gaps.end(), positionInKmer) != kmer_gaps.end())
         continue;
     h = h << 2;
     h |= twobit_repr(*it);

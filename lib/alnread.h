@@ -40,6 +40,8 @@ struct Seed {
 
   // deserialize (read) data from a char vector
   uint16_t deserialize(char* d);
+
+  void cout();
 };
 
 

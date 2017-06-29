@@ -166,6 +166,7 @@ uint64_t KixBuild::trim(uint64_t max_count) {
 
 
 std::vector<char> KixBuild::serialize() {
+
   // first of all, sort the database entries by position
   for (auto it = db.begin(); it != db.end(); ++it)
     std::sort(it->begin(), it->end(), gp_compare);
@@ -175,6 +176,12 @@ std::vector<char> KixBuild::serialize() {
 
   // The k-mer weight itself
   total_size += 1;
+
+  // The number of gaps
+  total_size += 1;
+
+  // The gaps themselves
+  total_size += globalAlignmentSettings.get_kmer_gaps().size();
 
   // total number of sequences in database
   total_size += sizeof(GenomeIdType);
@@ -208,6 +215,18 @@ std::vector<char> KixBuild::serialize() {
   uint8_t kk = globalAlignmentSettings.get_kmer_weight();
   memcpy(d,&kk,1);
   d++;
+
+  // number of gaps
+  std::vector<unsigned> kmer_gaps = globalAlignmentSettings.get_kmer_gaps();
+  uint8_t gap_num = kmer_gaps.size();
+  memcpy(d,&gap_num,1);
+  d++;
+
+  // The gaps themselves
+  for ( uint8_t gap : kmer_gaps) {
+	 memcpy(d,&gap,1);
+	 d++;
+  }
 
   // total number of sequences in database
   memcpy(d,&num_seq,sizeof(GenomeIdType));
@@ -282,6 +301,7 @@ uint64_t KixBuild::serialize_file(std::string f) {
 
 
 uint64_t KixRun::deserialize(char* d) {
+
   // the total number of bytes read
   uint64_t bytes = 0; 
 
@@ -290,7 +310,24 @@ uint64_t KixRun::deserialize(char* d) {
   memcpy(&kk,d+bytes,1);
   bytes++;
   this->kmer_weight = kk;
-  globalAlignmentSettings.set_kmer_weight(this->kmer_weight);
+
+  // read number of gaps in k-mer pattern
+  uint8_t gap_num;
+  memcpy(&gap_num,d+bytes,1);
+  bytes++;
+
+  // read k-mer pattern
+  std::vector<unsigned> kmer_gaps;
+  for ( uint8_t i = 0; i < gap_num; i++ ) {
+	  uint8_t gap;
+	  memcpy(&gap, d+bytes, 1);
+	  kmer_gaps.push_back(gap);
+	  bytes++;
+  }
+
+
+//  globalAlignmentSettings.set_kmer_weight(this->kmer_weight);
+  globalAlignmentSettings.set_kmer(this->kmer_weight, kmer_gaps);
   this->db.resize(pow(4,globalAlignmentSettings.get_kmer_weight()));
 
   // read total number of sequences in database
@@ -364,6 +401,9 @@ GenomePosListType KixRun::retrieve_positions(std::string kmerSpan) {
   HashIntoType rcHashValue;
   hash(kmerSpan.c_str(), fwHashValue, rcHashValue);
   
+//  std::cout << "FW:  " << fwHashValue << std::endl;
+//  std::cout << "REV: " << rcHashValue << std::endl;
+
   // obtain the list of positions for each k-mer
   char* fwd_begin = db[fwHashValue];
   uint32_t fwd_len;

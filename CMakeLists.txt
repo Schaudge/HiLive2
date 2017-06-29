@@ -8,8 +8,9 @@ project (HiLive)
 add_definitions(-DHiLive_VERSION_MAJOR=0)
 add_definitions(-DHiLive_VERSION_MINOR=3)
 
+# DEPRECATED
 # Set the k-mer length
-set (HiLive_K 15 CACHE INT "Set the k-mer length for index and mapper")
+#set (HiLive_K 15 CACHE INT "Set the k-mer length for index and mapper")
 
 # Set flags for compilation
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++14 -O0")
