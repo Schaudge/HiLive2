@@ -22,10 +22,10 @@ po::options_description BuildIndexArgumentParser::general_options() {
 }
 
 po::options_description BuildIndexArgumentParser::positional_options() {
-	po::options_description parameters("Parameters");
+	po::options_description parameters("Required");
 	parameters.add_options()
-	    		("INPUT", po::value<std::string>()->required(), "Input reference genome (fasta file)")
-				("K-mer-weight", po::value<uint16_t>()->required(), "Number of non-gap positions in a k-mer. (For ungapped k-mers this is the k-mer size.");
+	    		("INPUT", po::value<std::string>()->required(), "Reference genomes in (multi-) FASTA format.")
+				("KMER_WEIGHT", po::value<uint16_t>()->required(), "Number of non-gap positions in a k-mer (For ungapped k-mers this is the k-mer size).");
 	return parameters;
 }
 
@@ -44,12 +44,13 @@ void BuildIndexArgumentParser::init_help(po::options_description visible_options
 
 	std::stringstream help_message;
 
-	help_message << "Copyright (c) 2015-2016, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
+	help_message << "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-	help_message << "Usage: 'hilive-build [options] INPUT'" << std::endl;
-	help_message << "  INPUT         Reference genomes in (multi-) FASTA format" << std::endl;
-	help_message << "  K-mer-weight  Number of non-gap positions in a k-mer. (For ungapped k-mers this is the k-mer size." << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive-build [options] INPUT KMER_WEIGHT" << std::endl << std::endl;
+	help_message << "Required:" << std::endl;
+	help_message << "  INPUT                 Reference genomes in (multi-) FASTA format." << std::endl;
+	help_message << "  KMER_WEIGHT           Number of non-gap positions in a k-mer (For ungapped k-mers this is the k-mer size)." << std::endl;
 
 	help_message << visible_options;
 
@@ -63,7 +64,7 @@ bool BuildIndexArgumentParser::set_positional_variables(po::variables_map vm) {
 
 
 	// User-defined k-mer weight
-	kmer_weight = vm["K-mer-weight"].as<uint16_t>();
+	kmer_weight = vm["KMER_WEIGHT"].as<uint16_t>();
 
 	// Check if input file exists
 	if ( !file_exists(fasta_name) ){
@@ -129,7 +130,7 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 	po::options_description build_opt = build_options();
 
 	po::options_description cmdline_options;
-	cmdline_options.add(gen_opt).add(pos_opt).add(build_opt);
+	cmdline_options.add(pos_opt).add(gen_opt).add(build_opt);
 
 	po::options_description visible_options;
 	visible_options.add(gen_opt).add(build_opt);
@@ -138,7 +139,7 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 
 	po::positional_options_description p;
 	p.add("INPUT", 1);
-	p.add("K-mer-weight", 1);
+	p.add("KMER_WEIGHT", 1);
 
 	po::variables_map vm;
 	try {
@@ -227,7 +228,7 @@ po::options_description HiLiveArgumentParser::alignment_options() {
 					("all-best-n-scores,N", po::value<CountType>(), "Report all alignments of the N best alignment scores for each read")
 					("all-hits,A", po::bool_switch()->default_value(false), "Report all valid alignments for each read")
 					("disable-ohw-filter", po::bool_switch()->default_value(true), "disable the One-Hit Wonder filter [Default: false]")
-					("start-ohw", po::value<CountType>()->default_value(globalAlignmentSettings.get_kmer_weight()+5), "First cycle to apply One-Hit Wonder filter [Default: K+5]")
+					("start-ohw", po::value<CountType>()->default_value(20), "First cycle to apply One-Hit Wonder filter [Default: 20]")
 					("window,w", po::value<DiffType>()->default_value(5), "Set the window size to search for alignment extension, i.e. maximum total insertion/deletion size [Default: 5]")
 					("min-quality", po::value<CountType>()->default_value(1), "Minimum allowed basecall quality [Default: 1]")
 					("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
@@ -248,16 +249,22 @@ po::options_description HiLiveArgumentParser::technical_options() {
 }
 
 void HiLiveArgumentParser::init_help(po::options_description visible_options) {
+
 	std::stringstream help_message;
-	help_message << "Copyright (c) 2015-2016, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
+
+	help_message << "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-	help_message << "Usage: 'hilive [options] BC_DIR INDEX CYCLES OUTDIR'" << std::endl;
-	help_message << "  BC_DIR       Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
-	help_message << "  INDEX        Path to k-mer index file (*.kix)" << std::endl;
-	help_message << "  CYCLES       Total number of cycles for read 1" << std::endl;
-	help_message << "  OUTDIR       Directory to store output files in" << std::endl;
+
+	help_message << "Usage: " << std::endl << "  hilive [options] BC_DIR INDEX CYCLES OUTDIR" << std::endl << std::endl;
+	help_message << "Required:" << std::endl;
+	help_message << "  BC_DIR                Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
+	help_message << "  INDEX                 Path to k-mer index file (*.kix)" << std::endl;
+	help_message << "  CYCLES                Total number of sequencing cycles" << std::endl;
+	help_message << "  OUTDIR                Output directory" << std::endl;
+
 	help_message << visible_options;
+
 	help = help_message.str();
 }
 
@@ -695,9 +702,9 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
     }
 
     // check paths and file names
-    if ( !checkPaths() ) {
-    	return -1;
-    }
+//    if ( !checkPaths() ) {
+//    	return -1;
+//    }
 
     // Report the basic settings
     report();

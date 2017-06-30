@@ -22,7 +22,7 @@ protected:
 	char const ** argv;
 
 	/** Program license. */
-	std::string license = "Copyright (c) 2015-2016, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info.\n"
+	std::string license = "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info.\n"
 						"All rights reserved.\n"
 						"\n"
 						"Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n"

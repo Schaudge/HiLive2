@@ -3,153 +3,139 @@
 
 #include "definitions.h"
 
-// all user parameters are stored in the alignment settings
+// Data structure to store the alignment settings
 class AlignmentSettings {
- private:
-  // HARD CODED: kmer gap structure (this is not used anywhere, instead the kmer_gaps are parsed)
-//  std::string kmer_structure = "111111101111100111";
-//  std::string kmer_structure = "111111111111111";
 
-  // HARD CODED: kmer gap positions (one-based)
-  std::vector<unsigned> kmer_gaps;
-  std::vector<unsigned> rev_kmer_gaps;
+private:
+
+  // kmer gap positions
+  Unmodifiable<std::vector<unsigned>> kmer_gaps;
+
+  // reverse gap positions
+  Unmodifiable<std::vector<unsigned>> rev_kmer_gaps;
+
   bool kmer_setFlag=false;
-//  std::vector<unsigned> kmer_gaps;
-//  std::vector<unsigned> rev_kmer_gaps;
 
   // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
-  uint8_t kmer_span;
-//  bool     kmer_span_setFlag=false;
+  Unmodifiable<uint8_t> kmer_span;
 
   // PARAMETER: Weight of the k-mers
-  uint8_t kmer_weight;
-//  bool    kmer_weight_setFlag=false;
+  Unmodifiable<uint8_t> kmer_weight;
 
   // VARIABLE: maximum number of consecutive gaps in the gap pattern (will be computed at runtime)
-  CountType max_consecutive_gaps;
-  bool max_consecutive_gaps_setFlag=false;
+  Unmodifiable<CountType> max_consecutive_gaps;
 
   // PARAMETER: Base Call quality cutoff, treat BC with quality < bc_cutoff as miscall
-  CountType min_qual;
-  bool      min_qual_setFlag=false;
+  Unmodifiable<CountType> min_qual;
 
   // PARAMETER: max. insert/deletion size
-  DiffType window;
-  bool     window_setFlag=false;
+  Unmodifiable<DiffType> window;
 
   // PARAMETER: minimum number of errors allowed in alignment
-  CountType min_errors;
-  bool      min_errors_setFlag=false;
+  Unmodifiable<CountType> min_errors;
 
   // SWITCH: discard One-hit-wonders
-  bool discard_ohw;
-  bool discard_ohw_setFlag=false;
+  Unmodifiable<bool> discard_ohw;
 
   // PARAMETER: first cycle to discard one-hit-wonders
-  CountType start_ohw;
-  bool      start_ohw_setFlag=false;
+  Unmodifiable<CountType> start_ohw;
 
   // SWITCH: Any-Best-Hit-Mode
-  bool any_best_hit_mode;
-  bool any_best_hit_mode_setFlag=false;
+  Unmodifiable<bool> any_best_hit_mode;
 
   // SWITCH: Any-Best-Hit-Mode
-  bool all_best_hit_mode;
-  bool all_best_hit_mode_setFlag=false;
+  Unmodifiable<bool> all_best_hit_mode;
 
   // SWITCH: All-Best-N-Scores-Mode
-  bool all_best_n_scores_mode;
-  bool all_best_n_scores_mode_setFlag=false;
+  Unmodifiable<bool> all_best_n_scores_mode;
 
   // PARAMETER: All-Best-N-Scores-Mode::N
-  CountType best_n;
-  bool      best_n_setFlag=false;
+  Unmodifiable<CountType> best_n;
 
   // PARAMETER: temporary directory for the streamed alignment
-  std::string temp_dir;
-  bool        temp_dir_setFlag=false;
+  Unmodifiable<std::string> temp_dir;
 
   // SWITCH: write sam/bam output or not
-  bool write_bam=false;
-  bool write_bam_setFlag=false;
+  Unmodifiable<bool> write_bam=false;
 
   // SWITCH: Keep the old alignment files of previous cycles
-  bool keep_aln_files;
-  bool keep_aln_files_setFlag=false;
+  Unmodifiable<bool> keep_aln_files;
 
   // PARAMETER: Memory block size for the input and output buffer in the streamed alignment
-  uint64_t block_size;
-  bool     block_size_setFlag=false;
+  Unmodifiable<uint64_t> block_size;
 
   // PARAMETER: Compression format for alignment files
-  uint8_t compression_format;
-  bool    compression_format_setFlag=false;
+  Unmodifiable<uint8_t> compression_format;
 
   // PARAMETER: list of lanes to process
-  std::vector<uint16_t> lanes;
-  bool                  lanes_setFlag=false;
+  Unmodifiable<std::vector<uint16_t>> lanes;
   
   // PARAMETER: list of tiles to process
-  std::vector<uint16_t> tiles;
-  bool                  tiles_setFlag=false;
+  Unmodifiable<std::vector<uint16_t>> tiles;
 
   // PARAMETER: root directory of hilive run
-  std::string root;
-  bool        root_setFlag=false;
+  Unmodifiable<std::string> root;
 
   // PARAMETER: path to the index file
-  std::string index_fname;
-  bool        index_fname_setFlag=false;
+  Unmodifiable<std::string> index_fname;
 
   // PARAMETER: read length of all reads (including barcodes)
-  CountType cycles;
-  bool      cycles_setFlag=false;
+  Unmodifiable<CountType> cycles;
 
   // PARAMETER: read length of all reads (including barcodes)
-  std::string runInfo_fname;
-  bool        runInfo_fname_setFlag=false;
+  Unmodifiable<std::string> runInfo_fname;
 
   //PARAMETER: Stores the barcodes defined by the user. The inner vector contains the single fragments of multi-barcodes.
-  std::vector<std::vector<std::string>> barcodeVector;
-  bool                                  barcodeVector_setFlag=false;
+  Unmodifiable<std::vector<std::vector<std::string>>> barcodeVector;
 
   // PARAMETER: directory in which to create the output directory structure 
-  boost::filesystem::path out_dir;
-  bool                    out_dir_setFlag=false;
+  Unmodifiable<boost::filesystem::path> out_dir;
 
   // PARAMETER: number of threads to use
-  CountType num_threads;
-  bool      num_threads_setFlag=false;
+  Unmodifiable<CountType> num_threads;
 
   // VARIABLE: list of trimmed reads for output generation
   std::vector<CountType> trimmedReads;
-  bool                   trimmedReads_setFlag=false;
 
   // SWITCH: activate extended CIGAR annotation
-  bool extended_cigar;
-  bool extended_cigar_setFlag=false;
+  Unmodifiable<bool> extended_cigar;
 
   /**
    * Contains the read information of the sequencing machine (as SequenceElement objects). Includes sequence reads and barcodes.
    * Arbitrary numbers and orders of reads are supported. The summed length of all elements must equal the number of sequencing cycles.
    * @author Tobias Loka
    */
-  std::vector<SequenceElement> seqs;
-  bool                         seqs_setFlag=false;
+  Unmodifiable<std::vector<SequenceElement>> seqs;
 
   // Number of mates (information taken from the seqLengths parameter), (Hint: corresponding indeces are 1-based)
-  uint16_t mates;
-  bool     mates_setFlag=false;
+  Unmodifiable<uint16_t> mates;
 
   // PARAMETER: number of allowed errors for the single barcodes
-  std::vector<uint16_t> barcode_errors;
-  bool                  barcode_errors_setFlag=false;
+  Unmodifiable<std::vector<uint16_t>> barcode_errors;
 
   // SWITCH: if true, keep all barcodes (disables barcode filtering).
-  bool keep_all_barcodes;
-  bool keep_all_barcodes_setFlag=false;
+  Unmodifiable<bool> keep_all_barcodes;
 
+  template<typename T>
+  void set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
+	  try {
+		  unmodifiable.set(value);
+	  }
+	  catch (unmodifiable_error& e) {
+		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
+	  }
+  }
 
+  template<typename T>
+  T get_unmodifiable(Unmodifiable<T> unmodifiable, std::string variable_name, bool allow_unset = false) {
+	  try {
+		  return unmodifiable.get(allow_unset);
+	  }
+	  catch (unmodifiable_error& e) {
+		  std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
+		  return T();
+	  }
+  }
 
  public:
   /**
@@ -158,7 +144,7 @@ class AlignmentSettings {
    * @return The respective SequenceElement object for the given id.
    * @author Tobias Loka
    */
-  SequenceElement getSeqById(CountType id) {return seqs[id];}
+  SequenceElement getSeqById(CountType id) {return seqs.get()[id];}
 
   /**
    * Get a SequenceElement object from the seqs vector by using the mate number
@@ -168,42 +154,25 @@ class AlignmentSettings {
    */
   SequenceElement getSeqByMate(CountType mate) {
 	  if ( mate == 0 ) return NULLSEQ;
-	  for (uint16_t i = 0; i != seqs.size(); i++) {
-		  if(seqs[i].mate == mate) return seqs[i];
+	  auto the_seq = seqs.get();
+	  for (uint16_t i = 0; i != the_seq.size(); i++) {
+		  if(the_seq[i].mate == mate) return the_seq[i];
 	  }
 	  return NULLSEQ;
   }
- 
-
-
-
- // getter and setter, all build up the same way, except the first four
-//  std::string get_kmer_structure() {
-//      return(this->kmer_structure);
-//  }
-
 
   std::vector<unsigned> get_kmer_gaps() {
-      return(this->kmer_gaps);
+      return get_unmodifiable(kmer_gaps, "kmer_gaps", true);
   }
 
 
   std::vector<unsigned> get_rev_kmer_gaps() {
-      return(this->rev_kmer_gaps);
+      return get_unmodifiable(rev_kmer_gaps, "rev_kmer_gaps", true);
   }
 
   bool set_kmer( uint8_t kmer_weight, std::vector<unsigned> gaps ) {
 
-	  // Only set if unset
-	  if (!kmer_setFlag) {
-
-		  if ( gaps.size()==0 ) {
-			  this->kmer_weight = kmer_weight;
-			  this->kmer_span = kmer_weight;
-			  this->max_consecutive_gaps = 0;
-			  return true;
-		  }
-
+	  if ( gaps.size() > 0 ) {
 		  // Prepare user-defined list of gap positions (sort and erase duplicates)
 		  std::sort(gaps.begin(), gaps.end());
 		  gaps.erase( std::unique(gaps.begin(), gaps.end()), gaps.end());
@@ -214,451 +183,310 @@ class AlignmentSettings {
 					  "the maximal gap positions is lower than the total length of the k-mer pattern." << std::endl;
 			  return false;
 		  }
-
-		  // Compute and set variables
-		  this->kmer_weight = kmer_weight;
-		  this->kmer_gaps = gaps;
-		  this->kmer_span = kmer_weight + gaps.size();
-
-		  std::vector<unsigned> rev_kmer_gaps;
-		  for ( auto gap:gaps ) {
-			  rev_kmer_gaps.push_back(this->kmer_span - gap + 1);
-		  }
-		  std::reverse(rev_kmer_gaps.begin(), rev_kmer_gaps.end());
-		  this->rev_kmer_gaps = rev_kmer_gaps;
-
-		  // Compute maximal consecutive gaps in gap pattern
-		  CountType current_consecutive_gaps = 0;
-		  CountType last_gap = 0;
-		  CountType temp_max_consecutive_gaps = 0;
-
-		  for ( unsigned el : this->get_kmer_gaps() ) {
-
-			  // init first gap
-			  if ( last_gap == 0 ) {
-				  current_consecutive_gaps = 1;
-				  last_gap = el;
-				  continue;
-			  }
-
-			  // handle consecutive gaps
-			  else if ( el == unsigned( last_gap + 1 ) ){
-				  current_consecutive_gaps += 1;
-				  last_gap = el;
-			  }
-
-			  // handle end of gap region
-			  else {
-				  temp_max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
-				  current_consecutive_gaps = 1;
-				  last_gap = el;
-			  }
-
-		  }
-		  this->max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
-
-		  kmer_setFlag = true;
-		  return true;
 	  }
-	  else {
-		  std::cerr << "Warning: The k-mer can only be set once." << std::endl;
-		  return false;
+
+	  // Set k-mer variables
+	  set_unmodifiable(this->kmer_weight, kmer_weight, "kmer_weight");
+	  set_unmodifiable(this->kmer_gaps, gaps, "kmer_gaps");
+	  set_unmodifiable(this->kmer_span, uint8_t(kmer_weight + gaps.size()), "kmer_span");
+
+	  std::vector<unsigned> rev_kmer_gaps;
+	  for ( auto gap:gaps ) {
+		  rev_kmer_gaps.push_back(this->kmer_span - gap + 1);
 	  }
+	  std::reverse(rev_kmer_gaps.begin(), rev_kmer_gaps.end());
+	  set_unmodifiable(this->rev_kmer_gaps, rev_kmer_gaps, "rev_kmer_gaps");
+
+	  // Compute maximal consecutive gaps in gap pattern
+	  CountType current_consecutive_gaps = 0;
+	  CountType last_gap = 0;
+	  CountType temp_max_consecutive_gaps = 0;
+
+	  for ( unsigned el : this->get_kmer_gaps() ) {
+
+		  // init first gap
+		  if ( last_gap == 0 ) {
+			  current_consecutive_gaps = 1;
+			  last_gap = el;
+			  continue;
+		  }
+
+		  // handle consecutive gaps
+		  else if ( el == unsigned( last_gap + 1 ) ){
+			  current_consecutive_gaps += 1;
+			  last_gap = el;
+		  }
+
+		  // handle end of gap region
+		  else {
+			  temp_max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
+			  current_consecutive_gaps = 1;
+			  last_gap = el;
+		  }
+
+	  }
+	  set_unmodifiable(this->max_consecutive_gaps, std::max ( temp_max_consecutive_gaps, current_consecutive_gaps ), "max_consecutive_gaps");
+
+	  return true;
   }
 
-
-
   uint8_t get_kmer_span() {
-      return(this->kmer_span);
+      return get_unmodifiable(kmer_span, "kmer_span");
   }
 
   uint8_t get_kmer_weight() {
-      return(this->kmer_weight);
+      return get_unmodifiable(kmer_weight, "kmer_weight");
   }
-
 
   void set_min_qual(CountType value) {
-      if (!min_qual_setFlag) {
-          min_qual_setFlag = true;
-          this->min_qual = value;
-      }
-      else
-          std::cerr << "Warning: min_qual can only be set once." << std::endl;
-  }
-  CountType get_min_qual() {
-      return(this->min_qual);
+    	  set_unmodifiable(min_qual, value, "min_qual");
   }
 
+  CountType get_min_qual() {
+      return get_unmodifiable(min_qual, "min_qual");
+  }
 
   void set_window(DiffType value) {
-      if (!window_setFlag) {
-          window_setFlag = true;
-          this->window = value;
-      }
-      else
-          std::cerr << "Warning: window can only be set once." << std::endl;
+      set_unmodifiable(window, value, "window");
   }
+
   DiffType get_window() {
-      return(this->window);
+      return get_unmodifiable(window, "window");
   }
 
 
   void set_min_errors(CountType value) {
-      if (!min_errors_setFlag) {
-          min_errors_setFlag = true;
-          this->min_errors = value;
-      }
-      else
-          std::cerr << "Warning: min_errors can only be set once." << std::endl;
+	  set_unmodifiable(min_errors, value, "min_errors");
   }
+
   CountType get_min_errors() {
-      return(this->min_errors);
+      return get_unmodifiable(min_errors, "min_errors");
   }
 
 
   void set_discard_ohw(bool value) {
-      if (!discard_ohw_setFlag) {
-          discard_ohw_setFlag = true;
-          this->discard_ohw = value;
-      }
-      else
-          std::cerr << "Warning: discard_ohw can only be set once." << std::endl;
+	  set_unmodifiable(discard_ohw, value, "discard_ohw");
   }
+
   bool get_discard_ohw() {
-      return(this->discard_ohw);
+      return get_unmodifiable(discard_ohw, "discard_ohw");
   }
 
 
   void set_start_ohw(CountType value) {
-      if (!start_ohw_setFlag) {
-          start_ohw_setFlag = true;
-          this->start_ohw = value;
-      }
-      else
-          std::cerr << "Warning: start_ohw can only be set once." << std::endl;
-  }
-  CountType get_start_ohw() {
-      return(this->start_ohw);
+	  set_unmodifiable(start_ohw, value, "start_ohw");
   }
 
+  CountType get_start_ohw() {
+      return get_unmodifiable(start_ohw, "start_ohw");
+  }
 
   void set_any_best_hit_mode(bool value) {
-      if (!any_best_hit_mode_setFlag) {
-          any_best_hit_mode_setFlag = true;
-          this->any_best_hit_mode = value;
-      }
-      else
-          std::cerr << "Warning: any_best_hit_mode can only be set once." << std::endl;
-  }
-  bool get_any_best_hit_mode() {
-      return(this->any_best_hit_mode);
+	  set_unmodifiable(any_best_hit_mode, value, "any_best_hit_mode");
   }
 
+  bool get_any_best_hit_mode() {
+      return get_unmodifiable(any_best_hit_mode, "any_best_hit_mode");
+  }
 
   void set_all_best_hit_mode(bool value) {
-      if (!all_best_hit_mode_setFlag) {
-          all_best_hit_mode_setFlag = true;
-          this->all_best_hit_mode = value;
-      }
-      else
-          std::cerr << "Warning: all_best_hit_mode can only be set once." << std::endl;
+	  set_unmodifiable(all_best_hit_mode, value, "all_best_hit_mode");
   }
+
   bool get_all_best_hit_mode() {
-      return(this->all_best_hit_mode);
+      return get_unmodifiable(all_best_hit_mode, "all_best_hit_mode");
   }
 
 
   void set_all_best_n_scores_mode(bool value) {
-      if (!all_best_n_scores_mode_setFlag) {
-          all_best_n_scores_mode_setFlag = true;
-          this->all_best_n_scores_mode = value;
-      }
-      else
-          std::cerr << "Warning: all_best_n_scores_mode can only be set once." << std::endl;
+	  set_unmodifiable(all_best_n_scores_mode, value, "all_best_n_scores_mode");
   }
+
   bool get_all_best_n_scores_mode() {
-      return(this->all_best_n_scores_mode);
+      return get_unmodifiable(all_best_n_scores_mode, "all_best_n_scores_mode");
   }
 
 
   void set_best_n(CountType value) {
-      if (!best_n_setFlag) {
-          best_n_setFlag = true;
-          this->best_n = value;
-      }
-      else
-          std::cerr << "Warning: best_n can only be set once." << std::endl;
-  }
-  CountType get_best_n() {
-      return(this->best_n);
+	  set_unmodifiable(best_n, value, "best_n");
   }
 
+  CountType get_best_n() {
+      return get_unmodifiable(best_n, "best_n");
+  }
 
   void set_temp_dir(std::string value) {
-      if (!temp_dir_setFlag) {
-          temp_dir_setFlag = true;
-          this->temp_dir = value;
-      }
-      else
-          std::cerr << "Warning: temp_dir can only be set once." << std::endl;
+      set_unmodifiable(temp_dir, value, "temp_dir");
   }
+
   std::string get_temp_dir() {
-      return(this->temp_dir);
+      return get_unmodifiable(temp_dir, "temp_dir");
   }
 
 
   void set_write_bam(bool value) {
-      if (!write_bam_setFlag) {
-          write_bam_setFlag = true;
-          this->write_bam = value;
-      }
-      else
-          std::cerr << "Warning: write_bam can only be set once." << std::endl;
-  }
-  bool get_write_bam() {
-      return(this->write_bam);
+	  set_unmodifiable(write_bam, value, "write_bam");
   }
 
+  bool get_write_bam() {
+      return get_unmodifiable(write_bam, "write_bam");
+  }
 
   void set_keep_aln_files(bool value) {
-      if (!keep_aln_files_setFlag) {
-          keep_aln_files_setFlag = true;
-          this->keep_aln_files = value;
-      }
-      else
-          std::cerr << "Warning: keep_aln_files can only be set once." << std::endl;
+	  set_unmodifiable(keep_aln_files, value, "keep_aln_files");
   }
   bool get_keep_aln_files() {
-      return(this->keep_aln_files);
+      return get_unmodifiable(keep_aln_files, "keep_aln_files");
   }
-
 
   void set_block_size(uint64_t value) {
-      if (!block_size_setFlag) {
-          block_size_setFlag = true;
-          this->block_size = value;
-      }
-      else
-          std::cerr << "Warning: block_size can only be set once." << std::endl;
-  }
-  uint64_t get_block_size() {
-      return(this->block_size);
+	  set_unmodifiable(block_size, value, "block_size");
   }
 
+  uint64_t get_block_size() {
+      return get_unmodifiable(block_size, "block_size");
+  }
 
   void set_compression_format(uint8_t value) {
-      if (!compression_format_setFlag) {
-          compression_format_setFlag = true;
-          this->compression_format = value;
-      }
-      else
-          std::cerr << "Warning: compression_format can only be set once." << std::endl;
+	  set_unmodifiable(compression_format, value, "compression_format");
   }
+
   uint8_t get_compression_format() {
-      return(this->compression_format);
+      return get_unmodifiable(compression_format, "compression_format");
   }
 
 
   void set_lanes(std::vector<uint16_t> value) {
-      if (!lanes_setFlag) {
-          lanes_setFlag = true;
-          this->lanes = value;
-      }
-      else
-          std::cerr << "Warning: lanes can only be set once." << std::endl;
+	  set_unmodifiable(lanes, value, "lanes");
   }
+
   std::vector<uint16_t> get_lanes() {
-      return(this->lanes);
+      return get_unmodifiable(lanes, "lanes", true);
   }
 
 
   void set_tiles(std::vector<uint16_t> value) {
-      if (!tiles_setFlag) {
-          tiles_setFlag = true;
-          this->tiles = value;
-      }
-      else
-          std::cerr << "Warning: tiles can only be set once." << std::endl;
+	  set_unmodifiable(tiles, value, "tiles");
   }
+
   std::vector<uint16_t> get_tiles() {
-      return(this->tiles);
+      return get_unmodifiable(tiles, "tiles", true);
   }
 
 
   void set_root(std::string value) {
-      if (!root_setFlag) {
-          root_setFlag = true;
-          this->root = value;
-      }
-      else
-          std::cerr << "Warning: root can only be set once." << std::endl;
-  }
-  std::string get_root() {
-      return(this->root);
+	  set_unmodifiable(root, value, "root");
   }
 
+  std::string get_root() {
+      return get_unmodifiable(root, "root");
+  }
 
   void set_index_fname(std::string value) {
-      if (!index_fname_setFlag) {
-          index_fname_setFlag = true;
-          this->index_fname = value;
-      }
-      else
-          std::cerr << "Warning: index_fname can only be set once." << std::endl;
-  }
-  std::string get_index_fname() {
-      return(this->index_fname);
+	  set_unmodifiable(index_fname, value, "index_fname");
   }
 
+  std::string get_index_fname() {
+      return get_unmodifiable(index_fname, "index_fname");
+  }
 
   void set_cycles(CountType value) {
-      if (!cycles_setFlag) {
-          cycles_setFlag = true;
-          this->cycles = value;
-      }
-      else
-          std::cerr << "Warning: cycles can only be set once." << std::endl;
-  }
-  CountType get_cycles() {
-      return(this->cycles);
+	  set_unmodifiable(cycles, value, "cycles");
   }
 
+  CountType get_cycles() {
+      return get_unmodifiable(cycles, "cycles");
+  }
 
   void set_runInfo_fname(std::string value) {
-      if (!runInfo_fname_setFlag) {
-          runInfo_fname_setFlag = true;
-          this->runInfo_fname = value;
-      }
-      else
-          std::cerr << "Warning: runInfo_fname can only be set once." << std::endl;
-  }
-  std::string get_runInfo_fname() {
-      return(this->runInfo_fname);
+	  set_unmodifiable(runInfo_fname, value, "runInfo_fname");
   }
 
+  std::string get_runInfo_fname() {
+      return get_unmodifiable(runInfo_fname, "runInfo_fname");
+  }
 
   void set_barcodeVector(std::vector<std::vector<std::string> > value) {
-      if (!barcodeVector_setFlag) {
-          barcodeVector_setFlag = true;
-          this->barcodeVector = value;
-      }
-      else
-          std::cerr << "Warning: barcodeVector can only be set once." << std::endl;
-  }
-  std::vector<std::vector<std::string> > get_barcodeVector() {
-      return(this->barcodeVector);
+	  set_unmodifiable(barcodeVector, value, "barcodeVector");
   }
 
+  std::vector<std::vector<std::string> > get_barcodeVector() {
+      return get_unmodifiable(barcodeVector, "barcodeVector", true);
+  }
 
   void set_out_dir(boost::filesystem::path value) {
-      if (!out_dir_setFlag) {
-          out_dir_setFlag = true;
-          this->out_dir = value;
-      }
-      else
-          std::cerr << "Warning: out_dir can only be set once." << std::endl;
+	  set_unmodifiable(out_dir, value, "out_dir");
   }
+
   boost::filesystem::path get_out_dir() {
-      return(this->out_dir);
+      return get_unmodifiable(out_dir, "out_dir");
   }
 
 
   void set_num_threads(CountType value) {
-      if (!num_threads_setFlag) {
-          num_threads_setFlag = true;
-          this->num_threads = value;
-      }
-      else
-          std::cerr << "Warning: num_threads can only be set once." << std::endl;
-  }
-  CountType get_num_threads() {
-      return(this->num_threads);
+	  set_unmodifiable(num_threads, value, "num_threads");
   }
 
+  CountType get_num_threads() {
+      return get_unmodifiable(num_threads, "num_threads");
+  }
 
   void set_seqs(std::vector<SequenceElement> value) {
-      if (!seqs_setFlag) {
-          seqs_setFlag = true;
-          this->seqs = value;
-      }
-      else
-          std::cerr << "Warning: seqs can only be set once." << std::endl;
-  }
-  std::vector<SequenceElement> get_seqs() {
-      return(this->seqs);
+	  set_unmodifiable(seqs, value, "seqs");
   }
 
+  std::vector<SequenceElement> get_seqs() {
+      return get_unmodifiable(seqs, "seqs", true);
+  }
 
   void set_mates(uint16_t value) {
-      if (!mates_setFlag) {
-          mates_setFlag = true;
-          this->mates = value;
-      }
-      else
-          std::cerr << "Warning: mates can only be set once." << std::endl;
+	  set_unmodifiable(mates, value, "mates");
   }
+
   uint16_t get_mates() {
-      return(this->mates);
+      return get_unmodifiable(mates, "mates", true);
   }
 
 
   void set_barcode_errors(std::vector<uint16_t> value) {
-      if (!barcode_errors_setFlag) {
-          barcode_errors_setFlag = true;
-          this->barcode_errors = value;
-      }
-      else
-          std::cerr << "Warning: barcode_errors can only be set once." << std::endl;
-  }
-  std::vector<uint16_t> get_barcode_errors() {
-      return(this->barcode_errors);
+	  set_unmodifiable(barcode_errors, value, "barcode_errors");
   }
 
+  std::vector<uint16_t> get_barcode_errors() {
+      return get_unmodifiable(barcode_errors, "barcode_errors", true);
+  }
 
   void set_keep_all_barcodes(bool value) {
-      if (!keep_all_barcodes_setFlag) {
-          keep_all_barcodes_setFlag = true;
-          this->keep_all_barcodes = value;
-      }
-      else
-          std::cerr << "Warning: keep_all_barcodes can only be set once." << std::endl;
-  }
-  bool get_keep_all_barcodes() {
-      return(this->keep_all_barcodes);
+	  set_unmodifiable(keep_all_barcodes, value, "keep_all_barcodes");
   }
 
+  bool get_keep_all_barcodes() {
+      return get_unmodifiable(keep_all_barcodes, "keep_all_barcodes");
+  }
 
   void set_trimmedReads(std::vector<CountType> value) {
-      if (!trimmedReads_setFlag) {
-          trimmedReads_setFlag = true;
-          this->trimmedReads = value;
-      }
-      else
-          std::cerr << "Warning: trimmedReads can only be set once." << std::endl;
+	  trimmedReads = value;
   }
+
   std::vector<CountType> get_trimmedReads() {
-      return(this->trimmedReads);
+      return trimmedReads;
   }
+
   // TODO this does not belong in alignmentSettings
   void add_trimmedRead(CountType value) {
-      this->trimmedReads.push_back(value);
+      trimmedReads.push_back(value);
   }
-
 
   void set_extended_cigar(bool value) {
-      if (!extended_cigar_setFlag) {
-          extended_cigar_setFlag = true;
-          this->extended_cigar = value;
-      }
-      else
-          std::cerr << "Warning: extended_cigar can only be set once." << std::endl;
+	  set_unmodifiable(extended_cigar, value, "extended_cigar");
   }
+
   bool get_extended_cigar() {
-      return(this->extended_cigar);
+      return get_unmodifiable(extended_cigar, "extended_cigar");
   }
 
   CountType get_max_consecutive_gaps() {
-      return(this->max_consecutive_gaps);
+      return get_unmodifiable(max_consecutive_gaps, "max_consecutive_gaps");
   }
 };
 

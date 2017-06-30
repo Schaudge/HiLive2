@@ -3,7 +3,85 @@
 
 #include "headers.h"
 
+/**
+ * Exception specialization for Unmodifiable data types.
+ * @author Tobias Loka
+ */
+class unmodifiable_error : public std::logic_error
+{
+public:
+	using std::logic_error::logic_error;
+};
 
+/**
+ * Template to define data types that can only be set once.
+ * @type T Data type of the unmodifiable object.
+ * @author Tobias Loka
+ */
+template <typename T>
+class Unmodifiable {
+
+private:
+
+	/** The unmodifiable object. */
+	T unmodifiable_object;
+
+	/** Flag to check if the object was already set once. */
+	bool setFlag = false;
+
+public:
+
+	/** Constructor without setting the object (to only declare the object).*/
+	Unmodifiable(){	}
+
+	/** Constructor with setting the object (to init the object).*/
+	Unmodifiable(T object) {
+		unmodifiable_object = object;
+	}
+
+	/** Automatic cast to of the unmodifiable to the object type. */
+	operator T() { return unmodifiable_object; }
+
+	/**
+	 * Set the unmodifiable object (will only work once!).
+	 * @param object The object to be copied to this unmodifiable data type.
+	 * @return true if setting was successful
+	 * @author Tobias Loka
+	 */
+	void set(T object) {
+		if ( isSet() ) {
+			throw unmodifiable_error("Tried to modify unmodifiable object");
+		}
+
+		unmodifiable_object = object;
+		setFlag = true;
+	}
+
+	/**
+	 * Check if the object was already set.
+	 * @return true if the object was already set.
+	 * @author Tobias Loka
+	 */
+	bool isSet() {
+		return setFlag;
+	}
+
+	/**
+	 * Return a copy of the unmodifiable object.
+	 * @param allow_unset if false, an exception is thrown when the object was not set before. Should only be true for
+	 * objects that require access to certain properties before their initialization (e.g. to check a container's size
+	 * without knowing if the container was already set).
+	 * @return (copy/value of) the unmodifiable object
+	 * @author Tobias Loka
+	 */
+	T get(bool allow_unset = false ) {
+		if ( ! isSet() && ! allow_unset) {
+			throw unmodifiable_error("Tried to access uninitialized object");
+		}
+
+		return unmodifiable_object;
+	}
+};
 
 // bit representation of A/C/G/T.
 #define twobit_repr(ch) ((toupper(ch)) == 'A' ? 0LL : \
