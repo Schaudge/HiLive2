@@ -618,9 +618,9 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	  // 4. Extend barcode sequence
 	  //-------------------------------------------------
 	  for (uint64_t i = 0; i < num_reads; ++i) {
-		char bc = basecalls.next() & 3; // only the nucleotide, ignore the quality.
+		char bc = basecalls.next();
 	    ReadAlignment* ra = input.get_alignment();
-	    ra->appendNucleotideToSequenceStoreVector(revtwobit_repr(bc), true);
+	    ra->appendNucleotideToSequenceStoreVector(bc, true);
 
 	    // filter invalid barcodes if new barcode fragment is completed
 	    // TODO: Is done for each mate. Check if it's worth to change it (runtime should not be too high?)

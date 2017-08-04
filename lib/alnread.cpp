@@ -322,7 +322,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
   bytes += sizeof(CountType);
 
   // read the sequence
-  unsigned seqVec_size = (unsigned) std::ceil((float) sequenceLen / 4.0);
+  unsigned seqVec_size = (unsigned) std::ceil((float) sequenceLen / 2.0);
   sequenceStoreVector.clear();
   sequenceStoreVector.reserve(seqVec_size);
   for (unsigned i = 0; i <seqVec_size; ++i) {
@@ -338,7 +338,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
   bytes += sizeof(CountType);
 
   // read the barcode
-  unsigned barVec_size = (unsigned) std::ceil((float) barcodeLen / 4.0);
+  unsigned barVec_size = (unsigned) std::ceil((float) barcodeLen / 2.0);
   barcodeStoreVector.clear();
   barcodeStoreVector.reserve(barVec_size);
   for (unsigned i = 0; i <barVec_size; ++i) {
@@ -378,29 +378,47 @@ uint64_t ReadAlignment::deserialize(char* d) {
 
 // convert and return sequence of the seed as string
 std::string ReadAlignment::getSequenceString() {
-    std::string seq = "";
-    // append one 4 base block at a time
-    for (unsigned i = 0; i<sequenceStoreVector.size(); i++)
-        seq.append(unhash(sequenceStoreVector[i], 4)); // 4 because 4 nucleotides fit in one element of sequenceStoreVector, namely a uint8_t
 
-    // delete last few bases, because sequence is only len long
-    for (unsigned i = sequenceLen; i<4*sequenceStoreVector.size(); ++i)
-        seq.pop_back();
+	std::string seq = "";
+	uint8_t two_bit_mask = 3;
+	uint8_t four_bit_mask = 15;
 
-    // return sequence without barcode
-    return seq;
+	// iterate through all sequence bytes
+	for (unsigned i = 0; i<sequenceLen; i++ ) {
+
+		// Four-bit representation of the next base call (2-bit qual + 2-bit nucl)
+		uint8_t next = ( sequenceStoreVector[i/2] >> ( (i%2 == 0) * 4) ) & four_bit_mask;
+
+		if ( next < 4 ) { // two-bit qual == 0 --> N-call
+			seq.append("N");
+		} else {		  // two-bit qual > 0  --> write nucleotide
+			seq += revtwobit_repr(next & two_bit_mask);
+		}
+	}
+
+	// return barcode sequence
+	return seq;
 }
 
 
 std::string ReadAlignment::getBarcodeString() {
-    std::string seq = "";
-    // append one 4 base block at a time
-    for (unsigned i = 0; i<barcodeStoreVector.size(); i++)
-        seq.append(unhash(barcodeStoreVector[i], 4)); // 4 because 4 nucleotides fit in one element of sequenceStoreVector, namely a uint8_t
 
-    // delete last few bases, because sequence is only len long
-    for (unsigned i = barcodeLen; i<4*barcodeStoreVector.size(); ++i)
-        seq.pop_back();
+	std::string seq = "";
+	uint8_t two_bit_mask = 3;
+	uint8_t four_bit_mask = 15;
+
+	// iterate through all sequence bytes
+	for (unsigned i = 0; i<barcodeLen; i++ ) {
+
+		// Four-bit representation of the next base call (2-bit qual + 2-bit nucl)
+		uint8_t next = ( barcodeStoreVector[i/2] >> ( (i%2 == 0) * 4) ) & four_bit_mask;
+
+		if ( next < 4 ) { // two-bit qual == 0 --> N-call
+			seq.append("N");
+		} else {		  // two-bit qual > 0  --> write nucleotide
+			seq += revtwobit_repr(next & two_bit_mask);
+		}
+	}
 
     // return barcode sequence
     return seq;
@@ -408,31 +426,27 @@ std::string ReadAlignment::getBarcodeString() {
 
 
 // append one nucleotide to sequenceStoreVector
-void ReadAlignment::appendNucleotideToSequenceStoreVector(char nuc, bool appendToBarCode) {
+void ReadAlignment::appendNucleotideToSequenceStoreVector(char bc, bool appendToBarCode) {
+
+	uint8_t nucl = bc & 3;
+	uint8_t qual = bc >> 2;
+
+	// Convert nucl and qual to four-bit value (first two bits describing the quality (0=N; 1=invalid; 2=valid); second two bits describing the nucleotide)
+	uint8_t four_bit_repr = ( ((qual != 0) + (qual > globalAlignmentSettings.get_min_qual())) << 2 ) | nucl;
 
 	CountType & len = appendToBarCode ? barcodeLen : sequenceLen;
 	std::vector<uint8_t> & seqVector = appendToBarCode ? barcodeStoreVector : sequenceStoreVector;
 
     // check if all bits from sequenceStoreVector are used
-    if (len % 4 == 0) { // yes, all used => new 8 Bit block needs to be created
-        uint8_t newBlock = twobit_repr(nuc);
-        newBlock = newBlock << 6; // 'empty' bits are on the right side
+    if (len % 2 == 0) { // yes, all used => new 8 Bit block needs to be created
+        uint8_t newBlock = four_bit_repr << 4; // 'empty' bits are on the right side
         seqVector.push_back(newBlock);
         ++len;
     }
-    else { // not all bits are used. At least the last two are unoccupied
-        // append new 2 bits to the right of the old bits
-        if (len % 4 == 1) // 6 bits empty
-            seqVector.back() = seqVector.back() >> 4;
-        if (len % 4 == 2) // 4 bits empty
-            seqVector.back() = seqVector.back() >> 2;
-        seqVector.back() = seqVector.back() | twobit_repr(nuc);
+
+    else { // not all bits are used. There is enough space for the new basecall
+        seqVector.back() = seqVector.back() | four_bit_repr;
         ++len;
-        // shift used bits until they are left aligned
-        if (len % 4 == 2) // 4 bits empty
-            seqVector.back() = seqVector.back() << 4;
-        if (len % 4 == 3) // 2 bits empty
-            seqVector.back() = seqVector.back() << 2;
     }
 }
 
@@ -971,9 +985,9 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testRead) {
 	if ( (bc == 0) || (qual < globalAlignmentSettings.get_min_qual()) ){ // no call if all 0 bits or quality below threshold
 		last_invalid = last_invalid > cycle ? last_invalid : cycle; // TODO append an N as basecall? Could be a bad idea
 	}
-    unsigned mask = 3;
+
     if (flags != 0) // if read is valid
-        appendNucleotideToSequenceStoreVector(revtwobit_repr(bc & mask)); // get the nucleotide as an actual character, disregarding the quality
+        appendNucleotideToSequenceStoreVector(bc); // get the nucleotide as an actual character, disregarding the quality
 
     // do not update the alignments when reading the first kmer_span-1 cycles
     if (cycle < globalAlignmentSettings.get_kmer_span())
