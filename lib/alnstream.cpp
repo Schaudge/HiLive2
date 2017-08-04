@@ -670,9 +670,9 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
   std::string sam_fname;
   if (globalAlignmentSettings.get_write_bam())
-      sam_fname = "finalBamFile.bam";
+      sam_fname = "hilive_out.bam";
   else
-      sam_fname = "finalSamFile.sam";
+      sam_fname = "hilive_out.sam";
   boost::filesystem::path file(sam_fname);
   sam_fname = (globalAlignmentSettings.get_out_dir() / file).string();
   // TODO exchange single output file with one per barcode (i.e. one per element in sam_fnames)
@@ -682,9 +682,9 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
   //if (globalAlignmentSettings.get_barcodeVector().size()>0) { // If there are specified barcodes
     //for (auto e:barCodeStrings) {
         //if (globalAlignmentSettings.get_write_bam())
-            //filename = "finalBamFile_" + e + ".bam";
+            //filename = "hilive_out_" + e + ".bam";
         //else
-            //filename = "finalSamFile_" + e + ".sam";
+            //filename = "hilive_out_" + e + ".sam";
         //boost::filesystem::path file(filename);
         //sam_fnames.push_back((globalAlignmentSettings.get_out_dir() / file).string());
     //}
@@ -789,7 +789,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
   // for all lanes
   /////////////////////////////////////////////////////////////////////////////
   for (auto ln:lns) {
-    // for all lanes
+    // for all tiles
     /////////////////////////////////////////////////////////////////////////////
     for (auto tl:tls) {
 
@@ -868,6 +868,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
         // setup QNAME
         // Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
         // readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
+        //TODO: where do we get the read coordinate from?
         std::stringstream readname;
         readname << "lane." << ln << "|tile." << tl << "|read." << i;
 
@@ -962,9 +963,6 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
                 it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
                 continue;
             }
-
-
-            // tags
 
             // tags
             seqan::BamTagsDict dict;
