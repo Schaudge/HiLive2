@@ -656,18 +656,9 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;
 
-	// Iterate through barcode vector
-	for ( auto barcode : globalAlignmentSettings.get_barcodeVector() ) {
-		barcodes.push_back("");
-
-		// Iterate through barcode elements
-		for ( auto barcode_element : barcode ) {
-			barcodes.back().append(barcode_element);
-			barcodes.back() += "-";
-		}
-
-		// Remove last "-"
-		barcodes.back().pop_back();
+	// Add user-specified barcode strings
+	for ( unsigned i = 0; i < globalAlignmentSettings.get_barcodeVector().size(); i++ ) {
+		barcodes.push_back(globalAlignmentSettings.get_barcodeString(i));
 	}
 
 	// Init the bamIOContext (the same object can be used for all output streams)
@@ -724,35 +715,6 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 		}
 	}
 
-	// Iterate through alignments
-
-
-//	seqan::BamAlignmentRecord record;
-//	for (unsigned barcode=0; barcode < barcodes.size(); barcode++) {
-//
-//		seqan::clear(record);
-//
-//		record.qName = "read " + std::to_string(barcode);
-//		record.rID = 0;
-//		record.beginPos = 42;
-//		//record.cigar = (*it)->returnSeqanCigarString(&nm_i);
-//
-//		// flag and seq
-//		record.flag = 16;
-//		record.seq = "ACGTGTAGTGCTGTGATGTCGTGCTAG";
-//
-//		// tags
-//		seqan::BamTagsDict dict;
-//		seqan::appendTagValue(dict, "AS", ( "22" ) );
-//		seqan::appendTagValue(dict, "BC", barcodes[barcode]);
-//		seqan::appendTagValue(dict, "NM", ( "4" ) );
-//		record.tags = seqan::host(dict);
-//
-//
-//		// write record to disk
-//		seqan::writeRecord(*bfos[barcode], record);
-//
-//	}
 
 	////////////////////////////////////////////////////
 	//  Main loop //////////////////////////////////////
@@ -825,19 +787,10 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				std::string barcode = mateAlignments[0]->getBarcodeString(); // barcode how HiLive read it from .bcl files
 				if (barcode!="") { // if demultiplexing is on
 					// insert "-" as delimiter between the single barcodes
-					uint16_t bc_counter = 0;
-					for ( uint16_t j = 0; j != globalAlignmentSettings.get_seqs().size(); j++) {
-						if ( globalAlignmentSettings.getSeqById(j).isBarcode() ) {
-							bc_counter += globalAlignmentSettings.getSeqById(j).length; // count barcode length seqEl by seqEl
-							if (bc_counter >= barcode.length())
-								break;
-							barcode.insert(bc_counter, "-");
-							bc_counter++;
-						}
-					}
+					barcode = globalAlignmentSettings.format_barcode(barcode);
 				}
 
-				// Index for the correct output stream
+				// Barcode index for the read
 				CountType barcodeIndex = mateAlignments[0]->getBarcodeIndex();
 
 				// If read has undetermined barcode and keep_all_barcodes is not set, skip this read
@@ -950,7 +903,6 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 						seqan::appendTagValue(dict, "AS", ( asi_score ) );
 						if (barcode!="") { // if demultiplexing is on
 							seqan::appendTagValue(dict, "BC", barcode);
-							seqan::appendTagValue(dict, "pb", barcodeIndex);
 						}
 						seqan::appendTagValue(dict, "NM", nm_i);
 						record.tags = seqan::host(dict);
