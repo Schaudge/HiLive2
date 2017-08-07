@@ -461,6 +461,8 @@ private:
   }
 
   bool get_keep_all_barcodes() {
+	  if ( get_barcodeVector().size() == 0 )
+		  return true;
       return get_unmodifiable(keep_all_barcodes, "keep_all_barcodes");
   }
 

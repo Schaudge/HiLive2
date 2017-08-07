@@ -186,5 +186,4 @@ class StreamedAlignment {
 
 uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index);
 
-
 #endif /* ALNSTREAM_H */

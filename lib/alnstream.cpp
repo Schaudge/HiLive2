@@ -651,358 +651,334 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 
 uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index) {
 
-  // prepare list of barCodeStrings for output file name(s)
-  // TODO until "one file per barcode" is implemented, this is only used for the pb tags
-  std::vector<std::string> barCodeStrings;
-  std::vector<std::string> allBarcodeParts;
-  if (globalAlignmentSettings.get_barcodeVector().size()>0) { // If there are specified barcodes
-    for (auto e:globalAlignmentSettings.get_barcodeVector()) {
-        std::string barcode;
-        for (unsigned barcodePartIndex = 0; barcodePartIndex < e.size(); ++barcodePartIndex) {
-            allBarcodeParts.push_back(e[barcodePartIndex]);
-            barcode += e[barcodePartIndex];
-            if (barcodePartIndex + 1 != e.size())
-                barcode += "-";
-        }
-        barCodeStrings.push_back(barcode);
-    }
-  }
+	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
 
-  std::string sam_fname;
-  if (globalAlignmentSettings.get_write_bam())
-      sam_fname = "hilive_out.bam";
-  else
-      sam_fname = "hilive_out.sam";
-  boost::filesystem::path file(sam_fname);
-  sam_fname = (globalAlignmentSettings.get_out_dir() / file).string();
-  // TODO exchange single output file with one per barcode (i.e. one per element in sam_fnames)
-  //// set the output file name(s)
-  //std::vector<std::string> sam_fnames;
-  //std::string filename;
-  //if (globalAlignmentSettings.get_barcodeVector().size()>0) { // If there are specified barcodes
-    //for (auto e:barCodeStrings) {
-        //if (globalAlignmentSettings.get_write_bam())
-            //filename = "hilive_out_" + e + ".bam";
-        //else
-            //filename = "hilive_out_" + e + ".sam";
-        //boost::filesystem::path file(filename);
-        //sam_fnames.push_back((globalAlignmentSettings.get_out_dir() / file).string());
-    //}
-  //} else {
-    //if (globalAlignmentSettings.get_write_bam())
-        //filename = "finalBamFile.bam";
-    //else
-        //filename = "finalSamFile.sam";
-    //boost::filesystem::path file(filename);
-    //sam_fnames.push_back((globalAlignmentSettings.get_out_dir() / file).string());
-  //}
+	// Fill list of specified barcodes
+	std::vector<std::string> barcodes;
 
-  // initialize BamIOContext object
-  seqan::StringSet<seqan::CharString> referenceNames;
-  seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
-  seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
+	// Iterate through barcode vector
+	for ( auto barcode : globalAlignmentSettings.get_barcodeVector() ) {
+		barcodes.push_back("");
 
-  // fill BamIOContext with @SQ header information
-  seqan::contigNames(bamIOContext) = index->seq_names;
-  seqan::contigLengths(bamIOContext) = index->seq_lengths;
+		// Iterate through barcode elements
+		for ( auto barcode_element : barcode ) {
+			barcodes.back().append(barcode_element);
+			barcodes.back() += "-";
+		}
 
-  seqan::BamFileOut bamFileOut(sam_fname.c_str());
-  bamFileOut.context = bamIOContext;
+		// Remove last "-"
+		barcodes.back().pop_back();
+	}
+
+	// Init the bamIOContext (the same object can be used for all output streams)
+	seqan::StringSet<seqan::CharString> referenceNames;
+	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
+	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
+
+	seqan::contigNames(bamIOContext) = index->seq_names;
+	seqan::contigLengths(bamIOContext) = index->seq_lengths;
+
+	// Init the header (the same object can be used for all output streams)
+	std::stringstream ss;
+	ss.str(std::string());
+	ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
+
+	seqan::BamHeader header;
+	resize(header, 2);
+
+	// @HD header.
+	seqan::resize(header[0].tags, 2);
+	header[0].type = seqan::BAM_HEADER_FIRST;
+	header[0].tags[0].i1 = "VN";
+	header[0].tags[0].i2 = "1.5";
+	header[0].tags[1].i1 = "GO";
+	header[0].tags[1].i2 = "query";
+
+	// @PG header.
+	seqan::resize(header[1].tags, 3);
+	header[1].type = seqan::BAM_HEADER_PROGRAM;
+	header[1].tags[0].i1 = "ID";
+	header[1].tags[0].i2 = "hilive";
+	header[1].tags[1].i1 = "PN";
+	header[1].tags[1].i2 = "HiLive";
+	header[1].tags[2].i1 = "VN";
+	header[1].tags[2].i2 = ss.str();
 
 
-  /////////////////
-  // write SAM header
+	// Vector that contains the output streams (USE POINTERS !)
+	std::vector<std::unique_ptr<seqan::BamFileOut>> bfos;
 
-  std::stringstream ss;
-  ss.str(std::string());
-  ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
+	// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
+	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
+		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
+			std::string out_fname;
+			if ( barcode < barcodes.size() ) {
+				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcodes[barcode] + file_suffix;
+			} else {
+				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_undetermined" + file_suffix;
+			}
+			std::unique_ptr<seqan::BamFileOut> bfo( new seqan::BamFileOut(out_fname.c_str()));
+			bfos.push_back( std::move(bfo) );
+			bfos[barcode]->context = bamIOContext;
+			seqan::writeHeader(*bfos[barcode], header);
+		}
+	}
 
-  seqan::BamHeader header;
-  resize(header, 2);
-
-  // @HD header.
-  seqan::resize(header[0].tags, 2);
-  header[0].type = seqan::BAM_HEADER_FIRST;
-  header[0].tags[0].i1 = "VN";
-  header[0].tags[0].i2 = "1.5";
-  header[0].tags[1].i1 = "GO";
-  header[0].tags[1].i2 = "query";
-
-  // @PG header.
-  seqan::resize(header[1].tags, 3);
-  header[1].type = seqan::BAM_HEADER_PROGRAM;
-  header[1].tags[0].i1 = "ID";
-  header[1].tags[0].i2 = "hilive";
-  header[1].tags[1].i1 = "PN";
-  header[1].tags[1].i2 = "HiLive";
-  header[1].tags[2].i1 = "VN";
-  header[1].tags[2].i2 = ss.str();
-  seqan::writeHeader(bamFileOut, header);
-
-  // TODO exchange single output file with one per barcode (i.e. one per element in sam_fnames)
-  //// initialize BamFileOut object(s) and assign BamIOContext
-  //std::vector<seqan::BamFileOut> bamFileOuts;
-  //for (auto e:sam_fnames) {
-    //seqan::BamFileOut bamFileOut(e.c_str());
-    //bamFileOut.context = bamIOContext;
-
-    ///////////////////
-    //// write SAM header
-
-    //std::stringstream ss;
-    //ss.str(std::string());
-    //ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
-
-    //seqan::BamHeader header;
-    //resize(header, 2);
-
-    //// @HD header.
-    //seqan::resize(header[0].tags, 2);
-    //header[0].type = seqan::BAM_HEADER_FIRST;
-    //header[0].tags[0].i1 = "VN";
-    //header[0].tags[0].i2 = "1.5";
-    //header[0].tags[1].i1 = "GO";
-    //header[0].tags[1].i2 = "query";
-
-    //// @PG header.
-    //seqan::resize(header[1].tags, 3);
-    //header[1].type = seqan::BAM_HEADER_PROGRAM;
-    //header[1].tags[0].i1 = "ID";
-    //header[1].tags[0].i2 = "hilive";
-    //header[1].tags[1].i1 = "PN";
-    //header[1].tags[1].i2 = "HiLive";
-    //header[1].tags[2].i1 = "VN";
-    //header[1].tags[2].i2 = ss.str();
-    //seqan::writeHeader(bamFileOut, header);
-
-    //bamFileOuts.push_back(std::move(bamFileOut));
-  //}
+	// Iterate through alignments
 
 
-  ////////////////////////////////////////////////////
-  //  Main loop //////////////////////////////////////
-  ////////////////////////////////////////////////////
-  
-  uint64_t num_alignments = 0;
-  unsigned totalNumberOfReads = 0;
+//	seqan::BamAlignmentRecord record;
+//	for (unsigned barcode=0; barcode < barcodes.size(); barcode++) {
+//
+//		seqan::clear(record);
+//
+//		record.qName = "read " + std::to_string(barcode);
+//		record.rID = 0;
+//		record.beginPos = 42;
+//		//record.cigar = (*it)->returnSeqanCigarString(&nm_i);
+//
+//		// flag and seq
+//		record.flag = 16;
+//		record.seq = "ACGTGTAGTGCTGTGATGTCGTGCTAG";
+//
+//		// tags
+//		seqan::BamTagsDict dict;
+//		seqan::appendTagValue(dict, "AS", ( "22" ) );
+//		seqan::appendTagValue(dict, "BC", barcodes[barcode]);
+//		seqan::appendTagValue(dict, "NM", ( "4" ) );
+//		record.tags = seqan::host(dict);
+//
+//
+//		// write record to disk
+//		seqan::writeRecord(*bfos[barcode], record);
+//
+//	}
 
-  // for all lanes
-  /////////////////////////////////////////////////////////////////////////////
-  for (auto ln:lns) {
-    // for all tiles
-    /////////////////////////////////////////////////////////////////////////////
-    for (auto tl:tls) {
+	////////////////////////////////////////////////////
+	//  Main loop //////////////////////////////////////
+	////////////////////////////////////////////////////
 
-      // set the filter file
-      std::string filter_fname = filter_name(ln, tl);
-      FilterParser filters;
-      if (file_exists(filter_fname)) {
-        filters.open(filter_fname);
-      }
-      else
-        std::cerr << "Could not find .filter file: " <<  filter_fname << std::endl;
+	uint64_t num_alignments = 0;
+	unsigned totalNumberOfReads = 0;
 
+	// for all lanes
+	/////////////////////////////////////////////////////////////////////////////
+	for (auto ln:lns) {
 
-      // set the alignment files
-      std::vector<iAlnStream*> alignmentFiles;
-      unsigned numberOfAlignments;
-      for (unsigned mateIndex = 1; mateIndex <= globalAlignmentSettings.get_mates(); ++mateIndex) {
-        if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ ) return 0;
+		// for all tiles
+		/////////////////////////////////////////////////////////////////////////////
+		for (auto tl:tls) {
 
-        std::string alignment_fname = alignment_name(ln, tl, globalAlignmentSettings.getSeqByMate(mateIndex).length, mateIndex);
-        if ( !file_exists(alignment_fname) )
-          throw std::runtime_error(std::string("Could not create SAM file. Alignment file not found: ")+ alignment_fname);
-        iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
-        input->open(alignment_fname);
-
-        // compare number of reads in alignment file with number of reads in filter file, if filter file exists
-        if (file_exists(filter_fname) && input->get_num_reads() != filters.size()) {
-          std::string msg = std::string("Number of reads in filter file (") + std::to_string(filters.size()) + ") does not match the number of reads in the alignment file (" + std::to_string(input->get_num_reads()) + ").";
-          throw std::length_error(msg.c_str());
-        }
-
-        // compare number of reads in alignment file with number of reads in previous alignment file
-        if (mateIndex != 1 && input->get_num_reads() != numberOfAlignments) {
-          std::string msg = std::string("Number of reads in alignment file (") + std::to_string(input->get_num_reads()) + ") does not match the number of reads in previous alignment file (" + std::to_string(input->get_num_reads()) + ").";
-          throw std::length_error(msg.c_str());
-        }
-
-        numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
-        alignmentFiles.push_back(input);
-      }
-      totalNumberOfReads += numberOfAlignments;
+			// set the filter file
+			std::string filter_fname = filter_name(ln, tl);
+			FilterParser filters;
+			if (file_exists(filter_fname)) {
+				filters.open(filter_fname);
+			}
+			else
+				std::cerr << "Could not find .filter file: " <<  filter_fname  << ". Treated all reads as valid."<< std::endl;
 
 
-      // for all reads in a tile
-      /////////////////////////////////////////////////////////////////////////////
-      for (uint64_t i = 0; i < numberOfAlignments; ++i) {
-        std::vector<ReadAlignment*> mateAlignments;
-        for (auto e:alignmentFiles) {
-          mateAlignments.push_back(e->get_alignment());
-        }
-      
-        // if the filter file is available and the filter flag is 0 then skip
-        if (filters.size() != 0 && filters.next() == false)
-            continue;
+			// set the alignment files
+			std::vector<iAlnStream*> alignmentFiles;
+			unsigned numberOfAlignments;
+			for (unsigned mateIndex = 1; mateIndex <= globalAlignmentSettings.get_mates(); ++mateIndex) {
+				if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ ) return 0;
 
-        // compute barcode sequence as it should be written to BC tag
-        std::string barcode = mateAlignments[0]->getBarcodeString(); // barcode how HiLive read it from .bcl files
-        if (barcode!="") { // if demultiplexing is on
-          // insert "-" as delimiter between the single barcodes
-          uint16_t bc_counter = 0;
-          for ( uint16_t j = 0; j != globalAlignmentSettings.get_seqs().size(); j++) {
-            if ( globalAlignmentSettings.getSeqById(j).isBarcode() ) {
-              bc_counter += globalAlignmentSettings.getSeqById(j).length; // count barcode length seqEl by seqEl
-              if (bc_counter >= barcode.length())
-                break;
-              barcode.insert(bc_counter, "-");
-              bc_counter++;
-            }
-          }
-        }
+				std::string alignment_fname = alignment_name(ln, tl, globalAlignmentSettings.getSeqByMate(mateIndex).length, mateIndex);
+				if ( !file_exists(alignment_fname) )
+					throw std::runtime_error(std::string("Could not create SAM file. Alignment file not found: ")+ alignment_fname);
+				iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
+				input->open(alignment_fname);
 
-        // if readAlignment sequence (i.e. read sequence like the machine read it) has unwanted barcode, continue
-        if ((globalAlignmentSettings.get_barcodeVector().size()>0) && (mateAlignments[0]->getBarcodeIndex() == NO_MATCH))
-          continue;
+				// compare number of reads in alignment file with number of reads in filter file, if filter file exists
+				if (file_exists(filter_fname) && input->get_num_reads() != filters.size()) {
+					std::string msg = std::string("Number of reads in filter file (") + std::to_string(filters.size()) + ") does not match the number of reads in the alignment file (" + std::to_string(input->get_num_reads()) + ").";
+					throw std::length_error(msg.c_str());
+				}
 
-        // setup QNAME
-        // Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
-        // readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
-        //TODO: where do we get the read coordinate from?
-        std::stringstream readname;
-        readname << "lane." << ln << "|tile." << tl << "|read." << i;
+				// compare number of reads in alignment file with number of reads in previous alignment file
+				if (mateIndex != 1 && input->get_num_reads() != numberOfAlignments) {
+					std::string msg = std::string("Number of reads in alignment file (") + std::to_string(input->get_num_reads()) + ") does not match the number of reads in previous alignment file (" + std::to_string(input->get_num_reads()) + ").";
+					throw std::length_error(msg.c_str());
+				}
+
+				numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
+				alignmentFiles.push_back(input);
+			}
+			totalNumberOfReads += numberOfAlignments;
 
 
-        // for all mates
-        /////////////////////////////////////////////////////////////////////////////
-        seqan::BamAlignmentRecord record;
-        unsigned printedMates = 0;
-        for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
+			// for all reads in a tile
+			/////////////////////////////////////////////////////////////////////////////
+			for (uint64_t i = 0; i < numberOfAlignments; ++i) {
+				std::vector<ReadAlignment*> mateAlignments;
+				for (auto e:alignmentFiles) {
+					mateAlignments.push_back(e->get_alignment());
+				}
 
-          // for all seeds
-          /////////////////////////////////////////////////////////////////////////////
-          for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ) {
-            if ( (*it)->gid == TRIMMED ) {
-              if (mateAlignments[mateAlignmentIndex]->seeds.size() == 1) {
-                globalAlignmentSettings.add_trimmedRead(i);
-              }
-              ++it;
-              continue;
-            }
+				// if the filter file is available and the filter flag is 0 then skip
+				if (filters.size() != 0 && filters.next() == false)
+					continue;
 
-            seqan::clear(record);
+				// compute barcode sequence as it should be written to BC tag
+				std::string barcode = mateAlignments[0]->getBarcodeString(); // barcode how HiLive read it from .bcl files
+				if (barcode!="") { // if demultiplexing is on
+					// insert "-" as delimiter between the single barcodes
+					uint16_t bc_counter = 0;
+					for ( uint16_t j = 0; j != globalAlignmentSettings.get_seqs().size(); j++) {
+						if ( globalAlignmentSettings.getSeqById(j).isBarcode() ) {
+							bc_counter += globalAlignmentSettings.getSeqById(j).length; // count barcode length seqEl by seqEl
+							if (bc_counter >= barcode.length())
+								break;
+							barcode.insert(bc_counter, "-");
+							bc_counter++;
+						}
+					}
+				}
 
-            record.qName = readname.str();
+				// Index for the correct output stream
+				CountType barcodeIndex = mateAlignments[0]->getBarcodeIndex();
 
-            record.rID = (*it)->gid;
+				// If read has undetermined barcode and keep_all_barcodes is not set, skip this read
+				if ( barcodeIndex == NO_MATCH && !globalAlignmentSettings.get_keep_all_barcodes() )
+					continue;
+				else if ( barcodeIndex == NO_MATCH )
+					barcodeIndex = barcodes.size(); // this is the index for the "undetermined" output stream
 
-            record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it)-1; // seqan expects 0-based positions, but in HiLive we use 1-based
-            if (record.beginPos < 0) {
-                it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-                continue;
-            }
-
-            unsigned nm_i = 0;
-            record.cigar = (*it)->returnSeqanCigarString(&nm_i);
-
-            // flag and seq
-            record.flag = 0;
-            record.seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
-            if ((*it)->start_pos < 0) { // if read matched reverse complementary
-                seqan::reverseComplement(record.seq);
-                record.flag |= 16;
-            }
-            if (printedMates >= mateAlignments.size()) { // if current seed is secondary alignment
-                record.flag |= 256;
-                seqan::clear(record.seq);
-                seqan::clear(record.qual);
-            }
-            if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
-                record.flag |= 1;
-                if (mateAlignmentIndex == 0) {
-                  record.flag |= 64;
-                } else if (mateAlignmentIndex == mateAlignments.size()-1) {
-                  record.flag |= 128;
-                } else {
-                  record.flag |= 192; // 64 + 128
-                }
-                  
-                bool eachMateAligned = true;
-                for (auto e:mateAlignments)
-                  eachMateAligned = eachMateAligned && e->seeds.size() > 0;
-                if (eachMateAligned)
-                  record.flag |= 2;
-            }
+				// setup QNAME
+				// Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
+				// readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
+				//TODO: where do we get the Illumina read coordinate from?
+				std::stringstream readname;
+				readname << "lane." << ln << "|tile." << tl << "|read." << i;
 
 
-            // check if cigar string sums up to read length
-            // TODO
-            // Jakob: I have not seen such a warning in a long time and a correct algorithm should prevent these cases anyway.
-            // Furthermore, this is a filtering step and potentially conflicts with the 'eachMateAligned' flag if done here.
-            // However, Tobi has done something here
-            unsigned cigarElemSum = 0;
-            unsigned deletionSum = 0;
-            unsigned asi_score = (*it)->num_matches;
-            for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
-                if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X')) 
-                    cigarElemSum += elem->count;
-                if ( (elem->operation == 'I') )
-                  asi_score += elem->count - 1;
-                if (elem->operation == 'D') {
-                    deletionSum += elem->count;
-                    asi_score -= 1;
-                }
-            }
-            if (cigarElemSum != globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length) {
-                std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
-                it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-                continue;
-            }
-            if (deletionSum >= globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length) {
-                std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
-                it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-                continue;
-            }
+				// for all mates
+				/////////////////////////////////////////////////////////////////////////////
+				seqan::BamAlignmentRecord record;
+				unsigned printedMates = 0;
+				for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
 
-            // tags
-            seqan::BamTagsDict dict;
-            seqan::appendTagValue(dict, "AS", ( asi_score ) );
-            if (barcode!="") { // if demultiplexing is on
-              seqan::appendTagValue(dict, "BC", barcode);
-              seqan::appendTagValue(dict, "pb", barCodeStrings[mateAlignments[mateAlignmentIndex]->getBarcodeIndex()]);
-            }
-            seqan::appendTagValue(dict, "NM", nm_i);
-            record.tags = seqan::host(dict);
+					// for all seeds
+					/////////////////////////////////////////////////////////////////////////////
+					for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ) {
+						if ( (*it)->gid == TRIMMED ) {
+							if (mateAlignments[mateAlignmentIndex]->seeds.size() == 1) {
+								globalAlignmentSettings.add_trimmedRead(i);
+							}
+							++it;
+							continue;
+						}
+
+						seqan::clear(record);
+
+						record.qName = readname.str();
+
+						record.rID = (*it)->gid;
+
+						record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it)-1; // seqan expects 0-based positions, but in HiLive we use 1-based
+						if (record.beginPos < 0) {
+							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
+							continue;
+						}
+
+						unsigned nm_i = 0;
+						record.cigar = (*it)->returnSeqanCigarString(&nm_i);
+
+						// flag and seq
+						record.flag = 0;
+						record.seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
+						if ((*it)->start_pos < 0) { // if read matched reverse complementary
+							seqan::reverseComplement(record.seq);
+							record.flag |= 16;
+						}
+						if (printedMates >= mateAlignments.size()) { // if current seed is secondary alignment
+							record.flag |= 256;
+							seqan::clear(record.seq);
+							seqan::clear(record.qual);
+						}
+						if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
+							record.flag |= 1;
+							if (mateAlignmentIndex == 0) {
+								record.flag |= 64;
+							} else if (mateAlignmentIndex == mateAlignments.size()-1) {
+								record.flag |= 128;
+							} else {
+								record.flag |= 192; // 64 + 128
+							}
+
+							bool eachMateAligned = true;
+							for (auto e:mateAlignments)
+								eachMateAligned = eachMateAligned && e->seeds.size() > 0;
+							if (eachMateAligned)
+								record.flag |= 2;
+						}
 
 
-            // write record to disk
-            seqan::writeRecord(bamFileOut, record);
+						// check if cigar string sums up to read length
+						// TODO
+						// Jakob: I have not seen such a warning in a long time and a correct algorithm should prevent these cases anyway.
+						// Furthermore, this is a filtering step and potentially conflicts with the 'eachMateAligned' flag if done here.
+						// However, Tobi has done something here
+						unsigned cigarElemSum = 0;
+						unsigned deletionSum = 0;
+						unsigned asi_score = (*it)->num_matches;
+						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
+							if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
+								cigarElemSum += elem->count;
+							if ( (elem->operation == 'I') )
+								asi_score += elem->count - 1;
+							if (elem->operation == 'D') {
+								deletionSum += elem->count;
+								asi_score -= 1;
+							}
+						}
+						if (cigarElemSum != globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length) {
+							std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
+							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
+							continue;
+						}
+						if (deletionSum >= globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length) {
+							std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
+							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
+							continue;
+						}
 
-            //TODO exchange single output file with one per barcode (i.e. one per element in sam_fnames)
-            //if (globalAlignmentSettings.get_barcodeVector().size()>0) { // If there are specified barcodes
-              //seqan::writeRecord(bamFileOuts[mateAlignments[mateAlignmentIndex]->getBarcodeIndex()], record);
-            //} else {
-              //seqan::writeRecord(bamFileOuts[0], record);
-            //}
-            ++num_alignments;
-            ++printedMates;
-            ++it;
-          }
-        }
-        for (auto e:mateAlignments)
-          delete e;
-      }
-      for (auto e:alignmentFiles)
-        delete e;
-    }
-  }
-  
-  // TODO maybe find a way to generate statsfiles when generating multiple output files.
-  std::ofstream statsfile;
-  statsfile.open(sam_fname+".stats");
-  statsfile << "Number of reads\t" << totalNumberOfReads << std::endl;
-  statsfile << "Number of alignments\t" << num_alignments << std::endl;
-  statsfile.close();
+						// tags
+						seqan::BamTagsDict dict;
+						seqan::appendTagValue(dict, "AS", ( asi_score ) );
+						if (barcode!="") { // if demultiplexing is on
+							seqan::appendTagValue(dict, "BC", barcode);
+							seqan::appendTagValue(dict, "pb", barcodeIndex);
+						}
+						seqan::appendTagValue(dict, "NM", nm_i);
+						record.tags = seqan::host(dict);
 
-  return 0;
+
+						// write record to disk
+						seqan::writeRecord(*bfos[barcodeIndex], record);
+
+						++num_alignments;
+						++printedMates;
+						++it;
+					}
+				}
+				for (auto e:mateAlignments)
+					delete e;
+			}
+			for (auto e:alignmentFiles)
+				delete e;
+		}
+	}
+
+	// TODO maybe find a way to generate statsfiles when generating multiple output files.
+	std::ofstream statsfile;
+	statsfile.open( globalAlignmentSettings.get_out_dir().string() + "/hilive_out" + ".stats");
+	statsfile << "Number of reads\t" << totalNumberOfReads << std::endl;
+	statsfile << "Number of alignments\t" << num_alignments << std::endl;
+	statsfile.close();
+
+	return 0;
+
 }
