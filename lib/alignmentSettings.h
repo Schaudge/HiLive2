@@ -414,6 +414,39 @@ private:
       return get_unmodifiable(barcodeVector, "barcodeVector", true);
   }
 
+  std::string format_barcode(std::string unformatted_barcode) {
+	  CountType pos = 0;
+	  for ( auto el : get_seqs() ) {
+		  if ( el.mate == 0 ) {
+			  pos+=el.length;
+			  unformatted_barcode.insert(pos++, "-");
+		  }
+	  }
+
+	  return unformatted_barcode.substr(0,pos-1);
+
+  }
+
+  std::string get_barcodeString(CountType index) {
+
+	  // invalid index
+	  if ( index >= get_barcodeVector().size() ) {
+		  return "";
+	  }
+
+	  else {
+
+		  std::vector<std::string> bc_vec = get_barcodeVector()[index];
+
+		  std::stringstream ss;
+		  for ( auto fragment : bc_vec ) {
+			  ss << fragment;
+		  }
+		  std::string barcode_string = ss.str();
+		  return format_barcode(barcode_string);
+	  }
+  }
+
   void set_out_dir(boost::filesystem::path value) {
 	  set_unmodifiable(out_dir, value, "out_dir");
   }
@@ -461,6 +494,8 @@ private:
   }
 
   bool get_keep_all_barcodes() {
+	  if ( get_barcodeVector().size() == 0 )
+		  return true;
       return get_unmodifiable(keep_all_barcodes, "keep_all_barcodes");
   }
 
