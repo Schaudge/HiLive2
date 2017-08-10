@@ -74,7 +74,7 @@ link_directories( /home/lokat/libs/samtools-1.2 /home/lokat/libs/samtools-1.2/ht
 ### setup HiLive libraries ###
 include_directories("${PROJECT_SOURCE_DIR}/lib")
 # make a list of HiLive libraries
-set (LIB_NAMES tools alnread alnstream illumina_parsers kindex parallel argument_parser)
+set (LIB_NAMES tools_static tools alnread alnstream illumina_parsers kindex parallel argument_parser)
 set(LIB_LIST "")
 foreach (x ${LIB_NAMES})
 	list(APPEND LIB_LIST "lib/${x}.cpp")
@@ -91,6 +91,8 @@ target_link_libraries (hilive HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} $
 add_executable(hilive-build tools/build_index.cpp )
 target_link_libraries(hilive-build HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
 
+add_executable(hilive-out tools/hilive_out.cpp )
+target_link_libraries(hilive-out HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
 
 #####################
 ### for debugging ###

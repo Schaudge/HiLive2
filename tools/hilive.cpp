@@ -99,6 +99,10 @@ int main(int argc, const char* argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
+	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
+	if (! write_xml(xml_out, get_xml_out_name()))
+		exit(EXIT_FAILURE);
+
     // Load the index
     std::cout << "Loading Index ... " << std::endl;
     KixRun* index = new KixRun();
@@ -232,7 +236,7 @@ int main(int argc, const char* argv[]) {
     std::cout << "All threads joined." << std::endl;
     std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl;
     std::cout << "Writing output file." << std::endl;
-    alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index);
+    alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, globalAlignmentSettings.get_cycles());
     delete index;
 
     if ( globalAlignmentSettings.get_trimmedReads().size() > 0 ) {

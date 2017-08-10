@@ -73,6 +73,8 @@ class KixRun {
   // return k-mer weight of the k-mers in the index
   uint8_t get_kmer_weight();
 
+  uint64_t get_header_information(std::string f);
+
   // Database content
   GenomeIdType num_seq; // total number of sequences in the database
   StringListType seq_names; // names of the sequences in the database

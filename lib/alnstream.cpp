@@ -649,9 +649,10 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index) {
+uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle) {
 
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	std::string file_cycle = cycle >= globalAlignmentSettings.get_cycles() ? "" : "_cycle" + std::to_string(cycle);
 
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;
@@ -659,6 +660,34 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	// Add user-specified barcode strings
 	for ( unsigned i = 0; i < globalAlignmentSettings.get_barcodeVector().size(); i++ ) {
 		barcodes.push_back(globalAlignmentSettings.get_barcodeString(i));
+	}
+
+	// Mates to handle
+	CountType mates = 0;
+	CountType last_mate_cycle;
+
+	auto seqs = globalAlignmentSettings.get_seqs();
+	auto seqs_it = seqs.begin();
+
+	for ( CountType cycles_left = cycle; cycles_left > 0;) {
+
+		// add mate if element is no barcode
+		if ( seqs_it->mate != 0 )
+			mates += 1;
+
+		// reduce number of remaining cycles. If not enough cycles left, set num cycles of the last mate and break.
+		if ( cycles_left > seqs_it->length )
+			cycles_left -= seqs_it->length;
+		else {
+			last_mate_cycle = cycles_left;
+			break;
+		}
+
+		// go to next Seq element. If the last one is processed, add length of the last mate and break.
+		if ( ++seqs_it == seqs.end() ) {
+			last_mate_cycle = globalAlignmentSettings.getSeqByMate(mates).length;
+			break;
+		}
 	}
 
 	// Init the bamIOContext (the same object can be used for all output streams)
@@ -704,9 +733,9 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
 			std::string out_fname;
 			if ( barcode < barcodes.size() ) {
-				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcodes[barcode] + file_suffix;
+				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcodes[barcode] + file_cycle + file_suffix;
 			} else {
-				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_undetermined" + file_suffix;
+				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_undetermined" + file_cycle + file_suffix;
 			}
 			std::unique_ptr<seqan::BamFileOut> bfo( new seqan::BamFileOut(out_fname.c_str()));
 			bfos.push_back( std::move(bfo) );
@@ -744,10 +773,12 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 			// set the alignment files
 			std::vector<iAlnStream*> alignmentFiles;
 			unsigned numberOfAlignments;
-			for (unsigned mateIndex = 1; mateIndex <= globalAlignmentSettings.get_mates(); ++mateIndex) {
+			for (unsigned mateIndex = 1; mateIndex <= mates; ++mateIndex) {
 				if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ ) return 0;
 
-				std::string alignment_fname = alignment_name(ln, tl, globalAlignmentSettings.getSeqByMate(mateIndex).length, mateIndex);
+				CountType mateCycle = mateIndex==mates ? last_mate_cycle : globalAlignmentSettings.getSeqByMate(mateIndex).length;
+
+				std::string alignment_fname = alignment_name(ln, tl, mateCycle, mateIndex);
 				if ( !file_exists(alignment_fname) )
 					throw std::runtime_error(std::string("Could not create SAM file. Alignment file not found: ")+ alignment_fname);
 				iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );

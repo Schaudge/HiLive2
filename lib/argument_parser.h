@@ -21,6 +21,12 @@ protected:
 	/** List of command line arguments. */
 	char const ** argv;
 
+	/** Settings property tree obtained from an input file. */
+	boost::property_tree::ptree input_settings;
+
+	/** Bool describing whether an input settings file was specified. */
+	bool has_input_settings = false;
+
 	/** Program license. */
 	std::string license = "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info.\n"
 						"All rights reserved.\n"
@@ -70,6 +76,24 @@ protected:
 	 * @author Martin Lindner
 	 */
 	virtual void report() = 0;
+
+	/**
+	 * Parse the user parameter to define the read fragments (--reads,-r).
+	 * @param readsArg Vector of strings containing the read fragments
+	 * @return true on success, false otherwise
+	 * @author Tobias Loka
+	 */
+	bool parseReadsArgument(std::vector < std::string > readsArg);
+
+	/**
+	 * Parse the user parameter to define the barcodes (--barcodes,-b).
+	 * @param barcodeArg Vector of strings containing the barcodes. Barcode components are delimited by a "-".
+	 * @return true on success, false otherwise
+	 * @author Tobias Loka
+	 */
+	bool parseBarcodeArgument(std::vector < std::string > barcodeArg);
+
+	void set_input_or_default_settings();
 
 public:
 
@@ -188,7 +212,7 @@ class HiLiveArgumentParser : public ArgumentParser {
 	 * @return Option descriptor containing all positional options that must be set by the user.
 	 * @author Martin Lindner
 	 */
-	po::options_description positional_options();
+	po::options_description positional_options(bool required);
 
 	/**
 	 * I/O options of HiLive.
@@ -251,28 +275,69 @@ class HiLiveArgumentParser : public ArgumentParser {
 	bool checkPaths();
 
 	/**
-	 * Parse the user parameter to define the read fragments (--reads,-r).
-	 * @param readsArg Vector of strings containing the read fragments
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool parseReadsArgument(std::vector < std::string > readsArg);
-
-	/**
-	 * Parse the user parameter to define the barcodes (--barcodes,-b).
-	 * @param barcodeArg Vector of strings containing the barcodes. Barcode components are delimited by a "-".
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool parseBarcodeArgument(std::vector < std::string > barcodeArg);
-
-	/**
 	 * Parse Lanes, Tiles and read fragments from a RunInfo.xml file.
 	 * @param vm The variables map containing the user parameters.
 	 * @return true on success, false otherwise
 	 * @author Jakob Schulze
 	 */
 	bool parseRunInfo(po::variables_map vm);
+
+	void report() override;
+
+	void init_help(po::options_description visible_options) override;
+
+public:
+
+	int parseCommandLineArguments() override;
+
+};
+
+/**
+ * Class to parse arguments for HiLive out.
+ */
+class HiLiveOutArgumentParser : public ArgumentParser {
+
+	/**
+	 * Use the constructor of the inherited ArgumentParser class.
+	 */
+	using ArgumentParser::ArgumentParser;
+
+	/**
+	 * General options of HiLive build.
+	 * @return Option descriptor containing all general options that can be set by the user.
+	 * @author Martin Lindner
+	 */
+	po::options_description general_options();
+
+	/**
+	 * Positional options of HiLive build.
+	 * @return Option descriptor containing all positional options that must be set by the user.
+	 * @author Martin Lindner
+	 */
+	po::options_description positional_options();
+
+	/**
+	 * Build options of HiLive build.
+	 * @return Option descriptor containing all positional options that must be set by the user.
+	 * @author Martin Lindner
+	 */
+	po::options_description output_options();
+
+	/**
+	 * Set all variables for the positional command arguments.
+	 * @param vm The variables map containing the user parameters.
+	 * @return true on success, false otherwise
+	 * @author Tobias Loka
+	 */
+	bool set_positional_variables(po::variables_map vm);
+
+	/**
+	 * Set all variables for the build arguments.
+	 * @param vm The variables map containing the user parameters.
+	 * @return true on success, false otherwise
+	 * @author Tobias Loka
+	 */
+	bool set_output_variables(po::variables_map vm);
 
 	void report() override;
 

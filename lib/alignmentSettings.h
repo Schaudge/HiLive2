@@ -1,7 +1,9 @@
 #ifndef ALIGNMENTSETTINGS_H
 #define ALIGNMENTSETTINGS_H
 
+#include "headers.h"
 #include "definitions.h"
+#include "tools_static.h"
 
 // Data structure to store the alignment settings
 class AlignmentSettings {
@@ -13,8 +15,6 @@ private:
 
   // reverse gap positions
   Unmodifiable<std::vector<unsigned>> rev_kmer_gaps;
-
-  bool kmer_setFlag=false;
 
   // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
   Unmodifiable<uint8_t> kmer_span;
@@ -57,6 +57,9 @@ private:
 
   // SWITCH: write sam/bam output or not
   Unmodifiable<bool> write_bam=false;
+
+  // PARAMETER: Cycles for intermediate SAM/BAM output
+  Unmodifiable<std::vector<uint16_t>> output_cycles;
 
   // SWITCH: Keep the old alignment files of previous cycles
   Unmodifiable<bool> keep_aln_files;
@@ -117,13 +120,16 @@ private:
   Unmodifiable<bool> keep_all_barcodes;
 
   template<typename T>
-  void set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
+  bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
 	  try {
 		  unmodifiable.set(value);
 	  }
 	  catch (unmodifiable_error& e) {
-		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
+//		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
+		  variable_name.length(); // TODO: just to remove warnings. Remove variable_name string when finished.
+		 return false ;
 	  }
+	  return true;
   }
 
   template<typename T>
@@ -137,7 +143,159 @@ private:
 	  }
   }
 
- public:
+  std::vector<std::string> xmlParse_barcodeVector() {
+	  std::vector<std::string> bc_strings;
+	  for ( CountType i = 0; i < get_barcodeVector().size(); i++ ) {
+		  bc_strings.push_back( get_barcodeString(i) );
+	  }
+	  return bc_strings;
+  }
+
+  std::vector<std::string> xmlParse_seqs() {
+	  std::vector<std::string> seq_vector;
+	  for ( auto el : get_seqs() ) {
+		  std::string seq_string;
+		  seq_string += std::to_string(el.length);
+		  seq_string += el.mate == 0 ? "B" : "R";
+		  seq_vector.push_back(seq_string);
+	  }
+	  return seq_vector;
+  }
+
+public:
+
+  boost::property_tree::ptree to_ptree() {
+
+	  // Write all relevant settings to an xml file for real-time output, continue and parameter loading from settings file
+
+	  // Don't store k-mer properties here since this is index dependent (stored there)
+
+	  boost::property_tree::ptree xml_out;
+
+	  xml_out.add_child("settings.lanes", getXMLnode_vector ( get_lanes() ));
+	  xml_out.add_child("settings.tiles", getXMLnode_vector ( get_tiles() ));
+	  xml_out.add_child("settings.min_errors", getXMLnode (get_min_errors() ));
+	  xml_out.add_child("settings.cycles", getXMLnode ( get_cycles() ));
+	  xml_out.add_child("settings.sequences", getXMLnode_vector ( xmlParse_seqs() ));
+
+	  xml_out.add_child("settings.barcodes.sequences", getXMLnode_vector( xmlParse_barcodeVector() ));
+	  xml_out.add_child("settings.barcodes.errors", getXMLnode_vector ( get_barcode_errors() ));
+	  xml_out.add_child("settings.barcodes.keep_all", getXMLnode ( get_keep_all_barcodes() ));
+
+	  xml_out.add_child("settings.mode.any_best_hit_mode", getXMLnode ( get_any_best_hit_mode() ));
+	  xml_out.add_child("settings.mode.all_best_hit_mode", getXMLnode ( get_all_best_hit_mode() ));
+	  xml_out.add_child("settings.mode.all_best_n_scores_mode", getXMLnode ( get_all_best_n_scores_mode() ));
+	  xml_out.add_child("settings.mode.best_n", getXMLnode ( get_best_n() ));
+
+	  xml_out.add_child("settings.paths.temp_dir", getXMLnode ( get_temp_dir() ));
+	  xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir() ));
+	  xml_out.add_child("settings.paths.root", getXMLnode ( get_root() ));
+	  xml_out.add_child("settings.paths.runInfo", getXMLnode ( get_runInfo_fname() ));
+	  xml_out.add_child("settings.paths.index_fname", getXMLnode ( get_index_fname() ));
+
+	  xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
+	  xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
+	  xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
+
+	  xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
+	  xml_out.add_child("settings.technical.keep_aln_files", getXMLnode ( get_keep_aln_files() ));
+	  xml_out.add_child("settings.technical.block_size", getXMLnode ( get_block_size() ));
+	  xml_out.add_child("settings.technical.compression_format", getXMLnode ( get_compression_format() ));
+
+	  xml_out.add_child("settings.align.min_qual", getXMLnode (get_min_qual() ));
+	  xml_out.add_child("settings.align.window", getXMLnode (get_window() ));
+	  xml_out.add_child("settings.align.discard_ohw", getXMLnode ( get_discard_ohw() ));
+	  xml_out.add_child("settings.align.start_ohw", getXMLnode ( get_start_ohw() ));
+
+	  return xml_out;
+  }
+
+  bool store_barcode_sequences ( std::vector< std::string > barcodeArg ) {
+
+  	std::vector<uint16_t> barcode_lengths;
+
+  	for ( uint16_t seq_num = 0; seq_num < get_seqs().size(); seq_num++ ) {
+
+  		// We are only interesed in Barcode sequences
+  		if ( !getSeqById(seq_num).isBarcode() )
+  			continue;
+
+  		barcode_lengths.push_back( getSeqById(seq_num).length );
+  	}
+
+    std::vector<std::vector<std::string> > barcodeVector;
+  	for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {
+
+  		std::string valid_chars = seq_chars + "-";
+  		for(CountType i = 0; i != (*barcode).length(); i++){
+  			char c = (*barcode)[i];
+  			if ( valid_chars.find(c) == std::string::npos )
+  				return false;
+  		}
+
+  		std::vector<std::string> fragments;
+  		split(*barcode, '-', fragments);
+
+  		// check validity of barcode
+  		if ( barcode_lengths.size() != fragments.size())
+  			return false;
+
+  		for ( uint16_t num = 0; num != fragments.size(); num++ ) {
+  			if ( fragments[num].length() != barcode_lengths[num] ) {
+  				return false;
+  			}
+  		}
+
+  		// push back the fragments vector
+  		barcodeVector.push_back(fragments);
+  	}
+  	set_barcodeVector(barcodeVector);
+
+  	return true;
+  }
+
+  bool store_read_structure ( std::vector<std::string> read_argument ) {
+
+	  CountType lenSum = 0;
+	  CountType length = 0;
+	  std::string length_string = "";
+	  char type;
+	  unsigned mates = 0;
+	  std::vector<SequenceElement> temp;
+
+	  for ( auto read = read_argument.begin(); read != read_argument.end(); ++read ) {
+
+		  length_string = (*read).substr(0,(*read).length()-1);
+		  type = (*(*read).rbegin());
+
+		  try{
+			  std::stringstream( length_string ) >> length;
+		  } catch( std::bad_cast & ex ){
+			  std::cerr << "Error while casting length " << length_string << " to type uint16_t" << std::endl;
+		  }
+
+		  if ( type!='B' && type!='R' ) {
+			  std::cerr << "\'" << type << "\'" << " is no valid read type. Please use " << "\'R\'" << " for sequencing reads or "
+					  "\'B\'" << " for barcode reads." << std::endl;
+			  return false;
+		  }
+
+		  temp.push_back(SequenceElement(temp.size(), (type == 'R') ? ++mates : 0, length));
+		  lenSum += length;
+
+	  }
+	  set_seqs(temp);
+	  set_mates(mates);
+
+	  if ( lenSum!=get_cycles() ) {
+		  std::cerr << "Sum of defined reads does not equal the given number of cycles." << std::endl;
+		  return false;
+	  }
+
+	  return true;
+
+  }
+
   /**
    * Get a SequenceElement object from the seqs vector by using the id
    * @param id The id of the SequenceElement.
@@ -312,7 +470,7 @@ private:
   }
 
   CountType get_best_n() {
-      return get_unmodifiable(best_n, "best_n");
+      return get_unmodifiable(best_n, "best_n", true);
   }
 
   void set_temp_dir(std::string value) {
@@ -330,6 +488,15 @@ private:
 
   bool get_write_bam() {
       return get_unmodifiable(write_bam, "write_bam");
+  }
+
+  void set_output_cycles(std::vector<uint16_t> cycles) {
+	  std::sort(cycles.begin(), cycles.end());
+	  set_unmodifiable(output_cycles, cycles, "output_cycles");
+  }
+
+  std::vector<uint16_t> get_output_cycles() {
+	  return get_unmodifiable(output_cycles, "output_cycles", true);
   }
 
   void set_keep_aln_files(bool value) {
@@ -403,7 +570,7 @@ private:
   }
 
   std::string get_runInfo_fname() {
-      return get_unmodifiable(runInfo_fname, "runInfo_fname");
+      return get_unmodifiable(runInfo_fname, "runInfo_fname", true);
   }
 
   void set_barcodeVector(std::vector<std::vector<std::string> > value) {
@@ -523,6 +690,8 @@ private:
   CountType get_max_consecutive_gaps() {
       return get_unmodifiable(max_consecutive_gaps, "max_consecutive_gaps");
   }
+
+
 };
 
 #endif

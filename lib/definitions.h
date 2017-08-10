@@ -81,6 +81,7 @@ public:
 
 		return unmodifiable_object;
 	}
+
 };
 
 // bit representation of A/C/G/T.
@@ -97,9 +98,6 @@ public:
 #define revtwobit_repr(n) ((n) == 0 ? 'A' : \
                            (n) == 1 ? 'C' : \
                            (n) == 2 ? 'G' : 'T')
-
-
-
 
 // Allowed characters in sequence
 const std::string seq_chars = "ACGTacgt";

@@ -445,3 +445,67 @@ GenomePosListType KixRun::retrieve_positions(std::string kmerSpan) {
 
   return pos;
 }
+
+/**
+ * get kix-header information only to not load the complete index
+ * structure:
+ * 8 bit (k-mer size)
+ * 32 bit (# sequences)
+ * for each sequence: 16 bit (sequence name length) + sequence name
+ * for each sequence: 32 bit (length of sequence)
+ */
+uint64_t KixRun::get_header_information(std::string f) {
+	std::string fname = f;
+
+	// open binary file
+	FILE* fi;
+	fi = fopen(fname.c_str(), "rb");
+
+	if (!fi) {
+		std::cerr << "Error reading binary file " << fname << ": Could not open file." << std::endl;
+		return 0;
+	}
+
+	uint16_t seq_name_len;
+	uint64_t seq_amount, seq_len;
+	int c;
+
+	// sequence names & lengths
+	seq_names.clear();
+	seq_lengths.clear();
+	fread(&kmer_weight,1,1,fi);
+
+
+	// Ignore k-mer gaps
+	uint8_t gap_num;
+	fread(&gap_num,1,sizeof(uint8_t),fi);
+
+	// read k-mer pattern
+	for ( uint8_t i = 0; i < gap_num; i++ ) {
+		uint8_t gap;
+		fread(&gap, 1, sizeof(uint8_t), fi);
+	}
+
+	fread(&seq_amount,4,1,fi);
+
+	//get the names for every sequence
+	for( unsigned a = 0; a < seq_amount; a = a + 1 ){
+		fread(&seq_name_len,2,1,fi);
+		std::string seq_name;
+		for( unsigned b = 0; b < seq_name_len; b = b + 1 ){
+			c = fgetc(fi);
+			seq_name.push_back(c);
+		}
+		seq_names.push_back(seq_name);
+	}
+
+	for( unsigned a = 0; a < seq_amount; a = a + 1 ) {
+		fread(&seq_len,4,1,fi);
+	}
+	seq_lengths.push_back(seq_len);
+
+
+	fclose(fi);
+	return seq_amount;
+}
+

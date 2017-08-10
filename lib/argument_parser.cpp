@@ -187,33 +187,52 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 //-----HiLiveArgumentParser------------------------------
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
+void ArgumentParser::set_input_or_default_settings() {
+	globalAlignmentSettings.set_temp_dir(input_settings.get<std::string>("settings.paths.temp_dir", ""));
+	globalAlignmentSettings.set_write_bam(input_settings.get<bool>("settings.out.bam", false));
+	globalAlignmentSettings.set_extended_cigar(input_settings.get<bool>("settings.out.extended_cigar", false));
+	globalAlignmentSettings.set_keep_aln_files(input_settings.get<bool>("settings.technical.keep_aln_files", false));
+
+
+}
+
 po::options_description HiLiveArgumentParser::general_options() {
 	po::options_description general("General");
 	general.add_options()
 	        		("help,h", "Print this help message and exit")
-					("license", "Print licensing information and exit");
+					("license", "Print licensing information and exit")
+					("settings,s", po::value<std::string>(), "Load settings from file. If command line arguments are given additionally, they are prefered.");
 	return general;
 }
 
-po::options_description HiLiveArgumentParser::positional_options() {
+po::options_description HiLiveArgumentParser::positional_options(bool required) {
 	po::options_description parameters("Parameters");
-	parameters.add_options()
+	if ( required ) {
+		parameters.add_options()
 	        		("BC_DIR", po::value<std::string>()->required(), "Illumina BaseCalls directory")
 					("INDEX", po::value<std::string>()->required(), "Path to k-mer index")
 					("CYCLES", po::value<CountType>()->required(), "Number of cycles")
 					("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: temporary or BaseCalls directory");
+	}
+	else {
+		parameters.add_options()
+			        ("BC_DIR", po::value<std::string>(), "Illumina BaseCalls directory")
+					("INDEX", po::value<std::string>(), "Path to k-mer index")
+					("CYCLES", po::value<CountType>(), "Number of cycles")
+					("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: temporary or BaseCalls directory");
+	}
 	return parameters;
 }
 
 po::options_description HiLiveArgumentParser::io_options() {
 	po::options_description io_settings("IO settings");
 	io_settings.add_options()
-	        		("temp", po::value<std::string>()->default_value(""), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
-					("bam,B", po::bool_switch()->default_value(false), "Create BAM files instead of SAM files [Default: false]")
-					("extended-cigar", po::bool_switch()->default_value(false), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
-					("keep-files,k", po::bool_switch()->default_value(false), "Keep intermediate alignment files [Default: false]")
-					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
-					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
+	        		("temp", po::value<std::string>()->notifier(boost::bind(&AlignmentSettings::set_temp_dir, &globalAlignmentSettings, _1)), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
+					("bam,B", po::bool_switch()->notifier(boost::bind(&AlignmentSettings::set_write_bam, &globalAlignmentSettings, _1)), "Create BAM files instead of SAM files [Default: false]")
+					("extended-cigar", po::bool_switch()->notifier(boost::bind(&AlignmentSettings::set_extended_cigar, &globalAlignmentSettings, _1)), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
+					("keep-files,k", po::bool_switch()->notifier(boost::bind(&AlignmentSettings::set_keep_aln_files, &globalAlignmentSettings, _1)), "Keep intermediate alignment files [Default: false]")
+					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing()->notifier(boost::bind(&AlignmentSettings::set_lanes, &globalAlignmentSettings, _1)), "Select lane [Default: all lanes]")
+					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing()->notifier(boost::bind(&AlignmentSettings::set_tiles, &globalAlignmentSettings, _1)), "Select tile numbers [Default: all tiles]")
 					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]")
 					("runInfoPath", po::value<std::string>(), "Path to runInfo.xml for parsing read and index lengths [Default: BC_DIR/../../RunInfo.xml]");
 	return io_settings;
@@ -287,7 +306,7 @@ bool HiLiveArgumentParser::set_positional_variables(po::variables_map vm) {
 }
 
 bool HiLiveArgumentParser::set_io_variables(po::variables_map vm) {
-	globalAlignmentSettings.set_temp_dir(vm["temp"].as<std::string>());
+	globalAlignmentSettings.set_temp_dir(input_settings.get<std::string>("settings.paths.temp_dir", ""));
 	globalAlignmentSettings.set_write_bam(vm["bam"].as<bool>());
 	globalAlignmentSettings.set_extended_cigar(vm["extended-cigar"].as<bool>());
 	globalAlignmentSettings.set_keep_aln_files(vm["keep-files"].as<bool>());
@@ -311,7 +330,7 @@ bool HiLiveArgumentParser::set_io_variables(po::variables_map vm) {
 	else {
 
 		// Parse read lengths and types.
-		if ( vm.count("reads") && !parseReadsArgument(vm["reads"].as< std::vector<std::string> >()) )
+		if ( vm.count("reads") && !globalAlignmentSettings.store_read_structure(vm["reads"].as< std::vector<std::string> >()) )
 			return false;
 		else if ( !vm.count("reads") && globalAlignmentSettings.get_seqs().size() == 0 ) {
 			globalAlignmentSettings.set_seqs(std::vector<SequenceElement> {SequenceElement(0,1,globalAlignmentSettings.get_cycles())});
@@ -353,7 +372,7 @@ bool HiLiveArgumentParser::set_alignment_variables(po::variables_map vm) {
 	// Set Demultiplexing options
 	globalAlignmentSettings.set_keep_all_barcodes(vm["keep-all-barcodes"].as<bool>());
 	if (vm.count("barcodes")) {
-		if( !parseBarcodeArgument(vm["barcodes"].as< std::vector<std::string> >()) ) {
+		if( !globalAlignmentSettings.store_barcode_sequences(vm["barcodes"].as< std::vector<std::string> >()) ) {
 			std::cerr << "Parsing error: Invalid barcode(s) detected. Please ensure that you used \'-\' "
 					"as duplex delimiter and that all barcodes have the correct length. Only use A,C,G and T as bases!" << std::endl;
 			return false;
@@ -493,91 +512,6 @@ void HiLiveArgumentParser::report() {
     std::cout << std::endl;
 }
 
-bool HiLiveArgumentParser::parseReadsArgument(std::vector< std::string > readsArg){
-
-	CountType lenSum = 0;
-	CountType length = 0;
-	std::string length_string = "";
-	char type;
-	unsigned mates = 0;
-  std::vector<SequenceElement> temp;
-
-	for ( auto read = readsArg.begin(); read != readsArg.end(); ++read ) {
-
-		length_string = (*read).substr(0,(*read).length()-1);
-		type = (*(*read).rbegin());
-
-		try{
-		std::stringstream( length_string ) >> length;
-		} catch( std::bad_cast & ex ){
-			std::cerr << "Error while casting length " << length_string << " to type uint16_t" << std::endl;
-		}
-
-		if ( type!='B' && type!='R' ) {
-			std::cerr << "\'" << type << "\'" << " is no valid read type. Please use " << "\'R\'" << " for sequencing reads or "
-					"\'B\'" << " for barcode reads." << std::endl;
-			return false;
-		}
-
-		temp.push_back(SequenceElement(temp.size(), (type == 'R') ? ++mates : 0, length));
-		lenSum += length;
-
-	}
-  globalAlignmentSettings.set_seqs(temp);
-  globalAlignmentSettings.set_mates(mates);
-
-	if ( lenSum!=globalAlignmentSettings.get_cycles() ) {
-		std::cerr << "Sum of defined reads does not equal the given number of cycles." << std::endl;
-		return false;
-	}
-
-	return true;
-}
-
-bool HiLiveArgumentParser::parseBarcodeArgument(std::vector< std::string > barcodeArg ) {
-
-	std::vector<uint16_t> barcode_lengths;
-
-	for ( uint16_t seq_num = 0; seq_num < globalAlignmentSettings.get_seqs().size(); seq_num++ ) {
-
-		// We are only interesed in Barcode sequences
-		if ( !globalAlignmentSettings.getSeqById(seq_num).isBarcode() )
-			continue;
-
-		barcode_lengths.push_back( globalAlignmentSettings.getSeqById(seq_num).length );
-	}
-
-  std::vector<std::vector<std::string> > barcodeVector;
-	for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {
-
-		std::string valid_chars = seq_chars + "-";
-		for(CountType i = 0; i != (*barcode).length(); i++){
-			char c = (*barcode)[i];
-			if ( valid_chars.find(c) == std::string::npos )
-				return false;
-		}
-
-		std::vector<std::string> fragments;
-		split(*barcode, '-', fragments);
-
-		// check validity of barcode
-		if ( barcode_lengths.size() != fragments.size())
-			return false;
-
-		for ( uint16_t num = 0; num != fragments.size(); num++ ) {
-			if ( fragments[num].length() != barcode_lengths[num] ) {
-				return false;
-			}
-		}
-
-		// push back the fragments vector
-		barcodeVector.push_back(fragments);
-	}
-	globalAlignmentSettings.set_barcodeVector(barcodeVector);
-
-	return true;
-}
-
 bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
 	globalAlignmentSettings.set_runInfo_fname(vm["runInfoPath"].as<std::string>());
 	std::ifstream inputStream(globalAlignmentSettings.get_runInfo_fname());
@@ -631,12 +565,51 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
 
 	// Init all program options
 	po::options_description gen_opt = general_options();
-	po::options_description pos_opt = positional_options();
+
+	// All options
+	po::options_description general_options;
+	general_options.add(gen_opt);
+    po::variables_map vm;
+
+    // First parameter iteration for general options (includes help, license and input settings file.
+    try {
+        po::store(po::command_line_parser(argc, argv).options(general_options).allow_unregistered().run(), vm);
+
+        // first check if -h or --help was called
+        if (vm.count("help")) {
+        	printHelp();
+        	return 1;
+        }
+
+        // first check if --license was called
+        if (vm.count("license")) {
+        	printLicense();
+        	return 1;
+        }
+
+        vm.notify();
+
+        // Load input settings if exist
+        if ( vm.count("settings")) {
+        	if ( ! read_xml(input_settings, vm["settings"].as<std::string>()) ) {
+                std::cerr << "Input settings file not found: " << vm["settings"].as<std::string>() << std::endl;
+                std::cerr << "Try to load all settings from command line parameters." << std::endl;
+        	}
+        	else {
+        		has_input_settings = true;
+        	}
+        }
+    }
+    catch( po::error& e) {
+           std::cerr << "Error while parsing command line options: " << e.what() << std::endl;
+           return -1;
+    }
+
+	po::options_description pos_opt = positional_options(!has_input_settings);
 	po::options_description io_opt = io_options();
 	po::options_description align_opt = alignment_options();
 	po::options_description tech_opt = technical_options();
 
-	// All options
     po::options_description cmdline_options;
     cmdline_options.add(gen_opt).add(pos_opt).add(io_opt).add(align_opt).add(tech_opt);
 
@@ -652,22 +625,12 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
     p.add("CYCLES", 1);
     p.add("OUTDIR", 1);
 
+    vm.clear();
     
-    // parse the arguments
-    po::variables_map vm;
+    // parse all other arguments
     try {
         // parse arguments
         po::store(po::command_line_parser(argc, argv).options(cmdline_options).positional(p).run(), vm);
-        // first check if -h or --help was called
-        if (vm.count("help")) {
-            printHelp();
-            return 1;
-        }
-        // first check if --license was called
-        if (vm.count("license")) {
-            printLicense();
-            return 1;
-        }
 
         // then check arguments
         po::notify(vm);  
@@ -711,3 +674,227 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
 
     return 0;
 }
+
+//|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+//-----HiLiveOutArgumentParser--------------------------
+//|||||||||||||||||||||||||||||||||||||||||||||||||||||||
+
+po::options_description HiLiveOutArgumentParser::general_options() {
+	po::options_description general("General");
+	general.add_options()
+	    		("help,h", "Print this help message and exit")
+				("license", "Print licensing information and exit");
+	return general;
+}
+
+po::options_description HiLiveOutArgumentParser::positional_options() {
+	po::options_description parameters("Required");
+	parameters.add_options()
+	    		("TEMP_DIR", po::value<std::string>()->required(), "Directory that contains the temporary alignment files.")
+				("OUT_DIR", po::value<std::string>()->required(), "Directory to write the output files.")
+				("INDEX", po::value<std::string>()->required(), "Path to the index file.")
+				("CYCLES", po::value<CountType>()->required(), "Total number of cycles.");
+
+	return parameters;
+}
+
+po::options_description HiLiveOutArgumentParser::output_options() {
+	po::options_description options("Options");
+	options.add_options()
+	    		("cycles,c", po::value<std::vector<uint16_t>>()->multitoken()->composing(), "Set output cycle(s).")
+				("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
+				("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
+				("bam,B", po::bool_switch()->default_value(false), "Create BAM files instead of SAM files [Default: false]")
+				("extended-cigar", po::bool_switch()->default_value(false), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
+				("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]")
+				("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
+				("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
+				("keep-all-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]");
+	return options;
+}
+
+void HiLiveOutArgumentParser::init_help(po::options_description visible_options) {
+
+	std::stringstream help_message;
+
+	help_message << "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
+	help_message << "All rights reserved" << std::endl << std::endl;
+	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive-out [options] TEMP_DIR OUT_DIR" << std::endl << std::endl;
+	help_message << "Required:" << std::endl;
+	help_message << "  TEMP_DIR                 Directory that contains the temporary alignment files." << std::endl;
+	help_message << "  OUT_DIR        		    Directory to write the output files." << std::endl;
+	help_message << "  INDEX       		        Path to the index file." << std::endl;
+	help_message << "  CYCLES        		    Total number of cycles." << std::endl;
+
+	help_message << visible_options;
+
+	help = help_message.str();
+}
+
+bool HiLiveOutArgumentParser::set_positional_variables(po::variables_map vm) {
+
+	// Name of the temp dir
+	globalAlignmentSettings.set_temp_dir(vm["TEMP_DIR"].as<std::string>());
+
+	// Name of the out dir
+	globalAlignmentSettings.set_out_dir(vm["OUT_DIR"].as<std::string>());
+
+	// Name of the index file
+	globalAlignmentSettings.set_index_fname(vm["INDEX"].as<std::string>());
+
+	// Total number of cycles
+	globalAlignmentSettings.set_cycles(vm["CYCLES"].as<CountType>());
+
+	return true;
+}
+
+bool HiLiveOutArgumentParser::set_output_variables(po::variables_map vm) {
+
+	globalAlignmentSettings.set_write_bam(vm["bam"].as<bool>());
+	globalAlignmentSettings.set_extended_cigar(vm["extended-cigar"].as<bool>());
+
+	// Output cycles
+	if ( vm.count("cycles") ) {
+		globalAlignmentSettings.set_output_cycles(vm["cycles"].as< std::vector <uint16_t> >());
+	}
+
+	// Parse lanes
+	if (vm.count("lanes"))
+		globalAlignmentSettings.set_lanes(vm["lanes"].as< std::vector<uint16_t> >());
+	else
+		if (globalAlignmentSettings.get_lanes().size() == 0) {
+			std::vector<uint16_t> tempLanes = all_lanes();
+			std::sort( tempLanes.begin(), tempLanes.end() );
+			tempLanes.erase( std::unique( tempLanes.begin(), tempLanes.end() ), tempLanes.end() );
+			globalAlignmentSettings.set_lanes(tempLanes);
+		}
+
+	// Parse tiles
+	if (vm.count("tiles"))
+		globalAlignmentSettings.set_tiles(vm["tiles"].as< std::vector<uint16_t> >());
+	else
+		if (globalAlignmentSettings.get_tiles().size() == 0) {
+			std::vector<uint16_t> tempTiles = all_tiles();
+			std::sort( tempTiles.begin(), tempTiles.end() );
+			tempTiles.erase( std::unique( tempTiles.begin(), tempTiles.end() ), tempTiles.end() );
+			globalAlignmentSettings.set_tiles(tempTiles);
+		}
+
+	// Parse read lengths and types.
+	if ( vm.count("reads") && !globalAlignmentSettings.store_read_structure(vm["reads"].as< std::vector<std::string> >()) )
+		return false;
+	else if ( !vm.count("reads") && globalAlignmentSettings.get_seqs().size() == 0 ) {
+		globalAlignmentSettings.set_seqs(std::vector<SequenceElement> {SequenceElement(0,1,globalAlignmentSettings.get_cycles())});
+		globalAlignmentSettings.set_mates(1);
+	}
+
+	// Set Demultiplexing options
+	globalAlignmentSettings.set_keep_all_barcodes(vm["keep-all-barcodes"].as<bool>());
+	if (vm.count("barcodes")) {
+		if( !globalAlignmentSettings.store_barcode_sequences(vm["barcodes"].as< std::vector<std::string> >()) ) {
+			std::cerr << "Parsing error: Invalid barcode(s) detected. Please ensure that you used \'-\' "
+					"as duplex delimiter and that all barcodes have the correct length. Only use A,C,G and T as bases!" << std::endl;
+			return false;
+		}
+	}
+
+	if ( globalAlignmentSettings.get_barcodeVector().size() != 0 ) {
+		if ( vm.count("barcode-errors") ) {
+			globalAlignmentSettings.set_barcode_errors(vm["barcode-errors"].as< std::vector<uint16_t> >());
+			if ( globalAlignmentSettings.get_barcodeVector()[0].size() != globalAlignmentSettings.get_barcode_errors().size() ) {
+				std::cerr << "Parsing error: Number of barcode errors does not equal the number of barcodes." << std::endl;
+				return false;
+			}
+		} else {
+			std::vector<uint16_t> temp;
+			for ( uint16_t i = 0; i < globalAlignmentSettings.get_barcodeVector()[0].size(); i++ )
+				temp.push_back(1);
+			globalAlignmentSettings.set_barcode_errors(temp);
+		}
+	}
+
+	return true;
+}
+
+void HiLiveOutArgumentParser::report() {
+
+//	std::cout << "K-mer weight:        " << (uint16_t) globalAlignmentSettings.get_kmer_weight() << std::endl;
+//	std::cout << "K-mer span:          " << (uint16_t) globalAlignmentSettings.get_kmer_span() << std::endl;
+//	std::cout << "K-mer gap positions: ";
+//
+//	if ( globalAlignmentSettings.get_kmer_gaps().size() > 0 ) {
+//		for ( auto pos : globalAlignmentSettings.get_kmer_gaps() ) {
+//			if ( pos != *(globalAlignmentSettings.get_kmer_gaps().begin()) )
+//				std::cout << ",";
+//			std::cout << (uint16_t) pos;
+//		}
+//		std::cout << std::endl;
+//	} else {
+//		std::cout << "-" << std::endl;
+//	}
+//	std::cout << std::endl;
+
+}
+
+int HiLiveOutArgumentParser::parseCommandLineArguments() {
+
+	po::options_description gen_opt = general_options();
+	po::options_description pos_opt = positional_options();
+	po::options_description out_opt = output_options();
+
+	po::options_description cmdline_options;
+	cmdline_options.add(pos_opt).add(gen_opt).add(out_opt);
+
+	po::options_description visible_options;
+	visible_options.add(gen_opt).add(out_opt);
+
+	init_help(visible_options);
+
+	po::positional_options_description p;
+	p.add("TEMP_DIR", 1);
+	p.add("OUT_DIR", 1);
+	p.add("INDEX", 1);
+	p.add("CYCLES", 1);
+
+	po::variables_map vm;
+	try {
+		// parse arguments
+		po::store(po::command_line_parser(argc, argv).
+				options(cmdline_options).positional(p).run(), vm);
+		// first check if -h or --help was called
+		if (vm.count("help")) {
+			printHelp();
+			return 1;
+	    }
+	    // first check if --license was called
+	    if (vm.count("license")) {
+	      printLicense();
+	      return 1;
+	    }
+
+	    // then check arguments
+	    po::notify(vm);
+	  }
+	  catch ( po::required_option& e ) {
+	    std::cerr << "Missing Parameter: " << e.what() << std::endl;
+	    return -1;
+	  }
+	  catch( po::error& e) {
+	    std::cerr << "Error while parsing command line options: " << e.what() << std::endl;
+	    return -1;
+	  }
+
+	  if ( !set_positional_variables(vm) ) {
+		  return -1;
+	  }
+
+	  if ( !set_output_variables(vm) ) {
+		  return -1;
+	  }
+
+	  report();
+
+	  return 0;
+}
+
