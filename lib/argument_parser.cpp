@@ -8,7 +8,6 @@ namespace po = boost::program_options;
 
 ArgumentParser::ArgumentParser(int argC, char const ** argV):argc(argC),argv(argV){}
 
-
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 //-----BuildIndexArgumentParser--------------------------
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
@@ -187,12 +186,7 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 //-----HiLiveArgumentParser------------------------------
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-void ArgumentParser::set_input_or_default_settings() {
-	globalAlignmentSettings.set_temp_dir(input_settings.get<std::string>("settings.paths.temp_dir", ""));
-	globalAlignmentSettings.set_write_bam(input_settings.get<bool>("settings.out.bam", false));
-	globalAlignmentSettings.set_extended_cigar(input_settings.get<bool>("settings.out.extended_cigar", false));
-	globalAlignmentSettings.set_keep_aln_files(input_settings.get<bool>("settings.technical.keep_aln_files", false));
-
+void HiLiveArgumentParser::set_options() {
 
 }
 
@@ -201,40 +195,33 @@ po::options_description HiLiveArgumentParser::general_options() {
 	general.add_options()
 	        		("help,h", "Print this help message and exit")
 					("license", "Print licensing information and exit")
-					("settings,s", po::value<std::string>(), "Load settings from file. If command line arguments are given additionally, they are prefered.");
+					("settings,s", po::value<std::string>(), "Load settings from file. If command line arguments are given additionally, they are prefered.")
+					("runinfo", po::value<std::string>(), "Path to runInfo.xml for parsing read and index lengths [Default (if activated): BC_DIR/../../RunInfo.xml]");
+
 	return general;
 }
 
-po::options_description HiLiveArgumentParser::positional_options(bool required) {
+po::options_description HiLiveArgumentParser::positional_options() {
 	po::options_description parameters("Parameters");
-	if ( required ) {
-		parameters.add_options()
-	        		("BC_DIR", po::value<std::string>()->required(), "Illumina BaseCalls directory")
-					("INDEX", po::value<std::string>()->required(), "Path to k-mer index")
-					("CYCLES", po::value<CountType>()->required(), "Number of cycles")
-					("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: temporary or BaseCalls directory");
-	}
-	else {
-		parameters.add_options()
-			        ("BC_DIR", po::value<std::string>(), "Illumina BaseCalls directory")
+	parameters.add_options()
+	        		("BC_DIR", po::value<std::string>(), "Illumina BaseCalls directory")
 					("INDEX", po::value<std::string>(), "Path to k-mer index")
 					("CYCLES", po::value<CountType>(), "Number of cycles")
 					("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: temporary or BaseCalls directory");
-	}
+
 	return parameters;
 }
 
 po::options_description HiLiveArgumentParser::io_options() {
 	po::options_description io_settings("IO settings");
 	io_settings.add_options()
-	        		("temp", po::value<std::string>()->notifier(boost::bind(&AlignmentSettings::set_temp_dir, &globalAlignmentSettings, _1)), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
-					("bam,B", po::bool_switch()->notifier(boost::bind(&AlignmentSettings::set_write_bam, &globalAlignmentSettings, _1)), "Create BAM files instead of SAM files [Default: false]")
-					("extended-cigar", po::bool_switch()->notifier(boost::bind(&AlignmentSettings::set_extended_cigar, &globalAlignmentSettings, _1)), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
-					("keep-files,k", po::bool_switch()->notifier(boost::bind(&AlignmentSettings::set_keep_aln_files, &globalAlignmentSettings, _1)), "Keep intermediate alignment files [Default: false]")
-					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing()->notifier(boost::bind(&AlignmentSettings::set_lanes, &globalAlignmentSettings, _1)), "Select lane [Default: all lanes]")
-					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing()->notifier(boost::bind(&AlignmentSettings::set_tiles, &globalAlignmentSettings, _1)), "Select tile numbers [Default: all tiles]")
-					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]")
-					("runInfoPath", po::value<std::string>(), "Path to runInfo.xml for parsing read and index lengths [Default: BC_DIR/../../RunInfo.xml]");
+	        		("temp", po::value<std::string>(), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
+					("bam,B", po::bool_switch(), "Create BAM files instead of SAM files [Default: false]")
+					("extended-cigar", po::bool_switch(), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
+					("keep-files,k", po::bool_switch(), "Keep intermediate alignment files [Default: false]")
+					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
+					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
+					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]");
 	return io_settings;
 }
 
@@ -288,9 +275,13 @@ void HiLiveArgumentParser::init_help(po::options_description visible_options) {
 }
 
 bool HiLiveArgumentParser::set_positional_variables(po::variables_map vm) {
-	globalAlignmentSettings.set_root(vm["BC_DIR"].as<std::string>());
-	globalAlignmentSettings.set_index_fname(vm["INDEX"].as<std::string>());
-	globalAlignmentSettings.set_cycles(vm["CYCLES"].as<CountType>());
+//	globalAlignmentSettings.set_root(vm["BC_DIR"].as<std::string>());
+//	globalAlignmentSettings.set_index_fname(vm["INDEX"].as<std::string>());
+//	globalAlignmentSettings.set_cycles(vm["CYCLES"].as<CountType>());
+
+	set_option("BC_DIR", "default_blabla", &AlignmentSettings::set_root);
+
+
 	if (vm.count("OUTDIR")) {
 		globalAlignmentSettings.set_out_dir(boost::filesystem::path(vm["OUTDIR"].as<std::string>()));
 	}
@@ -513,13 +504,15 @@ void HiLiveArgumentParser::report() {
 }
 
 bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
-	globalAlignmentSettings.set_runInfo_fname(vm["runInfoPath"].as<std::string>());
-	std::ifstream inputStream(globalAlignmentSettings.get_runInfo_fname());
+
+	if ( ! vm.count("runinfo"))
+		return false;
+
+	boost::property_tree::ptree tree;
+	read_xml(tree, vm["runinfo"].as<std::string>());
 
 	using boost::property_tree::ptree;
-	ptree tree;
 
-	read_xml(inputStream, tree);
 	if (!tree.empty() && tree.count("RunInfo")!=0) {
 		ptree ptree_RunInfo = tree.get_child("RunInfo");
 
@@ -529,31 +522,46 @@ bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
 			if (ptree_Run.count("Reads")!=0) {
 				ptree ptree_Reads = ptree_Run.get_child("Reads");
 				unsigned lenSum = 0;
+				std::string sequences = "";
 				std::vector<SequenceElement> tempSeqs;
 				unsigned mates = 0;
 				for (const auto &read : ptree_Reads) {
+					sequences += read.second.get<unsigned>("<xmlattr>.NumCycles");
+					sequences += read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N" ? "R " : "B ";
 					tempSeqs.push_back(SequenceElement(tempSeqs.size(), (read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N") ? ++mates : 0, read.second.get<unsigned>("<xmlattr>.NumCycles")));
 					lenSum += read.second.get<unsigned>("<xmlattr>.NumCycles");
 				}
-				globalAlignmentSettings.set_seqs(tempSeqs);
-				globalAlignmentSettings.set_mates(mates);
-	            if ( lenSum!=globalAlignmentSettings.get_cycles() ) {
-	            	std::cerr << "Sum of parsed read lengths does not equal the given number of cycles." << std::endl;
-	            	return false;
-	            }
+				if ( sequences != "" )
+					runInfo_settings.put("settings.sequences", sequences);
+
+//				globalAlignmentSettings.set_seqs(tempSeqs);
+//				globalAlignmentSettings.set_mates(mates);
+//	            if ( lenSum!=globalAlignmentSettings.get_cycles() ) {
+//	            	std::cerr << "Sum of parsed read lengths does not equal the given number of cycles." << std::endl;
+//	            	return false;
+//	            }
 
 	            if (ptree_Run.count("FlowcellLayout")!=0) {
 	            	ptree ptree_FlowcellLayout = ptree_Run.get_child("FlowcellLayout");
 
-	            	std::vector<uint16_t> temp(ptree_FlowcellLayout.get<unsigned>("<xmlattr>.LaneCount"));
-	            	std::iota(temp.begin(), temp.end(), 1);
-	            	globalAlignmentSettings.set_lanes(temp);
-	            	std::vector<uint16_t> temp2;
+	            	std::vector<uint16_t> lanes_vec(ptree_FlowcellLayout.get<unsigned>("<xmlattr>.LaneCount"));
+	            	std::iota(lanes_vec.begin(), lanes_vec.end(), 1);
+	            	std::string lanes = "";
+//	            	globalAlignmentSettings.set_lanes(temp);
+	            	for ( auto l : lanes_vec )
+	            		lanes += std::to_string(l) + " ";
+	            	runInfo_settings.put("settings.lanes", lanes);
+
+	            	std::vector<uint16_t> tiles_vec;
+	            	std::string tiles;
+
 	            	for (uint16_t l = 1; l <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SurfaceCount"); l++)
 	            		for (uint16_t s = 1; s <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SwathCount"); s++)
 	            			for (uint16_t t = 1; t <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.TileCount"); t++)
-	            				temp2.push_back( l*1000 + s*100 + t );
-	            	globalAlignmentSettings.set_tiles(temp2);
+	            				tiles += std::to_string(l*1000 + s*100 + t) + " ";
+//	            				tiles_vec.push_back( l*1000 + s*100 + t );
+
+//	            	globalAlignmentSettings.set_tiles(temp2);
 	            }
 			}
 		}
@@ -595,9 +603,6 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
                 std::cerr << "Input settings file not found: " << vm["settings"].as<std::string>() << std::endl;
                 std::cerr << "Try to load all settings from command line parameters." << std::endl;
         	}
-        	else {
-        		has_input_settings = true;
-        	}
         }
     }
     catch( po::error& e) {
@@ -605,7 +610,7 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
            return -1;
     }
 
-	po::options_description pos_opt = positional_options(!has_input_settings);
+	po::options_description pos_opt = positional_options();
 	po::options_description io_opt = io_options();
 	po::options_description align_opt = alignment_options();
 	po::options_description tech_opt = technical_options();

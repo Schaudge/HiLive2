@@ -56,7 +56,7 @@ private:
   Unmodifiable<std::string> temp_dir;
 
   // SWITCH: write sam/bam output or not
-  Unmodifiable<bool> write_bam=false;
+  Unmodifiable<bool> write_bam;
 
   // PARAMETER: Cycles for intermediate SAM/BAM output
   Unmodifiable<std::vector<uint16_t>> output_cycles;
@@ -191,7 +191,7 @@ public:
 	  xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir() ));
 	  xml_out.add_child("settings.paths.root", getXMLnode ( get_root() ));
 	  xml_out.add_child("settings.paths.runInfo", getXMLnode ( get_runInfo_fname() ));
-	  xml_out.add_child("settings.paths.index_fname", getXMLnode ( get_index_fname() ));
+	  xml_out.add_child("settings.paths.index", getXMLnode ( get_index_fname() ));
 
 	  xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
 	  xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
