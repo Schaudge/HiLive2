@@ -84,6 +84,14 @@ public:
 
 };
 
+enum AlignmentMode:char {
+	ALL='A',
+	ALLBEST='H',
+	ANYBEST='B',
+	BESTN='N',
+	UNKNOWN='U'
+};
+
 // bit representation of A/C/G/T.
 #define twobit_repr(ch) ((toupper(ch)) == 'A' ? 0LL : \
                          (toupper(ch)) == 'C' ? 1LL : \

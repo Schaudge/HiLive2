@@ -40,15 +40,6 @@ private:
   // PARAMETER: first cycle to discard one-hit-wonders
   Unmodifiable<CountType> start_ohw;
 
-  // SWITCH: Any-Best-Hit-Mode
-  Unmodifiable<bool> any_best_hit_mode;
-
-  // SWITCH: Any-Best-Hit-Mode
-  Unmodifiable<bool> all_best_hit_mode;
-
-  // SWITCH: All-Best-N-Scores-Mode
-  Unmodifiable<bool> all_best_n_scores_mode;
-
   // PARAMETER: All-Best-N-Scores-Mode::N
   Unmodifiable<CountType> best_n;
 
@@ -119,6 +110,8 @@ private:
   // SWITCH: if true, keep all barcodes (disables barcode filtering).
   Unmodifiable<bool> keep_all_barcodes;
 
+  Unmodifiable<AlignmentMode> mode;
+
   template<typename T>
   bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
 	  try {
@@ -162,6 +155,30 @@ private:
 	  return seq_vector;
   }
 
+  void set_barcodeVector(std::vector<std::vector<std::string> > value) {
+	  set_unmodifiable(barcodeVector, value, "barcodeVector");
+  }
+
+  void set_seqs(std::vector<SequenceElement> value) {
+  	  set_unmodifiable(seqs, value, "seqs");
+    }
+
+  void set_block_size(uint64_t value) {
+	  set_unmodifiable(block_size, value, "block_size");
+  }
+    void set_mates(uint16_t value) {
+  	  set_unmodifiable(mates, value, "mates");
+    }
+
+  AlignmentMode get_mode() {
+	  return get_unmodifiable(mode, "mode");
+  }
+
+  void set_mode(AlignmentMode value, CountType bestn = 0) {
+	  set_unmodifiable(mode, value, "mode");
+	  set_unmodifiable(best_n, bestn, "best_n");
+  }
+
 public:
 
   boost::property_tree::ptree to_ptree() {
@@ -182,15 +199,15 @@ public:
 	  xml_out.add_child("settings.barcodes.errors", getXMLnode_vector ( get_barcode_errors() ));
 	  xml_out.add_child("settings.barcodes.keep_all", getXMLnode ( get_keep_all_barcodes() ));
 
-	  xml_out.add_child("settings.mode.any_best_hit_mode", getXMLnode ( get_any_best_hit_mode() ));
-	  xml_out.add_child("settings.mode.all_best_hit_mode", getXMLnode ( get_all_best_hit_mode() ));
-	  xml_out.add_child("settings.mode.all_best_n_scores_mode", getXMLnode ( get_all_best_n_scores_mode() ));
-	  xml_out.add_child("settings.mode.best_n", getXMLnode ( get_best_n() ));
+	  std::string mode = std::string(1, char(get_mode()));
+	  if ( get_mode() == AlignmentMode::BESTN )
+		  mode += std::to_string(get_best_n());
+	  xml_out.add_child("settings.mode", getXMLnode ( mode ));
 
 	  xml_out.add_child("settings.paths.temp_dir", getXMLnode ( get_temp_dir() ));
-	  xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir() ));
+	  xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir().filename().string() ));
 	  xml_out.add_child("settings.paths.root", getXMLnode ( get_root() ));
-	  xml_out.add_child("settings.paths.runInfo", getXMLnode ( get_runInfo_fname() ));
+//	  xml_out.add_child("settings.paths.runInfo", getXMLnode ( get_runInfo_fname() ));
 	  xml_out.add_child("settings.paths.index", getXMLnode ( get_index_fname() ));
 
 	  xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
@@ -210,91 +227,97 @@ public:
 	  return xml_out;
   }
 
-  bool store_barcode_sequences ( std::vector< std::string > barcodeArg ) {
+ void set_barcodes ( std::vector< std::string > barcodeArg ) {
 
+	 // Get the barcode length(s) from the seqs vector
   	std::vector<uint16_t> barcode_lengths;
-
   	for ( uint16_t seq_num = 0; seq_num < get_seqs().size(); seq_num++ ) {
-
-  		// We are only interesed in Barcode sequences
-  		if ( !getSeqById(seq_num).isBarcode() )
-  			continue;
-
-  		barcode_lengths.push_back( getSeqById(seq_num).length );
+  		if ( getSeqById(seq_num).isBarcode() )
+  	  		barcode_lengths.push_back( getSeqById(seq_num).length );
   	}
 
+  	// Fill 2D-vector for internal storage
     std::vector<std::vector<std::string> > barcodeVector;
   	for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {
 
+  		// Check if all characters in the current barcode are valid
   		std::string valid_chars = seq_chars + "-";
   		for(CountType i = 0; i != (*barcode).length(); i++){
   			char c = (*barcode)[i];
   			if ( valid_chars.find(c) == std::string::npos )
-  				return false;
+  				throw std::runtime_error("Invalid character '" + std::string(1,c) + "' in barcode sequence " + *barcode + ".");
   		}
 
+  		// Split barcode string into fragments
   		std::vector<std::string> fragments;
   		split(*barcode, '-', fragments);
 
-  		// check validity of barcode
+  		// Check correct length of all fragments
   		if ( barcode_lengths.size() != fragments.size())
-  			return false;
+			throw std::runtime_error("Wrong fragment length in barcode " + *barcode);
 
+  		// Check correct number of fragments
   		for ( uint16_t num = 0; num != fragments.size(); num++ ) {
   			if ( fragments[num].length() != barcode_lengths[num] ) {
-  				return false;
+  				throw std::runtime_error("Wrong number of fragments for barcode " + *barcode);
   			}
   		}
 
-  		// push back the fragments vector
+  		// Push barcode to the final 2D vector
   		barcodeVector.push_back(fragments);
   	}
+
   	set_barcodeVector(barcodeVector);
 
-  	return true;
   }
 
-  bool store_read_structure ( std::vector<std::string> read_argument ) {
+ void set_read_structure ( std::vector<std::string> read_argument ) {
 
-	  CountType lenSum = 0;
-	  CountType length = 0;
-	  std::string length_string = "";
-	  char type;
-	  unsigned mates = 0;
-	  std::vector<SequenceElement> temp;
+	 // Init variables
+	 CountType lenSum = 0;
+	 CountType length = 0;
+	 std::string length_string = "";
+	 char type;
+	 unsigned mates = 0;
+	 std::vector<SequenceElement> temp;
 
-	  for ( auto read = read_argument.begin(); read != read_argument.end(); ++read ) {
+	 // Iterate through input vector
+	 for ( auto read = read_argument.begin(); read != read_argument.end(); ++read ) {
 
-		  length_string = (*read).substr(0,(*read).length()-1);
-		  type = (*(*read).rbegin());
+		 // Split string into fragment length and fragment type (B or R)
+		 length_string = (*read).substr(0,(*read).length()-1);
+		 type = (*(*read).rbegin());
 
-		  try{
-			  std::stringstream( length_string ) >> length;
-		  } catch( std::bad_cast & ex ){
-			  std::cerr << "Error while casting length " << length_string << " to type uint16_t" << std::endl;
-		  }
+		 if ( length_string.find_first_not_of("0123456789")!=std::string::npos ) {
+			 throw std::runtime_error("Invalid length for read fragment " + *read  + ". Please only use unsigned integer values.");
+		 }
 
-		  if ( type!='B' && type!='R' ) {
-			  std::cerr << "\'" << type << "\'" << " is no valid read type. Please use " << "\'R\'" << " for sequencing reads or "
-					  "\'B\'" << " for barcode reads." << std::endl;
-			  return false;
-		  }
+		 try{
+			 length = CountType(std::atol(length_string.c_str()));
+		 } catch( std::bad_cast & ex ){
+			 std::cerr << "Error while casting length " << length_string << " to type uint16_t." << std::endl;
+			 throw ex;
+		 }
 
-		  temp.push_back(SequenceElement(temp.size(), (type == 'R') ? ++mates : 0, length));
-		  lenSum += length;
+		 if ( type!='B' && type!='R' ) {
+			 std::stringstream ss;
+			 ss << "\'" << type << "\' is no valid read type. Please use \'R\' for sequencing reads or \'B\' for barcode reads.";
+			 throw std::runtime_error(ss.str());
 
-	  }
-	  set_seqs(temp);
-	  set_mates(mates);
+		 }
 
-	  if ( lenSum!=get_cycles() ) {
-		  std::cerr << "Sum of defined reads does not equal the given number of cycles." << std::endl;
-		  return false;
-	  }
+		 temp.push_back(SequenceElement(temp.size(), (type == 'R') ? ++mates : 0, length));
+		 lenSum += length;
 
-	  return true;
+	 }
+	 set_seqs(temp);
+	 set_mates(mates);
 
-  }
+	 if ( lenSum!=get_cycles() ) {
+		 throw std::runtime_error("Sum of defined reads does not equal the given number of cycles.");
+	 }
+
+ }
 
   /**
    * Get a SequenceElement object from the seqs vector by using the id
@@ -422,8 +445,8 @@ public:
   }
 
 
-  void set_discard_ohw(bool value) {
-	  set_unmodifiable(discard_ohw, value, "discard_ohw");
+  void disable_ohw(bool value) {
+	  set_unmodifiable(discard_ohw, !value, "discard_ohw");
   }
 
   bool get_discard_ohw() {
@@ -439,34 +462,20 @@ public:
       return get_unmodifiable(start_ohw, "start_ohw");
   }
 
-  void set_any_best_hit_mode(bool value) {
-	  set_unmodifiable(any_best_hit_mode, value, "any_best_hit_mode");
-  }
-
   bool get_any_best_hit_mode() {
-      return get_unmodifiable(any_best_hit_mode, "any_best_hit_mode");
+      return (get_unmodifiable(mode, "mode")==AlignmentMode::ANYBEST);
   }
 
-  void set_all_best_hit_mode(bool value) {
-	  set_unmodifiable(all_best_hit_mode, value, "all_best_hit_mode");
+  bool get_all_hit_mode() {
+      return (get_mode()==AlignmentMode::ALL);
   }
 
   bool get_all_best_hit_mode() {
-      return get_unmodifiable(all_best_hit_mode, "all_best_hit_mode");
-  }
-
-
-  void set_all_best_n_scores_mode(bool value) {
-	  set_unmodifiable(all_best_n_scores_mode, value, "all_best_n_scores_mode");
+      return (get_mode()==AlignmentMode::ALLBEST);
   }
 
   bool get_all_best_n_scores_mode() {
-      return get_unmodifiable(all_best_n_scores_mode, "all_best_n_scores_mode");
-  }
-
-
-  void set_best_n(CountType value) {
-	  set_unmodifiable(best_n, value, "best_n");
+      return (get_mode()==AlignmentMode::BESTN);
   }
 
   CountType get_best_n() {
@@ -506,8 +515,37 @@ public:
       return get_unmodifiable(keep_aln_files, "keep_aln_files");
   }
 
-  void set_block_size(uint64_t value) {
-	  set_unmodifiable(block_size, value, "block_size");
+  void set_block_size(std::string value) {
+
+	  uint64_t size;
+	  char type = 'B';
+
+	  // Split value to size and type
+	  if ( value.find_first_of("BKM") != std::string::npos ) {
+		  type = *value.rbegin();
+		  value = value.substr(0,value.length()-1);
+	  }
+
+	  if ( value.find_first_not_of("0123456789")!=std::string::npos ) {
+		  throw std::runtime_error("Invalid block size " + value + ". Please only use unsigned integer values.");
+	  }
+
+	  try{
+		  size = uint64_t(std::atol(value.c_str()));
+	  } catch( std::bad_cast & ex ){
+		  std::cerr << "Error while casting length " << value << " to type uint16_t." << std::endl;
+		  throw ex;
+	  }
+
+	  if ( type == 'B' )
+		  set_block_size(size);
+	  else if ( type == 'K' )
+		  set_block_size(size*1024);
+	  else if ( type == 'M' )
+		  set_block_size(size*1024*1024);
+	  else
+		  throw std::runtime_error("Invalid block size type. Only 'B' (Bytes), 'K' (Kilobytes) or 'M' (Megabytes) are permitted.");
+
   }
 
   uint64_t get_block_size() {
@@ -524,6 +562,8 @@ public:
 
 
   void set_lanes(std::vector<uint16_t> value) {
+	  std::sort( value.begin(), value.end() );
+	  value.erase( std::unique( value.begin(), value.end() ), value.end() );
 	  set_unmodifiable(lanes, value, "lanes");
   }
 
@@ -531,15 +571,54 @@ public:
       return get_unmodifiable(lanes, "lanes", true);
   }
 
+  void set_mode(std::string value) {
+
+	  // All hit mode
+	  if ( value == "ALL" || value == "A" ) {
+		  set_mode(AlignmentMode::ALL);
+	  }
+
+	  // Best N scores mode
+	  else if ( value.substr(0,5) == "BESTN" || value.substr(0,1) == "N" ) {
+
+		  std::string bestn = value.substr(0,5) == "BESTN" ? value.substr(5) : value.substr(1);
+
+		  if ( bestn.find_first_not_of("0123456789")!=std::string::npos ) {
+			  throw std::runtime_error("Invalid alignment mode: " + value + ".");
+		  }
+		  try{
+			  set_mode(AlignmentMode::BESTN, CountType(std::atol(bestn.c_str())));
+		  } catch( std::bad_cast & ex ){
+			  std::cerr << "Error while casting length " << bestn << " to type uint16_t." << std::endl;
+			  throw ex;
+		  }
+	  }
+
+	  // All best mode
+	  else if ( value == "ALLBEST" || value == "H" ) {
+		  set_mode(AlignmentMode::ALLBEST);
+	  }
+
+	  // All hit mode
+	  else if ( value == "ANYBEST" || value == "B" ) {
+		  set_mode(AlignmentMode::ANYBEST);
+	  }
+
+	  // Unknown mode
+	  else {
+		  throw std::runtime_error("Invalid alignment mode: " + value + ".");
+	  }
+  }
 
   void set_tiles(std::vector<uint16_t> value) {
+	  std::sort( value.begin(), value.end() );
+	  value.erase( std::unique( value.begin(), value.end() ), value.end() );
 	  set_unmodifiable(tiles, value, "tiles");
   }
 
   std::vector<uint16_t> get_tiles() {
       return get_unmodifiable(tiles, "tiles", true);
   }
-
 
   void set_root(std::string value) {
 	  set_unmodifiable(root, value, "root");
@@ -571,10 +650,6 @@ public:
 
   std::string get_runInfo_fname() {
       return get_unmodifiable(runInfo_fname, "runInfo_fname", true);
-  }
-
-  void set_barcodeVector(std::vector<std::vector<std::string> > value) {
-	  set_unmodifiable(barcodeVector, value, "barcodeVector");
   }
 
   std::vector<std::vector<std::string> > get_barcodeVector() {
@@ -614,6 +689,10 @@ public:
 	  }
   }
 
+  void set_out_dir(std::string value) {
+	  set_unmodifiable(out_dir, boost::filesystem::path(value), "out_dir");
+  }
+
   void set_out_dir(boost::filesystem::path value) {
 	  set_unmodifiable(out_dir, value, "out_dir");
   }
@@ -631,16 +710,8 @@ public:
       return get_unmodifiable(num_threads, "num_threads");
   }
 
-  void set_seqs(std::vector<SequenceElement> value) {
-	  set_unmodifiable(seqs, value, "seqs");
-  }
-
   std::vector<SequenceElement> get_seqs() {
       return get_unmodifiable(seqs, "seqs", true);
-  }
-
-  void set_mates(uint16_t value) {
-	  set_unmodifiable(mates, value, "mates");
   }
 
   uint16_t get_mates() {

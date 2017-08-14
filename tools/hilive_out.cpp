@@ -44,7 +44,7 @@ int main(int argc, const char* argv[]) {
 
 
 	// parse the command line arguments, store results in settings
-    HiLiveOutArgumentParser argumentParser(argc, argv);
+    HiLiveArgumentParser argumentParser(argc, argv);
 	int parser_returnStatus = argumentParser.parseCommandLineArguments();
 
 	// Successful execution of "help" or "license"

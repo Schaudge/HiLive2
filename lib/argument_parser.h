@@ -84,25 +84,33 @@ protected:
 	virtual void report() = 0;
 
 	/**
-	 * Parse the user parameter to define the read fragments (--reads,-r).
-	 * @param readsArg Vector of strings containing the read fragments
-	 * @return true on success, false otherwise
+	 * Set an option in the globalAlignmentSettings.
+	 * Thereby, the different input sources have the following priority:
+	 * 	1. Command line argument
+	 * 	2. RunInfo file
+	 * 	3. Input settings file
+	 * @param vm_key Key for the command line's variables map.
+	 * @param settings_key Key for the RunInfo and Input settings property tree (must be similar for both files)
+	 * @param default_value A default value that is set if the variable is set in none of the input sources (this is not considered if "required" is true)
+	 * @param function Function that is called to set the variable in globalAlignmentSettings. Must be of type void &AlignmentSettings::*(T).
+	 * @param required true, if the option must be set by the user (from one of the input sources)
 	 * @author Tobias Loka
 	 */
-	bool parseReadsArgument(std::vector < std::string > readsArg);
+	template<class T> void set_option(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T), bool required) {
+		set_option_impl(vm_key, settings_key, default_value, function, required, static_cast<T*>(0));
+	}
 
 	/**
-	 * Parse the user parameter to define the barcodes (--barcodes,-b).
-	 * @param barcodeArg Vector of strings containing the barcodes. Barcode components are delimited by a "-".
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
+	 * General implementation of set_option(...).
 	 */
-	bool parseBarcodeArgument(std::vector < std::string > barcodeArg);
-
-	template<typename T> void set_option(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T), bool required) {
+	template<class T> void set_option_impl(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T), bool required, T*) {
 
 		T value = default_value;
 		bool was_set = false;
+
+		boost::optional<T> isv = input_settings.get_optional<T>(settings_key);
+		boost::optional<T> rsv = runInfo_settings.get_optional<T>(settings_key);
+
 
 		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) ) {
@@ -111,14 +119,14 @@ protected:
 		}
 
 		// RunInfo file -> second priority
-		else if ( runInfo_settings.count(settings_key) ) {
-			value = runInfo_settings.get<T>(settings_key);
+		else if ( rsv ) {
+			value = rsv.get();
 			was_set = true;
 		}
 
 		// Settings file -> third priority
-		else if ( input_settings.count(settings_key) ) {
-			value = input_settings.get<T>(settings_key);
+		else if ( isv ) {
+			value = isv.get();
 			was_set = true;
 		}
 
@@ -130,6 +138,86 @@ protected:
 		auto binded_function = std::bind(function, &globalAlignmentSettings, std::placeholders::_1);
 		binded_function(value);
 
+	}
+
+	/**
+	 * Overload of set_option_impl for bool data type.
+	 */
+	void set_option_impl(std::string vm_key, std::string settings_key, bool default_value, void (AlignmentSettings::*function)(bool), bool required, bool *) {
+
+		bool value = default_value;
+		bool was_set = false;
+
+		boost::optional<bool> isv = input_settings.get_optional<bool>(settings_key);
+		boost::optional<bool> rsv = runInfo_settings.get_optional<bool>(settings_key);
+
+		if ( cmd_settings[vm_key].as<bool>() != default_value ) {
+			value = !default_value;
+			was_set = true;
+		}
+		else if ( rsv && rsv.get() != default_value ) {
+			value = !default_value;
+			was_set = true;
+		}
+		else if ( isv && isv.get() != default_value ) {
+			value = !default_value;
+			was_set = true;
+		}
+
+		if ( required && !was_set )
+			throw po::required_option(vm_key);
+
+		// Otherwise set value
+		auto binded_function = std::bind(function, &globalAlignmentSettings, std::placeholders::_1);
+		binded_function(value);
+
+	}
+
+	/** Overload of set_option_impl for std::vector data types. */
+	template<class T> void set_option_impl(std::string vm_key, std::string settings_key, std::vector<T> default_value, void (AlignmentSettings::*function)(std::vector<T>), bool required, std::vector<T> *) {
+
+		std::vector<T> value;
+		bool was_set = false;
+
+		auto sub_isv = input_settings.get_child_optional(settings_key);
+		auto sub_rsv = input_settings.get_child_optional(settings_key);
+
+
+		// User parameter -> first priority
+		if ( cmd_settings.count(vm_key) ) {
+			value = cmd_settings[vm_key].as<std::vector<T>>();
+			was_set = true;
+		}
+
+		// RunInfo file -> second priority
+		else if ( sub_rsv && sub_rsv.get().count("el") ) {
+			for ( auto& v : sub_rsv.get() ) {
+				if ( v.first == "el" )
+					value.push_back(v.second.get_value<T>());
+			}
+			was_set = true;
+		}
+
+		// Settings file -> third priority
+		else if ( sub_isv && sub_isv.get().count("el") ) {
+			for ( auto& v : sub_isv.get() ) {
+				if ( v.first == "el" )
+					value.push_back(v.second.get_value<T>());
+			}
+			was_set = true;
+		}
+
+		// Throw exception if unset
+		if ( required && !was_set )
+			throw po::required_option(vm_key);
+
+		if ( !was_set) {
+			value = default_value;
+		}
+
+		// Otherwise set value
+		auto binded_function = std::bind(function, &globalAlignmentSettings, std::placeholders::_1);
+		binded_function(value);
 	}
 
 public:
@@ -273,38 +361,6 @@ class HiLiveArgumentParser : public ArgumentParser {
 	po::options_description technical_options();
 
 	/**
-	 * Set all variables for the positional command arguments.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_positional_variables(po::variables_map vm);
-
-	/**
-	 * Set all variables for the I/O settings.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_io_variables(po::variables_map vm);
-
-	/**
-	 * Set all variables for the alignment settings.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_alignment_variables(po::variables_map vm);
-
-	/**
-	 * Set all variables for the technical settings.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_technical_variables(po::variables_map vm);
-
-	/**
 	 * Check all paths that are relevant for the functionality of HiLive.
 	 * @return true if all paths and files are accessible
 	 * @author Jakob Schulze
@@ -325,7 +381,6 @@ class HiLiveArgumentParser : public ArgumentParser {
 
 	bool set_options();
 
-
 public:
 
 	int parseCommandLineArguments() override;
@@ -335,56 +390,65 @@ public:
 /**
  * Class to parse arguments for HiLive out.
  */
-class HiLiveOutArgumentParser : public ArgumentParser {
 
-	/**
-	 * Use the constructor of the inherited ArgumentParser class.
-	 */
-	using ArgumentParser::ArgumentParser;
+//class HiLiveOutArgumentParser : public HiLiveArgumentParser {
+//
+//	using HiLiveArgumentParser::ArgumentParser;
+//
+//};
 
-	/**
-	 * General options of HiLive build.
-	 * @return Option descriptor containing all general options that can be set by the user.
-	 * @author Martin Lindner
-	 */
-	po::options_description general_options();
-
-	/**
-	 * Positional options of HiLive build.
-	 * @return Option descriptor containing all positional options that must be set by the user.
-	 * @author Martin Lindner
-	 */
-	po::options_description positional_options();
-
-	/**
-	 * Build options of HiLive build.
-	 * @return Option descriptor containing all positional options that must be set by the user.
-	 * @author Martin Lindner
-	 */
-	po::options_description output_options();
-
-	/**
-	 * Set all variables for the positional command arguments.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_positional_variables(po::variables_map vm);
-
-	/**
-	 * Set all variables for the build arguments.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_output_variables(po::variables_map vm);
-
-	void report() override;
-
-	void init_help(po::options_description visible_options) override;
-
-public:
-
-	int parseCommandLineArguments() override;
-
-};
+//class HiLiveOutArgumentParser : public ArgumentParser {
+//
+//	/**
+//	 * Use the constructor of the inherited ArgumentParser class.
+//	 */
+//	using ArgumentParser::ArgumentParser;
+//
+//	/**
+//	 * General options of HiLive build.
+//	 * @return Option descriptor containing all general options that can be set by the user.
+//	 * @author Martin Lindner
+//	 */
+//	po::options_description general_options();
+//
+//	/**
+//	 * Positional options of HiLive build.
+//	 * @return Option descriptor containing all positional options that must be set by the user.
+//	 * @author Martin Lindner
+//	 */
+//	po::options_description positional_options();
+//
+//	/**
+//	 * Build options of HiLive build.
+//	 * @return Option descriptor containing all positional options that must be set by the user.
+//	 * @author Martin Lindner
+//	 */
+//	po::options_description output_options();
+//
+//	/**
+//	 * Set all variables for the positional command arguments.
+//	 * @param vm The variables map containing the user parameters.
+//	 * @return true on success, false otherwise
+//	 * @author Tobias Loka
+//	 */
+//	bool set_positional_variables(po::variables_map vm);
+//
+//	/**
+//	 * Set all variables for the build arguments.
+//	 * @param vm The variables map containing the user parameters.
+//	 * @return true on success, false otherwise
+//	 * @author Tobias Loka
+//	 */
+//	bool set_output_variables(po::variables_map vm);
+//
+//	void report() override;
+//
+//	void init_help(po::options_description visible_options) override;
+//
+//	bool set_options() override;
+//
+//public:
+//
+//	int parseCommandLineArguments() override;
+//
+//};

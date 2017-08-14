@@ -79,7 +79,7 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
   	boost::property_tree::ptree node;
 
   	for ( auto el = vector.begin(); el != vector.end(); ++el ) {
-  		node.add_child("element", getXMLnode ( *el ));
+  		node.add_child("el", getXMLnode ( *el ));
   	}
 
   	return node;
