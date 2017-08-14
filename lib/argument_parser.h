@@ -99,55 +99,7 @@ protected:
 	 */
 	bool parseBarcodeArgument(std::vector < std::string > barcodeArg);
 
-	template<class F, typename T> void set_option(std::string vm_key, T default_value, F function, bool required = false) {
-
-		T value = default_value;
-		bool was_set = false;
-
-		// User parameter -> first priority
-		if (cmd_settings.count(vm_key)) {
-			value = cmd_settings[vm_key].as<T>();
-			was_set = true;
-		}
-
-		// Throw exception if unset
-		if ( required && !was_set )
-			throw po::required_option(vm_key);
-
-		// Otherwise set value
-		auto binded_function = std::bind(function, &globalAlignmentSettings, std::placeholders::_1);
-		binded_function(value);
-
-	}
-
-	template<class F, typename T> void set_option(std::string vm_key, std::string settings_key, T default_value, F function, bool required = false) {
-
-		T value = default_value;
-		bool was_set = false;
-
-		// User parameter -> first priority
-		if ( cmd_settings.count(vm_key) ) {
-			value = cmd_settings[vm_key].as<T>();
-			was_set = true;
-		}
-
-		// Settings file -> second priority
-		else if ( input_settings.count(settings_key) ) {
-			value = input_settings.get<T>(settings_key);
-			was_set = true;
-		}
-
-		// Throw exception if unset
-		if ( required && !was_set )
-			throw po::required_option(vm_key);
-
-		// Otherwise set value
-		auto binded_function = std::bind(function, &globalAlignmentSettings, std::placeholders::_1);
-		binded_function(value);
-
-	}
-
-	template<class F, typename T> void set_option(std::string vm_key, std::string settings_key, std::string runInfo_key, T default_value, F function, bool required = false) {
+	template<typename T> void set_option(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T), bool required) {
 
 		T value = default_value;
 		bool was_set = false;
@@ -371,7 +323,7 @@ class HiLiveArgumentParser : public ArgumentParser {
 
 	void init_help(po::options_description visible_options) override;
 
-	void set_options();
+	bool set_options();
 
 
 public:

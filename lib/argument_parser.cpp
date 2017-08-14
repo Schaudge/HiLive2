@@ -186,8 +186,55 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 //-----HiLiveArgumentParser------------------------------
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-void HiLiveArgumentParser::set_options() {
+bool HiLiveArgumentParser::set_options() {
 
+	try {
+		set_option<std::string>("BC_DIR", "settings.paths.root", "", &AlignmentSettings::set_root, true);
+		set_option<std::string>("INDEX", "settings.paths.index", "", &AlignmentSettings::set_index_fname, true);
+		set_option<CountType>("CYCLES", "settings.cycles", 0, &AlignmentSettings::set_cycles, true);
+//		set_option<boost::filesystem::path>("OUTDIR", "settings.paths.out", "", &AlignmentSettings::set_out_dir, false);
+		set_option<std::string>("temp", "settings.paths.temp", "", &AlignmentSettings::set_temp_dir, false);
+		set_option<bool>("bam", "settings.out.bam", false, &AlignmentSettings::set_write_bam, false);
+		set_option<bool>("extended-cigar", "settings.out.extended_cigar", false, &AlignmentSettings::set_extended_cigar, false);
+		set_option<bool>("keep-files", "settings.technical.keep_aln_files", false, &AlignmentSettings::set_keep_aln_files, false);
+		// TODO:: this does not work. change initi function for lanes and tiles in AlignmentSettings to take an string as input argument (?)
+//		set_option<std::vector<uint16_t>>("lanes", "settings.lanes", all_lanes(), &AlignmentSettings::set_lanes, false);
+//		set_option<std::vector<uint16_t>>("tiles", "settings.tiles", all_tiles(), &AlignmentSettings::set_tiles, false);
+//		set_option("reads", "settings.sequences", "settings.sequences", std::string(globalAlignmentSettings.get_cycles() + "R"), &AlignmentSettings::set_seqs, false);
+		set_option<CountType>("min_errors", "settings.min_errors", 2, &AlignmentSettings::set_min_errors, false);
+		set_option<bool>("all-best-hit", "settings.mode.all_best_hit_mode", false, &AlignmentSettings::set_all_best_hit_mode, false);
+		set_option<bool>("any-best-hit", "settings.mode.any_best_hit_mode", true, &AlignmentSettings::set_any_best_hit_mode, false);
+		set_option<bool>("all-best-n-scores", "settings.mode.all_best_n_scores_mode", false, &AlignmentSettings::set_all_best_n_scores_mode, false); //TODO: vm value is a number, no bool. check this!
+		set_option<CountType>("all-best-n-scores", "settings.mode.best_n", 0, &AlignmentSettings::set_best_n, false);
+		//TODO: how to do all hit? maybe change complete parameters for the different modi (aks simon before)
+		set_option<bool>("disable-ohw-filter", "settings.align.discard_ohw", true, &AlignmentSettings::set_discard_ohw, false); // TODO: this is confusing. maybe handle input parameter (disable) and internal parameter (enable) similar. However, this does not work correctly right now.
+		set_option<CountType>("start-ohw", "settings.align.start_ohw", 20, &AlignmentSettings::set_start_ohw, false);
+		set_option<DiffType>("window", "settings.align.window", 5, &AlignmentSettings::set_window, false);
+		set_option<CountType>("min-quality", "settings.align.min_qual", 1, &AlignmentSettings::set_min_qual, false);
+		// TODO: change AlignmentSettings function to get !D-vector of strings as input and compute the vector from that
+		//set_option("barcodes", "settings.barcodes.sequences", "", &AlignmentSettings::set_barcode_vector, false);
+
+		//TODO: better way for default value?
+//		std::vector<CountType> barcode_errors_default = {2};
+//		set_option("barcode-errors", "settings.barcodes.errors", barcode_errors_default, &AlignmentSettings::set_barcode_errors, false);
+//		set_option("keep-all-barcodes", "settings.barcodes.keep_all", false, &AlignmentSettings::set_keep_all_barcodes, false);
+//
+//		// TODO: solve value interpretation as -K or -M
+		set_option<uint64_t>("block-size", "settings.technical.block_size", uint64_t(64*1024*1024), &AlignmentSettings::set_block_size, false);
+		set_option<uint8_t>("compression", "settings.technical.compression_format", 2, &AlignmentSettings::set_compression_format, false);
+//
+		// Number of threads
+		uint32_t n_cpu = std::thread::hardware_concurrency();
+		uint32_t n_threads_default = 1;
+		if (n_cpu > 1)
+			n_threads_default = std::min( n_cpu, uint32_t( globalAlignmentSettings.get_lanes().size() * globalAlignmentSettings.get_tiles().size() ) ) ;
+		set_option<CountType>("num-threads", "settings.technical.num_threads", n_threads_default, &AlignmentSettings::set_num_threads, false);
+
+	} catch ( po::required_option & ex ) {
+		std::cerr << "Error while parsing options: " << std::endl << ex.what() << std::endl;
+		return false;
+	}
+	return true;
 }
 
 po::options_description HiLiveArgumentParser::general_options() {
@@ -279,7 +326,7 @@ bool HiLiveArgumentParser::set_positional_variables(po::variables_map vm) {
 //	globalAlignmentSettings.set_index_fname(vm["INDEX"].as<std::string>());
 //	globalAlignmentSettings.set_cycles(vm["CYCLES"].as<CountType>());
 
-	set_option("BC_DIR", "default_blabla", &AlignmentSettings::set_root);
+//	set_option("BC_DIR", "default_blabla", &AlignmentSettings::set_root);
 
 
 	if (vm.count("OUTDIR")) {
@@ -524,15 +571,18 @@ bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
 				unsigned lenSum = 0;
 				std::string sequences = "";
 				std::vector<SequenceElement> tempSeqs;
+				CountType num_cycles = 0;
 				unsigned mates = 0;
 				for (const auto &read : ptree_Reads) {
-					sequences += read.second.get<unsigned>("<xmlattr>.NumCycles");
+					sequences += read.second.get<std::string>("<xmlattr>.NumCycles");
+					num_cycles += read.second.get<unsigned>("<xmlattr>.NumCycles");
 					sequences += read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N" ? "R " : "B ";
 					tempSeqs.push_back(SequenceElement(tempSeqs.size(), (read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N") ? ++mates : 0, read.second.get<unsigned>("<xmlattr>.NumCycles")));
 					lenSum += read.second.get<unsigned>("<xmlattr>.NumCycles");
 				}
 				if ( sequences != "" )
 					runInfo_settings.put("settings.sequences", sequences);
+				runInfo_settings.put("settings.cycles", num_cycles);
 
 //				globalAlignmentSettings.set_seqs(tempSeqs);
 //				globalAlignmentSettings.set_mates(mates);
@@ -604,6 +654,14 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
                 std::cerr << "Try to load all settings from command line parameters." << std::endl;
         	}
         }
+
+        if ( vm.count("runinfo") ) {
+        	if ( ! parseRunInfo(vm) ) {
+                std::cerr << "Error while parsing Run Info file: " << vm["runinfo"].as<std::string>() << std::endl;
+                std::cerr << "Try to load all settings from command line parameters." << std::endl;
+
+        	}
+        }
     }
     catch( po::error& e) {
            std::cerr << "Error while parsing command line options: " << e.what() << std::endl;
@@ -635,10 +693,10 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
     // parse all other arguments
     try {
         // parse arguments
-        po::store(po::command_line_parser(argc, argv).options(cmdline_options).positional(p).run(), vm);
+        po::store(po::command_line_parser(argc, argv).options(cmdline_options).positional(p).run(), cmd_settings);
 
         // then check arguments
-        po::notify(vm);  
+        po::notify(cmd_settings);
     }
     catch ( po::required_option& e ) {
         std::cerr << "Missing Parameter: " << e.what() << std::endl;
@@ -649,30 +707,38 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
         return -1;  
     } 
 
-    // Set positional variables
-    if ( !set_positional_variables(vm) ) {
-    	return -1;
-    }
-
-    // ----- I/O OPTIONS -----
-    if ( !set_io_variables(vm) ) {
-    	return -1;
-    }
-
-    // ----- ALIGNMENT OPTIONS -----
-    if ( ! set_alignment_variables(vm) ) {
-    	return -1;
-    }
-
-    // ----- TECHNICAL OPTIONS -----
-    if ( !set_technical_variables(vm) ) {
-    	return -1;
-    }
-
-    // check paths and file names
-//    if ( !checkPaths() ) {
+//    // Set positional variables
+//    if ( !set_positional_variables(vm) ) {
 //    	return -1;
 //    }
+//
+//    // ----- I/O OPTIONS -----
+//    if ( !set_io_variables(vm) ) {
+//    	return -1;
+//    }
+//
+//    // ----- ALIGNMENT OPTIONS -----
+//    if ( ! set_alignment_variables(vm) ) {
+//    	return -1;
+//    }
+//
+//    // ----- TECHNICAL OPTIONS -----
+//    if ( !set_technical_variables(vm) ) {
+//    	return -1;
+//    }
+//
+//    // check paths and file names
+////    if ( !checkPaths() ) {
+////    	return -1;
+////    }
+
+    if ( !set_options() ) {
+    	return -1;
+    }
+
+    if ( !checkPaths() ) {
+    	return -1;
+    }
 
     // Report the basic settings
     report();
