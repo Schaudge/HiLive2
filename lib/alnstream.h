@@ -184,6 +184,6 @@ class StreamedAlignment {
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle);
+uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle, bool verbose = true);
 
 #endif /* ALNSTREAM_H */

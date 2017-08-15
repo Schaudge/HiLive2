@@ -42,9 +42,8 @@ AlignmentSettings globalAlignmentSettings;
 
 int main(int argc, const char* argv[]) {
 
-
 	// parse the command line arguments, store results in settings
-    HiLiveArgumentParser argumentParser(argc, argv);
+    HiLiveOutArgumentParser argumentParser(argc, argv);
 	int parser_returnStatus = argumentParser.parseCommandLineArguments();
 
 	// Successful execution of "help" or "license"
@@ -57,36 +56,28 @@ int main(int argc, const char* argv[]) {
 		std::cout << "Parsing of command line options failed. For help, type 'hilive-out --help'." << std::endl;
 		exit(EXIT_FAILURE);
 	}
-//
-//	// load the index
-	std::cout << "Loading Index Header" << std::endl;
-	KixRun* index = new KixRun(); //true to generate only header information
+
+	// load the index
+	std::cout << "Loading Index Header..." << std::endl;
+	KixRun* index = new KixRun();
 
 	index->get_header_information(globalAlignmentSettings.get_index_fname());
+	index->store_kmer();
 
-	for ( CountType cycle : globalAlignmentSettings.get_output_cycles() )
-		alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, cycle);
-//
-//	std::vector<std::thread> workers;
+	std::cout << "Start writing ouput." << std::endl;
 
-//	//only for SAM files
-//	settings.write_bam = false;
-//	std::cout << "Writing SAM files." << std::endl;
-//	// Create individual SAM files for every tile
-//	TaskQueue sam_tasks;
-//	std::vector<Task> tv = generate_sam_task(settings.lanes, settings.tiles, settings.cycles, settings.rlen, settings.root);
-//
-//	for ( auto t: tv ) {
-//		sam_tasks.push(t);
-//	}
-//	sam_worker(sam_tasks, &settings, index);
-//	for (int i = 0; i < settings.num_threads; i++) {
-//		workers.push_back(std::thread(sam_worker, std::ref(sam_tasks), &settings, index));
-//	}
-//
-//	for (auto& w : workers) {
-//		w.join();
-//	}
+	for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
+		try {
+			if ( alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, cycle) )
+				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "success." << std::endl;
+			else
+				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "failed." << std::endl;
+		} catch ( std::exception & ex ) {
+			std::cout << "Cycle " << std::to_string(cycle) << " ... " << "failed: " << std::endl << ex.what() << std::endl << std::endl;
+		}
+	}
 
-	 delete index;
+	std::cout << "Finished." << std::endl;
+
+	delete index;
 }

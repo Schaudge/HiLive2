@@ -317,7 +317,6 @@ uint64_t KixRun::deserialize(char* d) {
   bytes++;
 
   // read k-mer pattern
-  std::vector<unsigned> kmer_gaps;
   for ( uint8_t i = 0; i < gap_num; i++ ) {
 	  uint8_t gap;
 	  memcpy(&gap, d+bytes, 1);
@@ -327,7 +326,7 @@ uint64_t KixRun::deserialize(char* d) {
 
 
 //  globalAlignmentSettings.set_kmer_weight(this->kmer_weight);
-  globalAlignmentSettings.set_kmer(this->kmer_weight, kmer_gaps);
+  store_kmer();
   this->db.resize(pow(4,globalAlignmentSettings.get_kmer_weight()));
 
   // read total number of sequences in database

@@ -72,7 +72,41 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
     }  
 }
 
+void output_worker( Agenda & agenda, KixRun* idx, bool & surrender ) {
 
+	std::vector<CountType> output_cycles = globalAlignmentSettings.get_output_cycles();
+	bool last_try = false;
+
+	while ( true ) {
+
+		if ( output_cycles.size() == 0 )
+			break;
+
+		CountType next_cycle = *(output_cycles.begin());
+		if ( agenda.finished(next_cycle) ) {
+			try {
+				if ( !alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), idx, next_cycle, false) )
+					std::cerr << "Errors occured when writing output for cycle " << std::to_string(next_cycle) << "." << std::endl;
+			} catch ( std::exception & e ) {
+				std::cerr << "Errors occured when writing output for cycle " << std::to_string(next_cycle) << ": " << e.what() << std::endl;
+			}
+			output_cycles.erase(output_cycles.begin());
+		}
+
+		if ( last_try )
+			break;
+
+		if ( surrender )
+			last_try = true;
+
+        std::this_thread::sleep_for (std::chrono::milliseconds(1000));
+
+	}
+
+	if ( output_cycles.size() > 0 ) {
+		std::cerr << "Not all output files could be written." << std::endl;
+	}
+}
 AlignmentSettings globalAlignmentSettings;
 
 int main(int argc, const char* argv[]) {
@@ -184,6 +218,8 @@ int main(int argc, const char* argv[]) {
         workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), index, std::ref(surrender)));
     }
 
+    std::thread output_thread = std::thread( output_worker, std::ref(agenda), index, std::ref(surrender) );
+
     // Process all tasks on the agenda
     while ( !agenda.finished() ) {
         // check for new BCL files and update the agenda status
@@ -232,19 +268,20 @@ int main(int argc, const char* argv[]) {
     for (auto& w : workers) {
         w.join();
     }
+    output_thread.join();
 
     std::cout << "All threads joined." << std::endl;
     std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl;
-    std::cout << "Writing output file." << std::endl;
-    alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, globalAlignmentSettings.get_cycles());
+//    std::cout << "Writing output file." << std::endl;
+//    alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, globalAlignmentSettings.get_cycles());
     delete index;
 
-    if ( globalAlignmentSettings.get_trimmedReads().size() > 0 ) {
-    	std::cout << "Trimmed reads: " ;
-    	for ( auto tr : globalAlignmentSettings.get_trimmedReads() ) {
-    		std::cout << tr << ", ";
-    	}
-    }
+//    if ( globalAlignmentSettings.get_trimmedReads().size() > 0 ) {
+//    	std::cout << "Trimmed reads: " ;
+//    	for ( auto tr : globalAlignmentSettings.get_trimmedReads() ) {
+//    		std::cout << tr << ", ";
+//    	}
+//    }
 
     std::cout << std::endl;
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;

@@ -135,6 +135,8 @@ class Agenda {
   // check if all items of the agenda were processed, if possible
   bool finished();
 
+  bool finished( CountType cycle );
+
   // the total number of tasks on the agenda
   uint32_t task_count();
 

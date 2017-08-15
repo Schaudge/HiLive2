@@ -21,6 +21,9 @@ protected:
 	/** List of command line arguments. */
 	char const ** argv;
 
+	/** Vector of required options. */
+	std::vector<std::string> required_options;
+
 	/** Map of command line arguments. */
 	po::variables_map cmd_settings;
 
@@ -83,6 +86,19 @@ protected:
 	 */
 	virtual void report() = 0;
 
+	virtual void set_required_parameters() {};
+
+	/**
+	 * Check if an option is required.
+	 * @param vm_key Key for the virtual map for the parameter to check (equals cmd line option name).
+	 * @return true, if the option is required.
+	 */
+	bool isRequired( std::string vm_key) {
+		if ( std::find(required_options.begin(), required_options.end(), vm_key) == required_options.end() )
+			return false;
+		return true;
+	}
+
 	/**
 	 * Set an option in the globalAlignmentSettings.
 	 * Thereby, the different input sources have the following priority:
@@ -96,8 +112,8 @@ protected:
 	 * @param required true, if the option must be set by the user (from one of the input sources)
 	 * @author Tobias Loka
 	 */
-	template<class T> void set_option(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T), bool required) {
-		set_option_impl(vm_key, settings_key, default_value, function, required, static_cast<T*>(0));
+	template<class T> void set_option(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T)) {
+		set_option_impl(vm_key, settings_key, default_value, function, isRequired(vm_key), static_cast<T*>(0));
 	}
 
 	/**
@@ -118,15 +134,15 @@ protected:
 			was_set = true;
 		}
 
-		// RunInfo file -> second priority
-		else if ( rsv ) {
-			value = rsv.get();
+		// Settings file -> second priority
+		else if ( isv ) {
+			value = isv.get();
 			was_set = true;
 		}
 
-		// Settings file -> third priority
-		else if ( isv ) {
-			value = isv.get();
+		// RunInfo file -> third priority
+		else if ( rsv ) {
+			value = rsv.get();
 			was_set = true;
 		}
 
@@ -155,14 +171,17 @@ protected:
 			value = !default_value;
 			was_set = true;
 		}
-		else if ( rsv && rsv.get() != default_value ) {
-			value = !default_value;
-			was_set = true;
-		}
+
 		else if ( isv && isv.get() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
+
+		else if ( rsv && rsv.get() != default_value ) {
+			value = !default_value;
+			was_set = true;
+		}
+
 
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
@@ -189,18 +208,18 @@ protected:
 			was_set = true;
 		}
 
-		// RunInfo file -> second priority
-		else if ( sub_rsv && sub_rsv.get().count("el") ) {
-			for ( auto& v : sub_rsv.get() ) {
+		// Settings file -> third priority
+		else if ( sub_isv && sub_isv.get().count("el") ) {
+			for ( auto& v : sub_isv.get() ) {
 				if ( v.first == "el" )
 					value.push_back(v.second.get_value<T>());
 			}
 			was_set = true;
 		}
 
-		// Settings file -> third priority
-		else if ( sub_isv && sub_isv.get().count("el") ) {
-			for ( auto& v : sub_isv.get() ) {
+		// RunInfo file -> second priority
+		else if ( sub_rsv && sub_rsv.get().count("el") ) {
+			for ( auto& v : sub_rsv.get() ) {
 				if ( v.first == "el" )
 					value.push_back(v.second.get_value<T>());
 			}
@@ -320,6 +339,8 @@ public:
  */
 class HiLiveArgumentParser : public ArgumentParser {
 
+protected:
+
 	/**
 	 * Use the constructor of the inherited ArgumentParser class.
 	 */
@@ -381,6 +402,8 @@ class HiLiveArgumentParser : public ArgumentParser {
 
 	bool set_options();
 
+	virtual void set_required_parameters() override { required_options = {"BC_DIR", "INDEX", "CYCLES"}; }
+
 public:
 
 	int parseCommandLineArguments() override;
@@ -391,11 +414,14 @@ public:
  * Class to parse arguments for HiLive out.
  */
 
-//class HiLiveOutArgumentParser : public HiLiveArgumentParser {
-//
-//	using HiLiveArgumentParser::ArgumentParser;
-//
-//};
+class HiLiveOutArgumentParser : public HiLiveArgumentParser {
+
+	using HiLiveArgumentParser::HiLiveArgumentParser;
+
+	void init_help(po::options_description visible_options) override;
+
+	void set_required_parameters() override { required_options = {"settings", "INDEX"}; };
+};
 
 //class HiLiveOutArgumentParser : public ArgumentParser {
 //

@@ -57,6 +57,7 @@ class KixBuild {
 class KixRun {
  private:
   uint8_t kmer_weight; // k-mer weight read from file
+  std::vector<unsigned> kmer_gaps;
  public:
   // pointer to the matching positions for a k-mer
   char* kmer(HashIntoType kmer);
@@ -74,6 +75,8 @@ class KixRun {
   uint8_t get_kmer_weight();
 
   uint64_t get_header_information(std::string f);
+
+  void store_kmer() { globalAlignmentSettings.set_kmer(kmer_weight, kmer_gaps); };
 
   // Database content
   GenomeIdType num_seq; // total number of sequences in the database

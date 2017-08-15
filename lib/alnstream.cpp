@@ -577,7 +577,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   
   // 7. Delete old alignment file, if requested
   //-------------------------------------------
-  if ( ! (globalAlignmentSettings.get_keep_aln_files()) ) {
+  if ( ! ( globalAlignmentSettings.get_keep_aln_files() || globalAlignmentSettings.is_output_cycle(cycle-1)) ) {
     std::remove(in_fname.c_str());
   }
 
@@ -649,7 +649,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle) {
+uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle, bool verbose) {
 
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
 	std::string file_cycle = cycle >= globalAlignmentSettings.get_cycles() ? "" : "_cycle" + std::to_string(cycle);
@@ -676,7 +676,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 			mates += 1;
 
 		// reduce number of remaining cycles. If not enough cycles left, set num cycles of the last mate and break.
-		if ( cycles_left > seqs_it->length )
+		if ( cycles_left >= seqs_it->length )
 			cycles_left -= seqs_it->length;
 		else {
 			last_mate_cycle = cycles_left;
@@ -766,21 +766,24 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 			if (file_exists(filter_fname)) {
 				filters.open(filter_fname);
 			}
-			else
+			else if ( verbose )
 				std::cerr << "Could not find .filter file: " <<  filter_fname  << ". Treated all reads as valid."<< std::endl;
 
 
 			// set the alignment files
 			std::vector<iAlnStream*> alignmentFiles;
-			unsigned numberOfAlignments;
+			unsigned numberOfAlignments = 0;
 			for (unsigned mateIndex = 1; mateIndex <= mates; ++mateIndex) {
 				if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ ) return 0;
 
 				CountType mateCycle = mateIndex==mates ? last_mate_cycle : globalAlignmentSettings.getSeqByMate(mateIndex).length;
 
 				std::string alignment_fname = alignment_name(ln, tl, mateCycle, mateIndex);
-				if ( !file_exists(alignment_fname) )
-					throw std::runtime_error(std::string("Could not create SAM file. Alignment file not found: ")+ alignment_fname);
+				if ( !file_exists(alignment_fname) ) {
+					if ( verbose )
+						std::cerr << "Alignment file not found: " << alignment_fname << ". Ignored all related alignments." << std::endl;
+					continue;
+				}
 				iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 				input->open(alignment_fname);
 
@@ -801,10 +804,10 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 			}
 			totalNumberOfReads += numberOfAlignments;
 
-
 			// for all reads in a tile
 			/////////////////////////////////////////////////////////////////////////////
 			for (uint64_t i = 0; i < numberOfAlignments; ++i) {
+
 				std::vector<ReadAlignment*> mateAlignments;
 				for (auto e:alignmentFiles) {
 					mateAlignments.push_back(e->get_alignment());
@@ -907,6 +910,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 						// However, Tobi has done something here
 						unsigned cigarElemSum = 0;
 						unsigned deletionSum = 0;
+						unsigned supposed_cigar_length = mateAlignmentIndex == CountType(mates-1) ? last_mate_cycle : globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length;
 						unsigned asi_score = (*it)->num_matches;
 						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
 							if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
@@ -918,13 +922,15 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 								asi_score -= 1;
 							}
 						}
-						if (cigarElemSum != globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length) {
-							std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
+						if (cigarElemSum != supposed_cigar_length) {
+							if ( verbose )
+								std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
-						if (deletionSum >= globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length) {
-							std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
+						if (deletionSum >= supposed_cigar_length) {
+							if ( verbose )
+								std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
@@ -947,21 +953,25 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 						++it;
 					}
 				}
+
 				for (auto e:mateAlignments)
 					delete e;
 			}
 			for (auto e:alignmentFiles)
 				delete e;
 		}
+
 	}
 
 	// TODO maybe find a way to generate statsfiles when generating multiple output files.
 	std::ofstream statsfile;
-	statsfile.open( globalAlignmentSettings.get_out_dir().string() + "/hilive_out" + ".stats");
+	std::string statsfile_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out";
+	statsfile_fname += cycle == globalAlignmentSettings.get_cycles() ? ".stats" : "_cycle" + std::to_string(cycle) + ".stats";
+	statsfile.open( statsfile_fname );
 	statsfile << "Number of reads\t" << totalNumberOfReads << std::endl;
 	statsfile << "Number of alignments\t" << num_alignments << std::endl;
 	statsfile.close();
 
-	return 0;
+	return 1;
 
 }
