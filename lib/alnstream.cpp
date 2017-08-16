@@ -644,7 +644,13 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle, bool verbose) {
+uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle) {
+
+	std::ofstream logfile;
+	std::string logfile_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out.log";
+	logfile.open( logfile_fname, std::ofstream::app );
+
+	logfile << "Start to write output for cycle " << std::to_string(cycle) << "." << std::endl;
 
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
 	std::string file_cycle = cycle >= globalAlignmentSettings.get_cycles() ? "" : "_cycle" + std::to_string(cycle);
@@ -761,8 +767,8 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 			if (file_exists(filter_fname)) {
 				filters.open(filter_fname);
 			}
-			else if ( verbose )
-				std::cerr << "Could not find .filter file: " <<  filter_fname  << ". Treated all reads as valid."<< std::endl;
+			else
+				logfile << "Could not find .filter file: " <<  filter_fname  << ". Treated all reads as valid."<< std::endl;
 
 
 			// set the alignment files
@@ -775,8 +781,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 				std::string alignment_fname = alignment_name(ln, tl, mateCycle, mateIndex);
 				if ( !file_exists(alignment_fname) ) {
-					if ( verbose )
-						std::cerr << "Alignment file not found: " << alignment_fname << ". Ignored all related alignments." << std::endl;
+					logfile << "Alignment file not found: " << alignment_fname << ". Ignored all related alignments." << std::endl;
 					continue;
 				}
 				iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
@@ -785,12 +790,14 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				// compare number of reads in alignment file with number of reads in filter file, if filter file exists
 				if (file_exists(filter_fname) && input->get_num_reads() != filters.size()) {
 					std::string msg = std::string("Number of reads in filter file (") + std::to_string(filters.size()) + ") does not match the number of reads in the alignment file (" + std::to_string(input->get_num_reads()) + ").";
+					logfile << "Writing output for cycle " << std::to_string(cycle) << "not successful: " << msg.c_str() << std::endl;
 					throw std::length_error(msg.c_str());
 				}
 
 				// compare number of reads in alignment file with number of reads in previous alignment file
 				if (mateIndex != 1 && input->get_num_reads() != numberOfAlignments) {
 					std::string msg = std::string("Number of reads in alignment file (") + std::to_string(input->get_num_reads()) + ") does not match the number of reads in previous alignment file (" + std::to_string(input->get_num_reads()) + ").";
+					logfile << "Writing output for cycle " << std::to_string(cycle) << "not successful: " << msg.c_str() << std::endl;
 					throw std::length_error(msg.c_str());
 				}
 
@@ -918,14 +925,12 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 							}
 						}
 						if (cigarElemSum != supposed_cigar_length) {
-							if ( verbose )
-								std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
+							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
 						if (deletionSum >= supposed_cigar_length) {
-							if ( verbose )
-								std::cerr << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
+							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
@@ -966,6 +971,9 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	statsfile << "Number of reads\t" << totalNumberOfReads << std::endl;
 	statsfile << "Number of alignments\t" << num_alignments << std::endl;
 	statsfile.close();
+
+	logfile << "Writing output for cycle " << std::to_string(cycle) << " finished." << std::endl;
+	logfile.close();
 
 	return 1;
 

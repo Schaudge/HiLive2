@@ -85,10 +85,14 @@ void output_worker( Agenda & agenda, KixRun* idx, bool & surrender ) {
 		CountType next_cycle = *(output_cycles.begin());
 		if ( agenda.finished(next_cycle) ) {
 			try {
-				if ( !alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), idx, next_cycle, false) )
-					std::cerr << "Errors occured when writing output for cycle " << std::to_string(next_cycle) << "." << std::endl;
-			} catch ( std::exception & e ) {
-				std::cerr << "Errors occured when writing output for cycle " << std::to_string(next_cycle) << ": " << e.what() << std::endl;
+				if ( !alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), idx, next_cycle) )
+					std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed." << std::endl;
+				else {
+					std::cout << "Wrote output for cycle " << std::to_string(next_cycle) << "." << std::endl;
+				}
+			}
+			catch ( std::exception & e ) {
+				std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << "failed: " << e.what() << std::endl;
 			}
 			output_cycles.erase(output_cycles.begin());
 		}
