@@ -455,12 +455,7 @@ void StreamedAlignment::create_directories() {
   path_stream << "/L00" << lane;
 
   boost::filesystem::create_directories(path_stream.str());
-
-  std::ostringstream sam_stream;
-  sam_stream << globalAlignmentSettings.get_out_dir().string();
-  sam_stream << "/L00" << lane;
-  
-  boost::filesystem::create_directories(sam_stream.str());
+  boost::filesystem::create_directories(globalAlignmentSettings.get_out_dir().string());
 }
 
 

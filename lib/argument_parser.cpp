@@ -212,7 +212,7 @@ po::options_description HiLiveArgumentParser::io_options() {
 	io_settings.add_options()
 	        		("temp", po::value<std::string>(), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
 					("bam,B", po::bool_switch(), "Create BAM files instead of SAM files [Default: false]")
-					("output-cycles", po::value<std::vector<CountType>>()->multitoken()->composing(), "Cycles for alignment output. The respective temporary files are kept. [Default: last cycle]")
+					("output-cycles,O", po::value<std::vector<CountType>>()->multitoken()->composing(), "Cycles for alignment output. The respective temporary files are kept. [Default: last cycle]")
 					("extended-cigar", po::bool_switch(), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
 					("keep-files,k", po::bool_switch(), "Keep intermediate alignment files [Default: false]")
 					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")

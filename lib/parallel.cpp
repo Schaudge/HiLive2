@@ -250,7 +250,7 @@ bool Agenda::finished( CountType cycle ) {
   // check for each tile if either all cycles are finished OR there is a failed status item
   for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
     for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
-      for (uint16_t cl_id = 0; cl_id <= cycle; ++cl_id) {
+      for (uint16_t cl_id = 0; cl_id < cycle; ++cl_id) {
 	ItemStatus s = items[ln_id][tl_id][cl_id];
 	if ( s == FAILED ) {
 	  // the rest of the tile is "allowed" to be unprocessed --> skip
