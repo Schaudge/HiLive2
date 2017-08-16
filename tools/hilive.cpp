@@ -97,7 +97,7 @@ void output_worker( Agenda & agenda, KixRun* idx, bool & surrender ) {
 			output_cycles.erase(output_cycles.begin());
 		}
 
-		if ( last_try )
+		if ( last_try && next_cycle == *(output_cycles.begin()) )
 			break;
 
 		if ( surrender )

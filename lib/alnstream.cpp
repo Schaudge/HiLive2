@@ -733,11 +733,8 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
 		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
 			std::string out_fname;
-			if ( barcode < barcodes.size() ) {
-				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcodes[barcode] + file_cycle + file_suffix;
-			} else {
-				out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_undetermined" + file_cycle + file_suffix;
-			}
+			std::string barcode_string = barcode < barcodes.size() ? barcodes[barcode] : "undetermined";
+			out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcode_string + file_cycle + ".temp" + file_suffix;
 			std::unique_ptr<seqan::BamFileOut> bfo( new seqan::BamFileOut(out_fname.c_str()));
 			bfos.push_back( std::move(bfo) );
 			bfos[barcode]->context = bamIOContext;
@@ -961,6 +958,16 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				delete e;
 		}
 
+	}
+
+	// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
+	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
+		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
+			std::string barcode_string = barcode < barcodes.size() ? barcodes[barcode] : "undetermined";
+			std::string old_out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcode_string + file_cycle + ".temp" + file_suffix;
+			std::string new_out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcode_string + file_cycle + file_suffix;
+			std::rename(old_out_fname.c_str(), new_out_fname.c_str());
+		}
 	}
 
 	// TODO maybe find a way to generate statsfiles when generating multiple output files.

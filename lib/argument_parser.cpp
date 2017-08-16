@@ -297,6 +297,14 @@ bool HiLiveArgumentParser::checkPaths() {
 		}
 	}
 
+	if ( !is_directory(globalAlignmentSettings.get_temp_dir())) {
+		boost::filesystem::create_directories(globalAlignmentSettings.get_temp_dir());
+	}
+
+	if ( !is_directory(globalAlignmentSettings.get_out_dir().string())) {
+		boost::filesystem::create_directories(globalAlignmentSettings.get_out_dir().string());
+	}
+
 	return true;
 }
 
