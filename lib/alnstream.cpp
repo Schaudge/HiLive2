@@ -979,6 +979,9 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	statsfile << "Number of alignments\t" << num_alignments << std::endl;
 	statsfile.close();
 
+	// TODO What todo with completely trimmed reads?
+	// --> Amount could for example be written in the stats file(s)
+
 	logfile << "Writing output for cycle " << std::to_string(cycle) << " finished." << std::endl;
 	logfile.close();
 

@@ -6,28 +6,25 @@
 #include "../lib/parallel.h"
 #include "../lib/argument_parser.h"
 
-std::string license =
-"Copyright (c) 2015-2016, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info.\n"
-"All rights reserved.\n"
-"\n"
-"Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:\n"
-"\n"
-"1. Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.\n"
-"\n"
-"2. Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.\n"
-"\n"
-"3. Neither the name of the copyright holder nor the names of its contributors may be used to endorse or promote products derived from this software without specific prior written permission.\n"
-"\n"
-"THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS 'AS IS' AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.";
+AlignmentSettings globalAlignmentSettings;
 
-// the worker function for the threads
+/**
+ * Worker function for the alignment threads.
+ * @param tasks Reference to the "to do" task queue
+ * @param finished Reference to the "finished" task queue
+ * @param failed Reference to the "failed" task queue
+ * @param idx Pointer to the index object
+ * @param surrender Control flag (threads stop if true)
+ */
 void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun* idx, bool & surrender ) {
 
-    // loop that keeps on running until the surrender flag is set
+    // Continue until surrender flag is set
     while ( !surrender ) {
 
-        // try to obtain a new task
+        // Try to obtain a new task
         Task t = tasks.pop();
+
+        // If "to do" task was found
         if ( t != NO_TASK ) {
 
             // Execute the task
@@ -37,13 +34,15 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
                 StreamedAlignment s (t.lane, t.tile, t.seqEl.length);
                 uint64_t num_seeds;
 
-                // Seed extension if current read is no barcode.
+                // Seed extension if current read is sequence fragment.
                 if ( !t.seqEl.isBarcode() ) {
                 	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate,idx);
                 	std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
 
-                // If current read is barcode, extend barcode sequence in all sequence read align files
-                } else {
+                }
+
+                // Barcode extension if current read is barcode fragment
+                else {
                 	CountType mate = 1;
                 	for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
                 		SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
@@ -57,6 +56,8 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
                 std::cerr << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
                 success = false;
             }
+
+            // Push the task in the correct Task Queue (Finished or Failed)
             if (success) {
                 finished.push(t);
             }
@@ -72,18 +73,31 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
     }  
 }
 
+/**
+ * Worker function for the output thread.
+ * Should only be called by one single thread!
+ * @param agenda Reference to the agenda that organizes the tasks
+ * @param idx Pointer to the index object
+ * @param surrender Control flag (threads stop if true)
+ * @author Tobias Loka
+ */
 void output_worker( Agenda & agenda, KixRun* idx, bool & surrender ) {
 
+	// Get the output cycles (must be sorted!)
 	std::vector<CountType> output_cycles = globalAlignmentSettings.get_output_cycles();
-	bool last_try = false;
 
-	while ( true ) {
+	// Delayed surrender
+	bool alignments_finished = false;
 
-		if ( output_cycles.size() == 0 )
-			break;
+	// Continue as long as there are output cycles left
+	while ( output_cycles.size() > 0 ) {
 
+		alignments_finished = surrender;
+
+		// Create output for the next cycle if all related tasks are finished.
 		CountType next_cycle = *(output_cycles.begin());
 		if ( agenda.finished(next_cycle) ) {
+
 			try {
 				if ( !alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), idx, next_cycle) )
 					std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed." << std::endl;
@@ -92,27 +106,32 @@ void output_worker( Agenda & agenda, KixRun* idx, bool & surrender ) {
 				}
 			}
 			catch ( std::exception & e ) {
-				std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << "failed: " << e.what() << std::endl;
+				std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed: " << e.what() << std::endl;
 			}
+
+			// Remove current cycle from the list of output cycles.
 			output_cycles.erase(output_cycles.begin());
 		}
 
-		if ( last_try && next_cycle == *(output_cycles.begin()) )
-			break;
+		// If the the surrender flag set but no cycle was handled, remove the cycle from the list
+		if ( alignments_finished && output_cycles.size() > 0 && next_cycle == *(output_cycles.begin()) ) {
+			std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed: Not all tasks finished." << std::endl;
+			output_cycles.erase(output_cycles.begin());
+		}
 
-		if ( surrender )
-			last_try = true;
-
+		// Sleep a second
         std::this_thread::sleep_for (std::chrono::milliseconds(1000));
 
 	}
 
-	if ( output_cycles.size() > 0 ) {
-		std::cerr << "Not all output files could be written." << std::endl;
-	}
 }
-AlignmentSettings globalAlignmentSettings;
 
+/**
+ * Main function that organizes the overall structure of the program.
+ * @param argc Number of arguments
+ * @param argv Argument array
+ * @return 0 on success, other numbers on error
+ */
 int main(int argc, const char* argv[]) {
 
 	// Variable for runtime measurement
@@ -137,62 +156,38 @@ int main(int argc, const char* argv[]) {
 		exit(EXIT_FAILURE);
 	}
 
-	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
-	if (! write_xml(xml_out, get_xml_out_name()))
-		exit(EXIT_FAILURE);
-
     // Load the index
     std::cout << "Loading Index ... " << std::endl;
     KixRun* index = new KixRun();
     index->deserialize_file(globalAlignmentSettings.get_index_fname());
 
-    // Report k-mer structure that was retrieved from the index
-    std::cout << "K-mer weight:        " << unsigned(globalAlignmentSettings.get_kmer_weight()) << std::endl;
-    std::cout << "K-mer span:          " << unsigned(globalAlignmentSettings.get_kmer_span()) << std::endl;
-    std::cout << "K-mer gap positions: ";
+    // Report loaded k-mer properties
+    std::cout << std::endl;
+    std::cout << "kmer span:   " << std::to_string(globalAlignmentSettings.get_kmer_span()) << std::endl;
+    std::cout << "kmer weight: " << std::to_string(globalAlignmentSettings.get_kmer_weight()) << std::endl;
+    std::cout << "kmer gaps:   ";
+    for ( auto gap : globalAlignmentSettings.get_kmer_gaps() ) {
+    	std::cout << gap << " ";
+    }
+    std::cout << std::endl << std::endl;
 
-      if ( globalAlignmentSettings.get_kmer_gaps().size() > 0 ) {
-    	  for ( auto pos : globalAlignmentSettings.get_kmer_gaps() ) {
-    		  if ( pos != *(globalAlignmentSettings.get_kmer_gaps().begin()) )
-    			  std::cout << ",";
-    		  std::cout << (uint16_t) pos;
-    	  }
-    	  std::cout << std::endl;
-      } else {
-    	  std::cout << "-" << std::endl;
-      }
-      std::cout << std::endl;
+  	// Write the alignment settings to an XML file
+  	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
+  	if ( ! write_xml(xml_out, get_xml_out_name()) )
+  		exit(EXIT_FAILURE);
 
     // Create the overall agenda
     Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
 
-    // Prepare the alignment
-    std::cout << "Initializing Alignment files. Waiting for the first cycle to finish." << std::endl;
-    bool first_cycle_available = false;
-
-    // Wait for the first cycle to be written. Attention - this loop will wait infinitely long if no first cycle is found
-    while ( !first_cycle_available ) {
-
-        // Check for new BCL files and update the agenda status
+    // Wait for the first cycle to be written
+    std::cout << "Waiting for the first cycle to finish..." << std::endl;
+    while ( ! agenda.cycle_available(1) ) {
         agenda.update_status();
-
-        // Check if the first cycle is available for all tiles
-        first_cycle_available = true;
-        for ( auto ln : globalAlignmentSettings.get_lanes() ) {
-            for ( auto tl : globalAlignmentSettings.get_tiles() ) {
-                if ( agenda.get_status(Task(ln,tl,globalAlignmentSettings.getSeqById(0),1)) != BCL_AVAILABLE) {
-                    first_cycle_available = false;
-                }
-            }
-        }
-
-        // Take a small break
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
 
-    std::cout << "First cycle complete. Starting alignment." << std::endl;
-
     // Write empty alignment file for each tile and for each sequence read
+    std::cout << "Initializing Alignment files..." << std::endl;
     for (uint16_t ln : globalAlignmentSettings.get_lanes()) {
         for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
             CountType mate = 1;
@@ -204,17 +199,16 @@ int main(int argc, const char* argv[]) {
         }
     }
 
-    if (globalAlignmentSettings.get_temp_dir() != "" && !is_directory(globalAlignmentSettings.get_temp_dir())){
-        std::cerr << "Error: Could not find temporary directory " << globalAlignmentSettings.get_temp_dir() << std::endl;
-        exit(EXIT_FAILURE);
-    }
+    std::cout << "First cycle complete. Starting alignment." << std::endl;
+
+
 
     // Set up the queues
     TaskQueue toDoQ;
     TaskQueue finishedQ;
     TaskQueue failedQ;
 
-    // Create the threads
+    // Create the alignment threads
     std::cout << "Creating " << globalAlignmentSettings.get_num_threads() << " threads." << std::endl;
     bool surrender = false;
     std::vector<std::thread> workers;
@@ -222,14 +216,16 @@ int main(int argc, const char* argv[]) {
         workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), index, std::ref(surrender)));
     }
 
+    // Create the output thread
     std::thread output_thread = std::thread( output_worker, std::ref(agenda), index, std::ref(surrender) );
 
     // Process all tasks on the agenda
     while ( !agenda.finished() ) {
+
         // check for new BCL files and update the agenda status
         agenda.update_status();
 
-        // fill the ToDo queue with tasks from the agenda
+        // fill the To Do queue with tasks from the agenda
         while(true) {
             Task t = agenda.get_task();
             if (t == NO_TASK)
@@ -266,7 +262,6 @@ int main(int argc, const char* argv[]) {
         std::this_thread::sleep_for (std::chrono::milliseconds(100));
     }  
 
-
     // Halt the threads
     surrender = true;
     for (auto& w : workers) {
@@ -275,19 +270,9 @@ int main(int argc, const char* argv[]) {
     output_thread.join();
 
     std::cout << "All threads joined." << std::endl;
-    std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl;
-//    std::cout << "Writing output file." << std::endl;
-//    alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, globalAlignmentSettings.get_cycles());
+    std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl << std::endl;
     delete index;
 
-//    if ( globalAlignmentSettings.get_trimmedReads().size() > 0 ) {
-//    	std::cout << "Trimmed reads: " ;
-//    	for ( auto tr : globalAlignmentSettings.get_trimmedReads() ) {
-//    		std::cout << tr << ", ";
-//    	}
-//    }
-
-    std::cout << std::endl;
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
     exit(EXIT_SUCCESS);
 }

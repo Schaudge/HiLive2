@@ -247,30 +247,44 @@ bool Agenda::finished() {
 
 // check if all items of the agenda were processed, if possible
 bool Agenda::finished( CountType cycle ) {
-  // check for each tile if either all cycles are finished OR there is a failed status item
-  for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
-    for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
-      for (uint16_t cl_id = 0; cl_id < cycle; ++cl_id) {
-	ItemStatus s = items[ln_id][tl_id][cl_id];
-	if ( s == FAILED ) {
-	  // the rest of the tile is "allowed" to be unprocessed --> skip
-	  continue;
+	// check for each tile if either all cycles are finished OR there is a failed status item
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+			for (uint16_t cl_id = 0; cl_id < cycle; ++cl_id) {
+				ItemStatus s = items[ln_id][tl_id][cl_id];
+				if ( s == FAILED ) {
+					// the rest of the tile is "allowed" to be unprocessed --> skip
+					continue;
+				}
+				else if (s != FINISHED) {
+					// otherwise any other status means that the agenda is not finished
+					return false;
+				}
+			}
+		}
 	}
-	else if (s != FINISHED) {
-	  // otherwise any other status means that the agenda is not finished
-	  return false;
+	return true;
+}
+
+bool Agenda::cycle_available( CountType cycle ) {
+
+	if ( cycle == 0 || cycle > rlen )
+		return false;
+
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+			if ( items[ln_id][tl_id][cycle-1] == WAITING )
+				return false;
+		}
 	}
-      }
-    }
-  }
-  return true;
+
+	return true;
 }
 
 // the total number of tasks on the agenda
 uint32_t Agenda::task_count() {
   return lanes.size() * tiles.size() * rlen;
 }
-
 
 // the total number of finished tasks on the agenda
 uint32_t Agenda::tasks_finished() {
@@ -287,7 +301,6 @@ uint32_t Agenda::tasks_finished() {
   }
   return num_finished;
 }
-
 
 // generate a complete TaskQueue with tasks to generate SAM files
 // SAM files can only be generated for tiles where all cycles are completed

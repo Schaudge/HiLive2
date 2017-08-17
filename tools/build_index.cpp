@@ -5,11 +5,14 @@
 #include "../lib/kindex.h"
 #include "../lib/argument_parser.h"
 
-namespace po = boost::program_options;
-
-// Global variable for the alignment settings (is used to handle the k-mer structure in index building)
 AlignmentSettings globalAlignmentSettings;
 
+/**
+ * Main function that organizes the overall structure of the program.
+ * @param argc Number of arguments
+ * @param argv Argument array
+ * @return 0 on success, other numbers on error
+ */
 int main(int argc, const char* argv[]) {
 
 	// Program start output.
@@ -49,5 +52,6 @@ int main(int argc, const char* argv[]) {
 	index->serialize_file(argumentParser.index_name);
 
 	delete index;
-	exit(EXIT_SUCCESS);
+
+	return EXIT_SUCCESS;
 } 

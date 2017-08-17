@@ -137,6 +137,8 @@ class Agenda {
 
   bool finished( CountType cycle );
 
+  bool cycle_available( CountType cycle );
+
   // the total number of tasks on the agenda
   uint32_t task_count();
 
