@@ -8,16 +8,11 @@ project (HiLive)
 add_definitions(-DHiLive_VERSION_MAJOR=0)
 add_definitions(-DHiLive_VERSION_MINOR=3)
 
-# DEPRECATED
-# Set the k-mer length
-#set (HiLive_K 15 CACHE INT "Set the k-mer length for index and mapper")
-
 # Set flags for compilation
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++14 -O0")
 
 # add the binary tree to the search path for include files
 include_directories("${PROJECT_BINARY_DIR}")
-
 
 
 #############################
@@ -30,13 +25,11 @@ find_package( Boost COMPONENTS system filesystem program_options REQUIRED )
 include_directories( ${Boost_INCLUDE_DIR} )
 
 
-
 ############################
 ### setup Zlib and lz4 libraries ###
 
 find_package( ZLIB REQUIRED )
-#set (LZ4_PATH /home/schulzeja/tools/lz4/lib) # possibly adjust this to [pathToLz4]/lib if using downloaded lz4 source code
-set (LZ4_PATH /usr/local/lib)
+set (LZ4_PATH /usr/local/lib) # possibly adjust this to [pathToLz4]/lib if using downloaded lz4 source code
 include_directories(${LZ4_PATH})
 link_directories(${LZ4_PATH})
 set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
@@ -59,17 +52,6 @@ add_definitions (${SEQAN_DEFINITIONS})
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
 
 
-
-#############################################
-### download & build the Samtools library ###
-#file(DOWNLOAD "https://sourceforge.net/projects/samtools/files/samtools/1.2/samtools-1.2.tar.bz2/download" ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2)
-#execute_process(COMMAND tar xjf ${CMAKE_CURRENT_BINARY_DIR}/samtools-1.2.tar.bz2 )
-#execute_process(COMMAND { make -s -C samtools-1.2 ; } 2> /dev/null)
-include_directories( /home/lokat/libs/samtools-1.2 )
-include_directories( /home/lokat/libs/samtools-1.2/htslib-1.2.1 )
-link_directories( /home/lokat/libs/samtools-1.2 /home/lokat/libs/samtools-1.2/htslib-1.2.1 )
-
-
 ##############################
 ### setup HiLive libraries ###
 include_directories("${PROJECT_SOURCE_DIR}/lib")
@@ -86,13 +68,14 @@ add_library(HiLiveLibs ${LIB_LIST})
 ### Build the executables ###
 
 add_executable (hilive tools/hilive.cpp)
-target_link_libraries (hilive HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES} hts)
+target_link_libraries (hilive HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
 
 add_executable(hilive-build tools/build_index.cpp )
 target_link_libraries(hilive-build HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
 
 add_executable(hilive-out tools/hilive_out.cpp )
 target_link_libraries(hilive-out HiLiveLibs ${CompressionLibs} ${Boost_LIBRARIES} ${SEQAN_LIBRARIES})
+
 
 #####################
 ### for debugging ###
