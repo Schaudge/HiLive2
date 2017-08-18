@@ -533,7 +533,7 @@ bool HiLiveArgumentParser::set_options() {
 		default_read_structure.push_back(std::to_string(globalAlignmentSettings.get_cycles()) + "R");
 		set_option<std::vector<std::string>>("reads", "settings.sequences", default_read_structure, &AlignmentSettings::set_read_structure);
 
-		set_option<CountType>("min_errors", "settings.min_errors", 2, &AlignmentSettings::set_min_errors);
+		set_option<CountType>("min-errors", "settings.min_errors", 2, &AlignmentSettings::set_min_errors);
 		set_option<std::string>("mode", "settings.mode", "ANYBEST", &AlignmentSettings::set_mode);
 		set_option<bool>("disable-ohw-filter", "settings.align.discard_ohw", false, &AlignmentSettings::disable_ohw);
 		set_option<CountType>("start-ohw", "settings.align.start_ohw", 20, &AlignmentSettings::set_start_ohw);

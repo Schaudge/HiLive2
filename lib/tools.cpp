@@ -111,6 +111,36 @@ uint16_t getSeqCycle(uint16_t cycle, uint16_t read_number) {
 	return seq_cycle;
 }
 
+uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
+
+	// Invalid mate
+	if ( mate_number == 0 || mate_number > globalAlignmentSettings.get_mates() )
+		return 0;
+
+	// Iterate through all sequence elements (including barcodes)
+	for ( CountType id = 0; id < globalAlignmentSettings.get_seqs().size(); id++ ) {
+
+		// Current sequence element
+		SequenceElement seq = globalAlignmentSettings.getSeqById(id);
+
+		// Seq is mate of interest
+		if ( seq.mate == mate_number )
+			return ( seq.length > seq_cycle ? seq_cycle : seq.length );
+
+		// Not enough cycles left to reach mate of interest
+		else if ( seq.length >= seq_cycle )
+			return 0;
+
+		// Reduce number of cycles by the Seq length
+		else
+			seq_cycle -= seq.length;
+
+	}
+
+	// Should not be reached
+	return 0;
+}
+
 // construct filter file name from: root, lane, tile
 std::string filter_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
@@ -125,9 +155,60 @@ std::string position_name(uint16_t ln, uint16_t tl) {
   return path_stream.str();
 }
 
+// Get file name of the settings file
 std::string get_xml_out_name() {
 	std::ostringstream path_stream;
 	std::string base = globalAlignmentSettings.get_temp_dir() != "" ? globalAlignmentSettings.get_temp_dir() : globalAlignmentSettings.get_root();
 	path_stream << base << "/hilive_settings.xml";
 	return path_stream.str();
+}
+
+// Get file name of the output log
+std::string get_out_log_name() {
+	return ( globalAlignmentSettings.get_out_dir().string() + "/hilive_out.log" );
+}
+
+seqan::BamHeader getBamHeader() {
+	std::stringstream ss;
+	ss.str(std::string());
+	ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
+
+	seqan::BamHeader header;
+	resize(header, 2);
+
+	// @HD header.
+	seqan::resize(header[0].tags, 2);
+	header[0].type = seqan::BAM_HEADER_FIRST;
+	header[0].tags[0].i1 = "VN";
+	header[0].tags[0].i2 = "1.5";
+	header[0].tags[1].i1 = "GO";
+	header[0].tags[1].i2 = "query";
+
+	// @PG header.
+	seqan::resize(header[1].tags, 3);
+	header[1].type = seqan::BAM_HEADER_PROGRAM;
+	header[1].tags[0].i1 = "ID";
+	header[1].tags[0].i2 = "hilive";
+	header[1].tags[1].i1 = "PN";
+	header[1].tags[1].i2 = "HiLive";
+	header[1].tags[2].i1 = "VN";
+	header[1].tags[2].i2 = ss.str();
+
+	return header;
+}
+
+std::string getBamTempFileName(std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string cycle_string = ( cycle == globalAlignmentSettings.get_cycles() ) ? "" : "cycle" + std::to_string(cycle) + "_";
+	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << cycle_string << barcode << ".temp" << file_suffix;
+	return fname.str();
+}
+
+std::string getBamFileName(std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string cycle_string = ( cycle == globalAlignmentSettings.get_cycles() ) ? "" : "cycle" + std::to_string(cycle) + "_";
+	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << cycle_string << barcode << file_suffix;
+	return fname.str();
 }

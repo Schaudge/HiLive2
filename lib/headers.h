@@ -28,3 +28,6 @@
 #include <boost/property_tree/ptree.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/foreach.hpp>
+#include <seqan/basic.h>
+#include <seqan/sequence.h>
+#include <seqan/bam_io.h>

@@ -4,5 +4,4 @@
 class AlignmentSettings;
 
 extern AlignmentSettings globalAlignmentSettings;
-
 #endif

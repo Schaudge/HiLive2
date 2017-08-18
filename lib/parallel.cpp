@@ -1,14 +1,11 @@
 #include "parallel.h"
 
-
-
 std::ostream& operator<<(std::ostream& os, const Task& t)
 {
   std::string mate = t.seqEl.mate == 0 ? "b" : std::to_string(t.seqEl.mate);
   os << "Lane " << t.lane << " Tile " << t.tile << " Cycle " << mate << "." << t.cycle;
   return os;
 }
-
 
 // Add element to the task list
 void TaskQueue::push(Task t) {
@@ -35,7 +32,6 @@ uint64_t TaskQueue::size() {
   return tasks.size();
 }
 
-
 // create a vector with all lane numbers
 std::vector<uint16_t> all_lanes() {
   std::vector<uint16_t> ln;
@@ -48,7 +44,6 @@ std::vector<uint16_t> all_lanes() {
 std::vector<uint16_t> one_lane(uint16_t l) {
   return std::vector<uint16_t> (1,l);
 }
-
 
 // create a vector with all tile numbers
 std::vector<uint16_t> all_tiles() {
@@ -68,7 +63,6 @@ std::vector<uint16_t> all_tiles() {
 std::vector<uint16_t> one_tile(uint16_t t) {
   return std::vector<uint16_t> (1,t);
 }
-
 
 // initialize agenda with read length only (all lanes, all tiles)
 Agenda::Agenda (uint16_t rl) {
@@ -171,7 +165,6 @@ Task Agenda::get_task(){
 	return NO_TASK;
 }
 
-
 // set a status
 void Agenda::set_status(Task t, ItemStatus status) {
   // get the lane index
@@ -197,7 +190,6 @@ void Agenda::set_status(Task t, ItemStatus status) {
   items[ln_id][tl_id][cl_id] = status;
 }
 
-
 // get the status of a task
 ItemStatus Agenda::get_status(Task t) {
   // get the lane index
@@ -222,7 +214,6 @@ ItemStatus Agenda::get_status(Task t) {
 
   return items[ln_id][tl_id][cl_id];
 }
-
 
 // check if all items of the agenda were processed, if possible
 bool Agenda::finished() {
@@ -300,24 +291,4 @@ uint32_t Agenda::tasks_finished() {
     }
   }
   return num_finished;
-}
-
-// generate a complete TaskQueue with tasks to generate SAM files
-// SAM files can only be generated for tiles where all cycles are completed
-std::vector<Task> Agenda::get_SAM_tasks() {
-  std::vector<Task> tv;
-  // find tiles that are completely mapped
-  for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
-    for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
-      if ( items[ln_id][tl_id][globalAlignmentSettings.get_cycles()-1] == FINISHED ) {
-    	  CountType mate = 1;
-    	  for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
-    		  SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
-    		  tv.push_back(Task(lanes[ln_id],tiles[tl_id],seqEl,seqEl.length));
-    	  }
-      }
-    }
-  }
-  
-  return tv;
 }

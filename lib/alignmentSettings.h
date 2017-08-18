@@ -85,9 +85,6 @@ private:
   // PARAMETER: number of threads to use
   Unmodifiable<CountType> num_threads;
 
-  // VARIABLE: list of trimmed reads for output generation
-  std::vector<CountType> trimmedReads;
-
   // SWITCH: activate extended CIGAR annotation
   Unmodifiable<bool> extended_cigar;
 
@@ -285,7 +282,10 @@ public:
 	  for ( auto el : get_seqs() ) {
 		  if ( el.mate == 0 ) {
 			  pos+=el.length;
-			  unformatted_barcode.insert(pos++, "-");
+			  if ( unformatted_barcode.length() >= pos )
+				  unformatted_barcode.insert(pos++, "-");
+			  else
+				  break;
 		  }
 	  }
 
@@ -312,7 +312,6 @@ public:
 		  return format_barcode(barcode_string);
 	  }
  }
-
 
  void set_read_structure ( std::vector<std::string> read_argument ) {
 
@@ -741,19 +740,6 @@ public:
 	  if ( get_barcodeVector().size() == 0 )
 		  return true;
       return get_unmodifiable(keep_all_barcodes, "keep_all_barcodes");
-  }
-
-  void set_trimmedReads(std::vector<CountType> value) {
-	  trimmedReads = value;
-  }
-
-  std::vector<CountType> get_trimmedReads() {
-      return trimmedReads;
-  }
-
-  // TODO this does not belong in alignmentSettings
-  void add_trimmedRead(CountType value) {
-      trimmedReads.push_back(value);
   }
 
   void set_extended_cigar(bool value) {

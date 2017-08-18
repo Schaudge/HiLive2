@@ -647,48 +647,20 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle) {
 
 	std::ofstream logfile;
-	std::string logfile_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out.log";
-	logfile.open( logfile_fname, std::ofstream::app );
+	logfile.open( get_out_log_name(), std::ofstream::app );
 
 	logfile << "Start to write output for cycle " << std::to_string(cycle) << "." << std::endl;
 
-	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
-	std::string file_cycle = cycle >= globalAlignmentSettings.get_cycles() ? "" : "_cycle" + std::to_string(cycle);
-
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;
-
-	// Add user-specified barcode strings
 	for ( unsigned i = 0; i < globalAlignmentSettings.get_barcodeVector().size(); i++ ) {
 		barcodes.push_back(globalAlignmentSettings.get_barcodeString(i));
 	}
 
-	// Mates to handle
-	CountType mates = 0;
-	CountType last_mate_cycle;
-
-	auto seqs = globalAlignmentSettings.get_seqs();
-	auto seqs_it = seqs.begin();
-
-	for ( CountType cycles_left = cycle; cycles_left > 0;) {
-
-		// add mate if element is no barcode
-		if ( seqs_it->mate != 0 )
-			mates += 1;
-
-		// reduce number of remaining cycles. If not enough cycles left, set num cycles of the last mate and break.
-		if ( cycles_left >= seqs_it->length )
-			cycles_left -= seqs_it->length;
-		else {
-			last_mate_cycle = cycles_left;
-			break;
-		}
-
-		// go to next Seq element. If the last one is processed, add length of the last mate and break.
-		if ( ++seqs_it == seqs.end() ) {
-			last_mate_cycle = globalAlignmentSettings.getSeqByMate(mates).length;
-			break;
-		}
+	// Get the finished cycles for each mate
+	std::vector<CountType> mateCycles;
+	for ( CountType mate = 1; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
+		mateCycles.push_back( getMateCycle( mate, cycle ) );
 	}
 
 	// Init the bamIOContext (the same object can be used for all output streams)
@@ -700,42 +672,19 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	seqan::contigLengths(bamIOContext) = index->seq_lengths;
 
 	// Init the header (the same object can be used for all output streams)
-	std::stringstream ss;
-	ss.str(std::string());
-	ss << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR;
-
-	seqan::BamHeader header;
-	resize(header, 2);
-
-	// @HD header.
-	seqan::resize(header[0].tags, 2);
-	header[0].type = seqan::BAM_HEADER_FIRST;
-	header[0].tags[0].i1 = "VN";
-	header[0].tags[0].i2 = "1.5";
-	header[0].tags[1].i1 = "GO";
-	header[0].tags[1].i2 = "query";
-
-	// @PG header.
-	seqan::resize(header[1].tags, 3);
-	header[1].type = seqan::BAM_HEADER_PROGRAM;
-	header[1].tags[0].i1 = "ID";
-	header[1].tags[0].i2 = "hilive";
-	header[1].tags[1].i1 = "PN";
-	header[1].tags[1].i2 = "HiLive";
-	header[1].tags[2].i1 = "VN";
-	header[1].tags[2].i2 = ss.str();
-
+	seqan::BamHeader header = getBamHeader();
 
 	// Vector that contains the output streams (USE POINTERS !)
 	std::vector<std::unique_ptr<seqan::BamFileOut>> bfos;
 
 	// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
-	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
+	for ( unsigned barcode=0; barcode < (barcodes.size() + 1); barcode ++) {
 		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
-			std::string out_fname;
-			std::string barcode_string = barcode < barcodes.size() ? barcodes[barcode] : "undetermined";
-			out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcode_string + file_cycle + ".temp" + file_suffix;
-			std::unique_ptr<seqan::BamFileOut> bfo( new seqan::BamFileOut(out_fname.c_str()));
+
+			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
+
+			// Open file in Bam output stream and write the header
+			std::unique_ptr<seqan::BamFileOut> bfo( new seqan::BamFileOut(getBamTempFileName(barcode_string, cycle).c_str()));
 			bfos.push_back( std::move(bfo) );
 			bfos[barcode]->context = bamIOContext;
 			seqan::writeHeader(*bfos[barcode], header);
@@ -771,11 +720,14 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 			// set the alignment files
 			std::vector<iAlnStream*> alignmentFiles;
 			unsigned numberOfAlignments = 0;
-			for (unsigned mateIndex = 1; mateIndex <= mates; ++mateIndex) {
-				if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ ) return 0;
+			for (unsigned mateIndex = 1; mateIndex <= mateCycles.size(); mateIndex++) {
 
-				CountType mateCycle = mateIndex==mates ? last_mate_cycle : globalAlignmentSettings.getSeqByMate(mateIndex).length;
+				if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ )
+					return 0;
 
+				CountType mateCycle = mateCycles[mateIndex-1];
+
+				// Open alignment file
 				std::string alignment_fname = alignment_name(ln, tl, mateCycle, mateIndex);
 				if ( !file_exists(alignment_fname) ) {
 					logfile << "Alignment file not found: " << alignment_fname << ". Ignored all related alignments." << std::endl;
@@ -801,6 +753,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
 				alignmentFiles.push_back(input);
 			}
+
 			totalNumberOfReads += numberOfAlignments;
 
 			// for all reads in a tile
@@ -817,11 +770,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 					continue;
 
 				// compute barcode sequence as it should be written to BC tag
-				std::string barcode = mateAlignments[0]->getBarcodeString(); // barcode how HiLive read it from .bcl files
-				if (barcode!="") { // if demultiplexing is on
-					// insert "-" as delimiter between the single barcodes
-					barcode = globalAlignmentSettings.format_barcode(barcode);
-				}
+				std::string barcode = globalAlignmentSettings.format_barcode(mateAlignments[0]->getBarcodeString());
 
 				// Barcode index for the read
 				CountType barcodeIndex = mateAlignments[0]->getBarcodeIndex();
@@ -850,9 +799,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 					/////////////////////////////////////////////////////////////////////////////
 					for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ) {
 						if ( (*it)->gid == TRIMMED ) {
-							if (mateAlignments[mateAlignmentIndex]->seeds.size() == 1) {
-								globalAlignmentSettings.add_trimmedRead(i);
-							}
+							//TODO: count trimmed reads for output stats
 							++it;
 							continue;
 						}
@@ -903,13 +850,10 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 
 						// check if cigar string sums up to read length
-						// TODO
-						// Jakob: I have not seen such a warning in a long time and a correct algorithm should prevent these cases anyway.
-						// Furthermore, this is a filtering step and potentially conflicts with the 'eachMateAligned' flag if done here.
-						// However, Tobi has done something here
+						// TODO Potentially conflicts with the 'eachMateAligned' flag if done here.
 						unsigned cigarElemSum = 0;
 						unsigned deletionSum = 0;
-						unsigned supposed_cigar_length = mateAlignmentIndex == CountType(mates-1) ? last_mate_cycle : globalAlignmentSettings.getSeqByMate(mateAlignmentIndex + 1).length;
+						unsigned supposed_cigar_length = mateCycles[mateAlignmentIndex];
 						unsigned asi_score = (*it)->num_matches;
 						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
 							if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
@@ -963,17 +907,17 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
 	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
 		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
-			std::string barcode_string = barcode < barcodes.size() ? barcodes[barcode] : "undetermined";
-			std::string old_out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcode_string + file_cycle + ".temp" + file_suffix;
-			std::string new_out_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out_" + barcode_string + file_cycle + file_suffix;
-			std::rename(old_out_fname.c_str(), new_out_fname.c_str());
+
+			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
+
+			std::rename(getBamTempFileName(barcode_string, cycle).c_str(), getBamFileName(barcode_string, cycle).c_str());
 		}
 	}
 
 	// TODO maybe find a way to generate statsfiles when generating multiple output files.
 	std::ofstream statsfile;
 	std::string statsfile_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out";
-	statsfile_fname += cycle == globalAlignmentSettings.get_cycles() ? ".stats" : "_cycle" + std::to_string(cycle) + ".stats";
+	statsfile_fname += ( cycle == globalAlignmentSettings.get_cycles() ) ? ".stats" : "_cycle" + std::to_string(cycle) + ".stats";
 	statsfile.open( statsfile_fname );
 	statsfile << "Number of reads\t" << totalNumberOfReads << std::endl;
 	statsfile << "Number of alignments\t" << num_alignments << std::endl;

@@ -47,7 +47,6 @@ std::vector<char> read_binary_file(const std::string &fname);
 /** Write data from a char vector into a binary file. */
 uint64_t write_binary_file(const std::string &fname, const std::vector<char> & data);
 
-
 ///////////////////////////////////////////////
 // XML File Handling
 ///////////////////////////////////////////////
@@ -85,10 +84,5 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
   	return node;
 
 }
-
-//bool node_exist(boost::property_tree::ptree & ptree, std::string node) {
-//	boost::optional< const boost::property_tree::ptree& > child = ptree.get_child_optional( node );
-//	return ! (! child);
-//}
 
 #endif /* TOOLS_STATIC_H */

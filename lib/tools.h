@@ -31,6 +31,7 @@ std::string filter_name(uint16_t ln, uint16_t tl);
 std::string position_name(uint16_t ln, uint16_t tl);
 std::string sam_tile_name(uint16_t ln, uint16_t tl, bool write_bam);
 std::string get_xml_out_name();
+std::string get_out_log_name();
 
 /** Get the current sequencing cycle using the current alignment cycle and read number.
  * @param cycle The read cycle.
@@ -39,5 +40,9 @@ std::string get_xml_out_name();
  * @author Tobias Loka
  */
 uint16_t getSeqCycle(uint16_t cycle, uint16_t read_number=1);
+uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle );
 
+seqan::BamHeader getBamHeader();
+std::string getBamTempFileName(std::string barcode, CountType cycle);
+std::string getBamFileName(std::string barcode, CountType cycle);
 #endif /* TOOLS_H */

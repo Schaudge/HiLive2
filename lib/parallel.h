@@ -85,7 +85,6 @@ class TaskQueue {
   uint64_t size();
 };
 
-
 // Agenda item status
 typedef uint8_t ItemStatus;
 const ItemStatus WAITING = 0;
@@ -149,7 +148,6 @@ class Agenda {
   // SAM files can only be generated for tiles where all cycles are completed
   std::vector<Task> get_SAM_tasks();
 };
-
 
 // create a vector with all lane numbers
 std::vector<uint16_t> all_lanes();

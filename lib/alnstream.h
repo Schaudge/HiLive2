@@ -8,9 +8,6 @@
 #include "tools.h"
 #include "alnread.h"
 #include "illumina_parsers.h"
-#include <seqan/basic.h>
-#include <seqan/sequence.h>
-#include <seqan/bam_io.h>
 
 // Output alignment stream: write alignments to file one by one
 class oAlnStream {
