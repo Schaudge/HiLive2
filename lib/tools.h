@@ -8,14 +8,9 @@
 #define TOOLS_H
 
 /* DONT ADD ANY INCLUDES */
-#include "headers.h"
-#include "definitions.h"
 #include "tools_static.h"
 #include "alignmentSettings.h"
 #include "global_variables.h"
-
-// TODO: remove dependency. Functions that are dependent on kindex should be placed there.
-#include "kindex.h"
 /* DONT ADD ANY INCLUDES */
 
 

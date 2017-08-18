@@ -33,7 +33,6 @@ HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
   return (h)<(r)?h:r;
 }
 
-
 std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h)
 {
   if (!(it+globalAlignmentSettings.get_kmer_span()-1 < end)) {
@@ -62,8 +61,6 @@ std::string::const_iterator hash_fw(std::string::const_iterator it, std::string:
   return last_invalid;
 }
 
-
-/* returns the sequence of a k-mer */
 std::string unhash(HashIntoType myHash, unsigned hashLen)
 {
 	std::string kmer = "";
@@ -83,14 +80,11 @@ std::string unhash(HashIntoType myHash, unsigned hashLen)
 ////////// File name construction //////////
 ////////////////////////////////////////////
 
-// construct BCL file name from: root, lane, tile, cycle
 std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl) {
   std::ostringstream path_stream;
   path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/C" << cl << ".1/s_"<< ln <<"_" << tl << ".bcl";
   return path_stream.str();
 }
-
-// construct alignment file name from: root, lane, tile, cycle
 
 std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt){
   std::ostringstream path_stream;
@@ -99,14 +93,12 @@ std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt){
   return path_stream.str();
 }
 
-
 uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id) {
 	uint16_t seq_cycle = cycle;
 	for ( int i = 0; i < seq_id; i++ )
 		seq_cycle += globalAlignmentSettings.getSeqById(i).length;
 	return seq_cycle;
 }
-
 
 uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 
@@ -138,7 +130,6 @@ uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 	return 0;
 }
 
-// construct filter file name from: root, lane, tile
 
 std::string filter_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
@@ -146,7 +137,6 @@ std::string filter_name(uint16_t ln, uint16_t tl) {
   return path_stream.str();
 }
 
-// construct position file name from: root, lane, tile
 
 std::string position_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
@@ -154,7 +144,6 @@ std::string position_name(uint16_t ln, uint16_t tl) {
   return path_stream.str();
 }
 
-// Get file name of the settings file
 
 std::string get_settings_name() {
 	std::ostringstream path_stream;
@@ -163,7 +152,6 @@ std::string get_settings_name() {
 	return path_stream.str();
 }
 
-// Get file name of the output log
 
 std::string get_out_log_name() {
 	return ( globalAlignmentSettings.get_out_dir() + "/hilive_out.log" );
