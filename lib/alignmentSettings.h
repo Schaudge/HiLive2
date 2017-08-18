@@ -106,6 +106,8 @@ private:
 
   Unmodifiable<AlignmentMode> mode;
 
+  Unmodifiable<float> min_as_ratio;
+
   template<typename T>
   bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
 	  try {
@@ -755,6 +757,18 @@ public:
 
   CountType get_max_consecutive_gaps() {
       return get_unmodifiable(max_consecutive_gaps, "max_consecutive_gaps");
+  }
+
+  float get_min_as_ratio() {
+        return get_unmodifiable(min_as_ratio, "min_as_ratio");
+    }
+
+  void set_min_as_ratio(float value) {
+	  if ( value > 1.0f )
+		  value = 1.0f;
+	  if ( value < 0.0f )
+		  value = 0.0f;
+	  set_unmodifiable(min_as_ratio, value, "min_as_ratio");
   }
 
 };

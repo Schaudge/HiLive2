@@ -650,6 +650,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	logfile.open( get_out_log_name(), std::ofstream::app );
 
 	logfile << "Start to write output for cycle " << std::to_string(cycle) << "." << std::endl;
+	logfile << "Only alignments with a relative alignment score of >= " << std::to_string(globalAlignmentSettings.get_min_as_ratio()) << " are considered." << std::endl;
 
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;
@@ -854,15 +855,17 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 						unsigned cigarElemSum = 0;
 						unsigned deletionSum = 0;
 						unsigned supposed_cigar_length = mateCycles[mateAlignmentIndex];
-						unsigned asi_score = (*it)->num_matches;
+						CountType min_as_score = mateCycles[mateAlignmentIndex] * globalAlignmentSettings.get_min_as_ratio();
+
+						unsigned as_score = (*it)->num_matches;
 						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
 							if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
 								cigarElemSum += elem->count;
 							if ( (elem->operation == 'I') )
-								asi_score += elem->count - 1;
+								as_score += elem->count - 1;
 							if (elem->operation == 'D') {
 								deletionSum += elem->count;
-								asi_score -= 1;
+								as_score -= 1;
 							}
 						}
 						if (cigarElemSum != supposed_cigar_length) {
@@ -876,9 +879,15 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 							continue;
 						}
 
+						if (as_score < min_as_score) {
+//							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its AS:i score was below the threshold." << std::endl;
+							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
+							continue;
+						}
+
 						// tags
 						seqan::BamTagsDict dict;
-						seqan::appendTagValue(dict, "AS", ( asi_score ) );
+						seqan::appendTagValue(dict, "AS", ( as_score ) );
 						if (barcode!="") { // if demultiplexing is on
 							seqan::appendTagValue(dict, "BC", barcode);
 						}
