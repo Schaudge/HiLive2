@@ -173,7 +173,7 @@ int main(int argc, const char* argv[]) {
 
   	// Write the alignment settings to an XML file
   	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
-  	if ( ! write_xml(xml_out, get_xml_out_name()) )
+  	if ( ! write_xml(xml_out, get_settings_name()) )
   		exit(EXIT_FAILURE);
 
     // Create the overall agenda

@@ -228,7 +228,7 @@ po::options_description HiLiveArgumentParser::alignment_options() {
 	        		("min-errors,e", po::value<CountType>(), "Number of errors tolerated in read alignment [Default: 2]")
 					("mode,m", po::value<std::string>(), "Alignment mode. [ALL|A]: Report all alignments; [BESTN#|N#]: Report alignments of the best # scores; "
 							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [ANYBEST|B]: Report one best alignment (default)")
-					("disable-ohw-filter", po::bool_switch(), "disable the One-Hit Wonder filter [Default: false]")
+					("disable-ohw-filter", po::bool_switch(), "Disable the One-Hit Wonder filter [Default: false]")
 					("start-ohw", po::value<CountType>(), "First cycle to apply One-Hit Wonder filter [Default: 20]")
 					("window,w", po::value<DiffType>(), "Set the window size to search for alignment extension, i.e. maximum total insertion/deletion size [Default: 5]")
 					("min-quality", po::value<CountType>(), "Minimum allowed basecall quality [Default: 1]")
@@ -241,7 +241,7 @@ po::options_description HiLiveArgumentParser::alignment_options() {
 po::options_description HiLiveArgumentParser::technical_options() {
 	 po::options_description technical("Technical settings");
 	 technical.add_options()
-	        		("block-size", po::value<std::string>(), "Block size for the alignment input/output stream in Bytes. Append 'K' or 'M' to specify in Kilobytes or Megabytes, respectively (e.g. '--block-size 64M' for 64 Megabytes")
+	        		("block-size", po::value<std::string>(), "Block size for the alignment input/output stream in Bytes. Append 'K' or 'M' to specify in Kilobytes or Megabytes, respectively (e.g. '--block-size 64M' for 64 Megabytes)")
 					("compression,c", po::value<uint16_t>(), "Compress alignment files. 0: no compression 1: Deflate (smaller) 2: LZ4 (faster; default)")
 					("num-threads,n", po::value<CountType>(), "Number of threads to spawn [Default: all available]");
 	 return technical;
@@ -302,8 +302,8 @@ bool HiLiveArgumentParser::checkPaths() {
 		boost::filesystem::create_directories(globalAlignmentSettings.get_temp_dir());
 	}
 
-	if ( !is_directory(globalAlignmentSettings.get_out_dir().string())) {
-		boost::filesystem::create_directories(globalAlignmentSettings.get_out_dir().string());
+	if ( !is_directory(globalAlignmentSettings.get_out_dir())) {
+		boost::filesystem::create_directories(globalAlignmentSettings.get_out_dir());
 	}
 
 	return true;
@@ -316,9 +316,9 @@ void HiLiveArgumentParser::report() {
         std::cout << "Temporary directory:      " << globalAlignmentSettings.get_temp_dir() << std::endl;
     }
     if (!globalAlignmentSettings.get_write_bam())
-        std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir().string() << std::endl;
+        std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
     else
-        std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir().string() << std::endl;
+        std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
     std::cout << "Lanes:                    ";
     for ( uint16_t ln : globalAlignmentSettings.get_lanes() )
         std::cout << ln << " ";

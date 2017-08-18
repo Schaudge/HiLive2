@@ -1,34 +1,20 @@
 #include "tools_static.h"
 
+
+/////////////////////////////////
+////////// Comparators //////////
+/////////////////////////////////
+
 bool gp_compare (GenomePosType i,GenomePosType j) {
 	if ( i.pos == j.pos )
 		return i.gid < j.gid;
 	return (i.pos < j.pos);
 }
 
-uint32_t num_reads_from_bcl(std::string bcl) {
-  // open BCL file of first cycle
-  FILE* ifile;
-  ifile = fopen(bcl.c_str(), "rb");
 
-  if (!ifile) {
-    std::cerr << "Error reading BCL file " << bcl << ": Could not open file." << std::endl;
-    return 0;
-  }
-
-  // extract the number of reads
-  uint32_t num_reads;
-  bool res = fread(&num_reads, 1, sizeof(uint32_t), ifile);
-  if (!res) {
-    std::cerr << "Error extracting number of reads from BCL file " << bcl << std::endl;
-    return 0;
-  }
-
-  // close file
-  fclose (ifile);
-
-  return num_reads;
-}
+/////////////////////////////////////
+////////// Type convertion //////////
+/////////////////////////////////////
 
 void split(const std::string &s, char delim, std::vector<std::string> &elems) {
     std::stringstream ss;
@@ -39,9 +25,10 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems) {
     }
 }
 
-///////////////////////////////////////////////
-// General File Handling
-///////////////////////////////////////////////
+
+///////////////////////////////////
+////////// File handling //////////
+///////////////////////////////////
 
 std::ifstream::pos_type get_filesize(const std::string &fname)
 {
@@ -68,10 +55,10 @@ bool file_exists(const std::string &fname) {
 
 }
 
-
-///////////////////////////////////////////////
-// Binary File Handling
-///////////////////////////////////////////////
+std::string absolute_path(std::string fname) {
+	boost::filesystem::path input_path(fname);
+	return boost::filesystem::canonical(fname).string();
+}
 
 std::vector<char> read_binary_file(const std::string &fname) {
 
@@ -128,9 +115,9 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
 }
 
 
-///////////////////////////////////////////////
-// XML File Handling
-///////////////////////////////////////////////
+////////////////////////////////////////////////
+////////// Property trees / XML files //////////
+////////////////////////////////////////////////
 
 bool read_xml(boost::property_tree::ptree & xml_in, std::string xml_fname) {
 
@@ -162,3 +149,33 @@ bool write_xml(boost::property_tree::ptree & xml_out, std::string xml_fname) {
 	return true;
 
 }
+
+
+/////////////////////////////////
+////////// Other stuff //////////
+/////////////////////////////////
+
+uint32_t num_reads_from_bcl(std::string bcl) {
+  // open BCL file of first cycle
+  FILE* ifile;
+  ifile = fopen(bcl.c_str(), "rb");
+
+  if (!ifile) {
+    std::cerr << "Error reading BCL file " << bcl << ": Could not open file." << std::endl;
+    return 0;
+  }
+
+  // extract the number of reads
+  uint32_t num_reads;
+  bool res = fread(&num_reads, 1, sizeof(uint32_t), ifile);
+  if (!res) {
+    std::cerr << "Error extracting number of reads from BCL file " << bcl << std::endl;
+    return 0;
+  }
+
+  // close file
+  fclose (ifile);
+
+  return num_reads;
+}
+

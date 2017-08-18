@@ -1,8 +1,10 @@
 #include "tools.h"
 
 
-/* calculates the first forward and reverse complement k-mer in the 
-   string <kmer> and returns the canonical representation. */
+///////////////////////////////////
+////////// K-mer Hashing //////////
+///////////////////////////////////
+
 HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
 {
   assert(strlen(kmer) >= globalAlignmentSettings.get_kmer_span());
@@ -31,7 +33,7 @@ HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
   return (h)<(r)?h:r;
 }
 
-/* calculates the first forward k-mer in the string <kmer> */
+
 std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h)
 {
   if (!(it+globalAlignmentSettings.get_kmer_span()-1 < end)) {
@@ -77,7 +79,9 @@ std::string unhash(HashIntoType myHash, unsigned hashLen)
 
 
 
-// file name construction functions
+////////////////////////////////////////////
+////////// File name construction //////////
+////////////////////////////////////////////
 
 // construct BCL file name from: root, lane, tile, cycle
 std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl) {
@@ -87,6 +91,7 @@ std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl) {
 }
 
 // construct alignment file name from: root, lane, tile, cycle
+
 std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt){
   std::ostringstream path_stream;
   std::string base = globalAlignmentSettings.get_temp_dir() != "" ? globalAlignmentSettings.get_temp_dir() : globalAlignmentSettings.get_root();
@@ -94,22 +99,14 @@ std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt){
   return path_stream.str();
 }
 
-// construct tile-wise SAM file name from: root, lane, tile
-std::string sam_tile_name(uint16_t ln, uint16_t tl, bool write_bam) {
-  std::ostringstream path_stream;
-  if (write_bam)
-    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".bam";
-  else
-    path_stream << globalAlignmentSettings.get_out_dir().string() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".sam";
-  return path_stream.str();
-}
 
-uint16_t getSeqCycle(uint16_t cycle, uint16_t read_number) {
+uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id) {
 	uint16_t seq_cycle = cycle;
-	for ( int i = 0; i < read_number; i++ )
+	for ( int i = 0; i < seq_id; i++ )
 		seq_cycle += globalAlignmentSettings.getSeqById(i).length;
 	return seq_cycle;
 }
+
 
 uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 
@@ -142,6 +139,7 @@ uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 }
 
 // construct filter file name from: root, lane, tile
+
 std::string filter_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
   path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".filter";
@@ -149,6 +147,7 @@ std::string filter_name(uint16_t ln, uint16_t tl) {
 }
 
 // construct position file name from: root, lane, tile
+
 std::string position_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
   path_stream << globalAlignmentSettings.get_root() << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
@@ -156,7 +155,8 @@ std::string position_name(uint16_t ln, uint16_t tl) {
 }
 
 // Get file name of the settings file
-std::string get_xml_out_name() {
+
+std::string get_settings_name() {
 	std::ostringstream path_stream;
 	std::string base = globalAlignmentSettings.get_temp_dir() != "" ? globalAlignmentSettings.get_temp_dir() : globalAlignmentSettings.get_root();
 	path_stream << base << "/hilive_settings.xml";
@@ -164,9 +164,16 @@ std::string get_xml_out_name() {
 }
 
 // Get file name of the output log
+
 std::string get_out_log_name() {
-	return ( globalAlignmentSettings.get_out_dir().string() + "/hilive_out.log" );
+	return ( globalAlignmentSettings.get_out_dir() + "/hilive_out.log" );
 }
+
+
+
+////////////////////////////////////
+////////// SAM/BAM output //////////
+////////////////////////////////////
 
 seqan::BamHeader getBamHeader() {
 	std::stringstream ss;
@@ -197,16 +204,18 @@ seqan::BamHeader getBamHeader() {
 	return header;
 }
 
+
 std::string getBamTempFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
-	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << ".temp" << file_suffix;
+	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << ".temp" << file_suffix;
 	return fname.str();
 }
+
 
 std::string getBamFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
-	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << file_suffix;
+	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << file_suffix;
 	return fname.str();
 }

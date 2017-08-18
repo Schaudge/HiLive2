@@ -80,7 +80,7 @@ private:
   Unmodifiable<std::vector<std::vector<std::string>>> barcodeVector;
 
   // PARAMETER: directory in which to create the output directory structure 
-  Unmodifiable<boost::filesystem::path> out_dir;
+  Unmodifiable<std::string> out_dir;
 
   // PARAMETER: number of threads to use
   Unmodifiable<CountType> num_threads;
@@ -207,7 +207,7 @@ public:
 
 	  // Paths
 	  xml_out.add_child("settings.paths.temp_dir", getXMLnode ( get_temp_dir() ));
-	  xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir().filename().string() ));
+	  xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir() ));
 	  xml_out.add_child("settings.paths.root", getXMLnode ( get_root() ));
 	  xml_out.add_child("settings.paths.index", getXMLnode ( get_index_fname() ));
 
@@ -703,14 +703,10 @@ public:
   }
 
   void set_out_dir(std::string value) {
-	  set_unmodifiable(out_dir, boost::filesystem::path(value), "out_dir");
-  }
-
-  void set_out_dir(boost::filesystem::path value) {
 	  set_unmodifiable(out_dir, value, "out_dir");
   }
 
-  boost::filesystem::path get_out_dir() {
+  std::string get_out_dir() {
       return get_unmodifiable(out_dir, "out_dir");
   }
 
