@@ -916,8 +916,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 	// TODO maybe find a way to generate statsfiles when generating multiple output files.
 	std::ofstream statsfile;
-	std::string statsfile_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out";
-	statsfile_fname += ( cycle == globalAlignmentSettings.get_cycles() ) ? ".stats" : "_cycle" + std::to_string(cycle) + ".stats";
+	std::string statsfile_fname = globalAlignmentSettings.get_out_dir().string() + "/hilive_out" + "_cycle" + std::to_string(cycle) + ".stats";
 	statsfile.open( statsfile_fname );
 	statsfile << "Number of reads\t" << totalNumberOfReads << std::endl;
 	statsfile << "Number of alignments\t" << num_alignments << std::endl;

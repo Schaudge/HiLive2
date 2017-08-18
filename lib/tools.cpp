@@ -199,16 +199,14 @@ seqan::BamHeader getBamHeader() {
 
 std::string getBamTempFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
-	std::string cycle_string = ( cycle == globalAlignmentSettings.get_cycles() ) ? "" : "cycle" + std::to_string(cycle) + "_";
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
-	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << cycle_string << barcode << ".temp" << file_suffix;
+	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << ".temp" << file_suffix;
 	return fname.str();
 }
 
 std::string getBamFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
-	std::string cycle_string = ( cycle == globalAlignmentSettings.get_cycles() ) ? "" : "cycle" + std::to_string(cycle) + "_";
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
-	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << cycle_string << barcode << file_suffix;
+	fname << globalAlignmentSettings.get_out_dir().string() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << file_suffix;
 	return fname.str();
 }
