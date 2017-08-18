@@ -215,6 +215,7 @@ public:
 	  xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
 	  xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
 	  xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
+	  xml_out.add_child("settings.out.min_as_ratio", getXMLnode ( get_min_as_ratio()) );
 
 	  // Technical settings
 	  xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
