@@ -241,7 +241,7 @@ po::options_description HiLiveArgumentParser::technical_options() {
 	 po::options_description technical("Technical settings");
 	 technical.add_options()
 	        		("block-size", po::value<std::string>(), "Block size for the alignment input/output stream in Bytes. Append 'K' or 'M' to specify in Kilobytes or Megabytes, respectively (e.g. '--block-size 64M' for 64 Megabytes")
-					("compression,c", po::value<uint8_t>(), "Compress alignment files. 0: no compression (default) 1: Deflate (smaller) 2: LZ4 (faster)")
+					("compression,c", po::value<uint16_t>(), "Compress alignment files. 0: no compression 1: Deflate (smaller) 2: LZ4 (faster; default)")
 					("num-threads,n", po::value<CountType>(), "Number of threads to spawn [Default: all available]");
 	 return technical;
 }
@@ -550,7 +550,7 @@ bool HiLiveArgumentParser::set_options() {
 
 		// Set technical options
 		set_option<std::string>("block-size", "settings.technical.block_size", "64M", &AlignmentSettings::set_block_size);
-		set_option<uint8_t>("compression", "settings.technical.compression_format", 2, &AlignmentSettings::set_compression_format);
+		set_option<uint16_t>("compression", "settings.technical.compression_format", 2, &AlignmentSettings::set_compression_format);
 
 		CountType n_cpu = std::thread::hardware_concurrency();
 		CountType n_threads_default = 1;

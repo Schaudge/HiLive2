@@ -605,8 +605,11 @@ public:
       return get_unmodifiable(block_size, "block_size");
   }
 
-  void set_compression_format(uint8_t value) {
-	  set_unmodifiable(compression_format, value, "compression_format");
+  void set_compression_format(uint16_t value) {
+	  if ( value > 2 )
+		  value = 2;
+	  uint8_t one_byte_value = value;
+	  set_unmodifiable(compression_format, one_byte_value, "compression_format");
   }
 
   uint8_t get_compression_format() {

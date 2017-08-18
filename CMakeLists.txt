@@ -5,8 +5,8 @@ cmake_minimum_required (VERSION 2.8)
 project (HiLive)
 
 # Set the version number 
-add_definitions(-DHiLive_VERSION_MAJOR=0)
-add_definitions(-DHiLive_VERSION_MINOR=3)
+add_definitions(-DHiLive_VERSION_MAJOR=1)
+add_definitions(-DHiLive_VERSION_MINOR=0)
 
 # Set flags for compilation
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++14 -O0")
@@ -29,7 +29,7 @@ include_directories( ${Boost_INCLUDE_DIR} )
 ### setup Zlib and lz4 libraries ###
 
 find_package( ZLIB REQUIRED )
-set (LZ4_PATH /usr/local/lib) # possibly adjust this to [pathToLz4]/lib if using downloaded lz4 source code
+#set (LZ4_PATH /usr/local/lib) 		# possibly adjust this to [pathToLz4]/lib if using downloaded lz4 source code
 include_directories(${LZ4_PATH})
 link_directories(${LZ4_PATH})
 set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
@@ -38,8 +38,8 @@ set(CompressionLibs "${ZLIB_LIBRARIES};lz4")
 #############################
 ### setup seqan libraries ### needs to be done AFTER searching for Zlib
 
-set (CMAKE_MODULE_PATH "/home/lokat/libs/seqan-v2.3.2/util/cmake") # adjust this to [pathToSeqanCode]/util/cmake
-set (SEQAN_INCLUDE_PATH "/home/lokat/libs/seqan-v2.3.2/include/") # adjust this to [pathToSeqanCode]/include
+set (CMAKE_MODULE_PATH "/usr/local/lib/seqan/util/cmake") # adjust this to [pathToSeqanCode]/util/cmake
+set (SEQAN_INCLUDE_PATH "/usr/local/lib/seqan/include/") # adjust this to [pathToSeqanCode]/include
 
 # Configure SeqAn, enabling features for libbz2 and zlib.
 #set (SEQAN_FIND_DEPENDENCIES ZLIB BZip2) # original version from seqan tutorial
