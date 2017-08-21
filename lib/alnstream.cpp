@@ -6,8 +6,8 @@
 //-------------------------------------------------------------------//
 
 // new output Alignment Stream class
-oAlnStream::oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt):
-  lane(ln), tile(tl), cycle(cl), rlen(rl), num_reads(nr), num_written(0), buffer(bs,0), buf_size(bs), buf_pos(0), format(fmt), ofile(NULL), ozfile(Z_NULL) {}
+oAlnStream::oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, std::string rt, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt):
+  lane(ln), tile(tl), cycle(cl), root(rt), rlen(rl), num_reads(nr), num_written(0), buffer(bs,0), buf_size(bs), buf_pos(0), format(fmt), ofile(NULL), ozfile(Z_NULL) {}
 
 
 // write function for lz4 compression
@@ -299,7 +299,6 @@ uint64_t iAlnStream::open(std::string fname) {
 }
 
 
-
 ReadAlignment* iAlnStream::get_alignment() {
 
   if ( (format==0 && !ifile) || (format==1 && izfile == Z_NULL) ){
@@ -367,9 +366,9 @@ ReadAlignment* iAlnStream::get_alignment() {
     }
   }
 
-  // finally, deserialize the alignment
-  ReadAlignment* ra = new ReadAlignment();
-  ra->set_total_cycles(rlen);
+  // finally, deserialize the alignment. Set total number of cycles to rlen and increase cycle number by 1.
+  ReadAlignment* ra = new ReadAlignment(rlen, cycle+1);
+
   ra->deserialize(data.data());
   
   num_loaded++;
@@ -470,13 +469,12 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
   uint32_t num_reads = num_reads_from_bcl(first_cycle);
   
   // open output alignment stream
-  oAlnStream output (lane, tile, 0, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+  oAlnStream output (lane, tile, 0, root, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
 
   // write empty read alignments for each read
   for (uint32_t i = 0; i < num_reads; ++i) {
-    ReadAlignment * ra = new ReadAlignment();
-    ra->set_total_cycles(rlen);
+    ReadAlignment * ra = new ReadAlignment(rlen, 0);
     output.write_alignment(ra);
     delete ra;
   }
@@ -485,7 +483,6 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
     std::cerr << "Error: Could not create initial alignment file." << std::endl;
   }
 } 
-
 
 
 // extend an existing alignment from cycle <cycle-1> to <cycle>. returns the number of seeds
@@ -510,7 +507,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   // 2. Open output stream
   //----------------------------------------------------------
   std::string out_fname = get_alignment_file(cycle, mate, globalAlignmentSettings.get_temp_dir());
-  oAlnStream output (lane, tile, cycle, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+  oAlnStream output (lane, tile, cycle, root, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
 
 
@@ -600,7 +597,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	  // 2. Open output stream
 	  //----------------------------------------------------------
 	  std::string out_fname = in_fname + ".temp";
-	  oAlnStream output (lane, tile, read_cycle, input.get_rlen(), num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+	  oAlnStream output (lane, tile, read_cycle, root, input.get_rlen(), num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
 	  output.open(out_fname);
 
 
@@ -644,6 +641,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
+// TODO: completely modify SAM output for HiLive2
 uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle) {
 
 	std::ofstream logfile;
@@ -666,6 +664,11 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 	// Init the bamIOContext (the same object can be used for all output streams)
 	seqan::StringSet<seqan::CharString> referenceNames;
+
+	  for (unsigned i=0; i<seqan::length(index->seq_names); i++) {
+	      seqan::appendValue(referenceNames, index->seq_names[i]);
+	  }
+
 	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
 	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
 
@@ -799,34 +802,35 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 					// for all seeds
 					/////////////////////////////////////////////////////////////////////////////
 					for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ) {
-						if ( (*it)->gid == TRIMMED ) {
-							//TODO: count trimmed reads for output stats
-							++it;
-							continue;
-						}
+//						if ( (*it)->gid == TRIMMED ) {
+//							//TODO: count trimmed reads for output stats
+//							++it;
+//							continue;
+//						}
 
 						seqan::clear(record);
 
 						record.qName = readname.str();
 
-						record.rID = (*it)->gid;
+//						record.rID = (*it)->gid;
+						record.rID = 0;
 
-						record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it)-1; // seqan expects 0-based positions, but in HiLive we use 1-based
+//						record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it)-1; // seqan expects 0-based positions, but in HiLive we use 1-based
 						if (record.beginPos < 0) {
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
 
 						unsigned nm_i = 0;
-						record.cigar = (*it)->returnSeqanCigarString(&nm_i);
+						record.cigar = (*it)->returnSeqanCigarString(); // TODO: add NM:i.
 
 						// flag and seq
 						record.flag = 0;
 						record.seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
-						if ((*it)->start_pos < 0) { // if read matched reverse complementary
-							seqan::reverseComplement(record.seq);
-							record.flag |= 16;
-						}
+//						if ((*it)->start_pos < 0) { // if read matched reverse complementary
+//							seqan::reverseComplement(record.seq);
+//							record.flag |= 16;
+//						}
 						if (printedMates >= mateAlignments.size()) { // if current seed is secondary alignment
 							record.flag |= 256;
 							seqan::clear(record.seq);
@@ -857,37 +861,37 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 						unsigned supposed_cigar_length = mateCycles[mateAlignmentIndex];
 						CountType min_as_score = mateCycles[mateAlignmentIndex] * globalAlignmentSettings.get_min_as_ratio();
 
-						unsigned as_score = (*it)->num_matches;
+//						unsigned as_score = (*it)->num_matches;
 						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
 							if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
 								cigarElemSum += elem->count;
-							if ( (elem->operation == 'I') )
-								as_score += elem->count - 1;
+//							if ( (elem->operation == 'I') )
+//								as_score += elem->count - 1;
 							if (elem->operation == 'D') {
 								deletionSum += elem->count;
-								as_score -= 1;
+//								as_score -= 1;
 							}
 						}
 						if (cigarElemSum != supposed_cigar_length) {
-							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
+//							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
 						if (deletionSum >= supposed_cigar_length) {
-							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
+//							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
 
-						if (as_score < min_as_score) {
-//							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its AS:i score was below the threshold." << std::endl;
-							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-							continue;
-						}
+//						if (as_score < min_as_score) {
+////							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its AS:i score was below the threshold." << std::endl;
+//							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
+//							continue;
+//						}
 
 						// tags
 						seqan::BamTagsDict dict;
-						seqan::appendTagValue(dict, "AS", ( as_score ) );
+//						seqan::appendTagValue(dict, "AS", ( as_score ) );
 						if (barcode!="") { // if demultiplexing is on
 							seqan::appendTagValue(dict, "BC", barcode);
 						}

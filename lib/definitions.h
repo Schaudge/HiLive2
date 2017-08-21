@@ -2,6 +2,7 @@
 #define DEFINITIONS_H
 
 #include "headers.h"
+#include <seqan/index.h>
 
 
 /////////////////////////////////////////////
@@ -68,7 +69,13 @@ typedef std::vector<GenomeIdType> GenomeIdListType;
 /**
  * Type for positions in a genome.
  */
-typedef int32_t PositionType;
+typedef uint32_t PositionType;
+
+// GenomeID / Position pair
+typedef std::pair<GenomeIdType, PositionType> PositionPairType;
+
+// List of Genome ID / Position pairs
+typedef std::list<PositionPairType> PositionPairListType;
 
 /**
  * A pair of genome ID and position.
@@ -119,6 +126,55 @@ typedef std::vector<GenomePosListType> KmerIndexType;
 typedef std::vector<char*> KixRunDB;
 
 
+//////////////////////////////
+////////// FM index //////////
+//////////////////////////////
+
+/**
+ * FM-Index Config.
+ */
+typedef seqan::FMIndexConfig<void, uint64_t> FMIConfig;
+
+/**
+ * FM-Index data type.
+ */
+typedef seqan::Index<seqan::StringSet<seqan::DnaString>, seqan::FMIndex<void, FMIConfig> > FMIndex;
+
+/**
+ * Iterator to go through the FM index structure.
+ */
+typedef seqan::Iterator<FMIndex, seqan::TopDown<> >::Type FMTopDownIterator;
+
+/**
+ * Data type to find a store a node in the FM index.
+ */
+typedef seqan::Iter<FMIndex,seqan::VSTree<seqan::TopDown<seqan::Preorder>>>::TVertexDesc FMVertexDescriptor;
+
+inline bool operator==(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	return l.range == r.range;
+//	return std::memcmp(&(l),&(r),sizeof(l)) == 0;
+}
+
+inline bool operator<(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	if ( l.range.i1 == r.range.i1)
+		return l.range.i2 < r.range.i2;
+	return l.range.i1 < r.range.i1;
+//	return std::memcmp(&(l),&(r),sizeof(l)) < 0;
+}
+
+inline bool operator>(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	if ( l.range.i1 == r.range.i1)
+		return l.range.i2 > r.range.i2;
+	return l.range.i1 > r.range.i1;
+//	return std::memcmp(&(l),&(r),sizeof(l)) > 0;
+}
+
+inline bool operator!=(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	return !(l==r);
+//	return std::memcmp(&(l),&(r),sizeof(l)) != 0;
+}
+
+
 ////////////////////////////////////////
 ////////// Integer data types //////////
 ////////////////////////////////////////
@@ -144,9 +200,14 @@ typedef int16_t DiffType;
 const DiffType NO_MATCH = std::numeric_limits<DiffType>::max();
 
 /**
- * Define a trimmed match  maximum value of DiffType -1.
+ *  Define an insertion as maximum value of Difftype -2.
  */
-const DiffType TRIMMED_MATCH = std::numeric_limits<DiffType>::max()-1;
+const DiffType INSERTION = std::numeric_limits<DiffType>::max()-1;
+
+/**
+ * Define a deletion as maximum value of DiffType -3.
+ */
+const DiffType DELETION = std::numeric_limits<DiffType>::max()-2;
 
 
 ////////////////////////////////////
@@ -338,6 +399,5 @@ enum AlignmentMode:char {
 	BESTN='N',
 	UNKNOWN='U'
 };
-
 
 #endif /* DEFINITIONS_H */

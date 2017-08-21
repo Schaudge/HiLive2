@@ -108,6 +108,11 @@ private:
 
   Unmodifiable<float> min_as_ratio;
 
+  // Definitions for FM index.
+  Unmodifiable<CountType> anchorLength;
+  Unmodifiable<CountType> errorRate;
+
+
   template<typename T>
   bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
 	  try {
@@ -228,6 +233,7 @@ public:
 	  xml_out.add_child("settings.align.window", getXMLnode (get_window() ));
 	  xml_out.add_child("settings.align.discard_ohw", getXMLnode ( get_discard_ohw() ));
 	  xml_out.add_child("settings.align.start_ohw", getXMLnode ( get_start_ohw() ));
+	  xml_out.add_child("settings.align.anchor", getXMLnode ( get_anchor_length() ));
 
 	  return xml_out;
   }
@@ -766,6 +772,19 @@ public:
 	  if ( value < 0.0f )
 		  value = 0.0f;
 	  set_unmodifiable(min_as_ratio, value, "min_as_ratio");
+  }
+
+  CountType get_anchor_length() {
+	  return get_unmodifiable(anchorLength, "anchorLength");
+  }
+
+  void set_anchor_length( CountType value ) {
+	  set_unmodifiable(anchorLength, value, "anchorLength");
+	  set_unmodifiable(errorRate, CountType(value/2), "errorRate");
+  }
+
+  CountType get_error_rate() {
+	  return get_unmodifiable(errorRate, "errorRate");
   }
 
 };

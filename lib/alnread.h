@@ -13,45 +13,140 @@
 //------  The Seed data structure  ----------------------------------//
 //-------------------------------------------------------------------//
 
-
-// a Seed stores the alignment of a read to a target genome
+/**
+ * Data structure to save alignment information for a path in the FM index
+ * @author Martin Lindner, Tobias Loka
+ */
 struct Seed {
 
-  // internal sequence ID of taget genome
-  GenomeIdType gid;
+	/**
+	 * Vertex iterator for the FM index. Contains the position information of the alignment
+	 */
+	FMVertexDescriptor vDesc;
 
-  // (estimated) start position of the read on the target
-  PositionType start_pos;
+	/**
+	 * Minimal number of errors (minimal in terms of the front softclip, number of errors after seeding is exact)
+	 */
+	CountType num_errors;
 
-  // number of matching bases
-  CountType num_matches;
+	/**
+	 * Information about matches/mismatches (similar to CIGAR). The last element is the current one
+	 */
+	CigarVector cigar_data;
 
-  // Information about matches/mismatches (similar to CIGAR). The last element is the current one
-  CigarVector cigar_data;
+	/**
+	 * Get the CIGAR string in SeqAn format
+	 * @return CIGAR string in SeqAn format
+	 */
+	seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
 
-  // return Seqans String of CigarElement
-  seqan::String<seqan::CigarElement<> > returnSeqanCigarString(unsigned* nm_i);
+	/**
+	 * Determine size of the serialized seed
+	 * @return size in bytes
+	 */
+	uint16_t serialize_size();
 
-  // get the size of the serialized object
-  uint16_t serialize_size();
+	/**
+	 * Serialize the seed
+	 * @return serialized seed
+	 */
+	std::vector<char> serialize();
 
-  // serialize the object
-  std::vector<char> serialize();
+	/**
+	 * Deserialize seed data from a char vector
+	 * @param Char vector containing the seed information in binary format
+	 * @return Size of loaded data in bytes
+	 */
+	uint16_t deserialize(char* d);
 
-  // deserialize (read) data from a char vector
-  uint16_t deserialize(char* d);
-
-  void cout();
+	void cout();
 };
 
+typedef std::shared_ptr<Seed> USeed;
 
-typedef std::unique_ptr<Seed> USeed;
-// compare function to sort Seed objects by position
-bool seed_compare_pos (const USeed & i, const USeed & j);
-// std::list of Seed pointers is much faster
+/**
+ * Shared pointer to seeds.
+ */
 typedef std::list<USeed> SeedVec;
-// a SeedVec Iterator
+
+/**
+ * Iterator for a list of shared pointers to seeds.
+ */
 typedef SeedVec::iterator SeedVecIt;
+
+/**
+ * Compare two pointers by comparing the respective target objects.
+ */
+
+template <typename T> bool PComp(const T & a, const T & b)
+{
+   return *a < *b;
+}
+
+/**
+ * Comparator for seeds to sort them by their number of errors.
+ * @author Tobias Loka
+ */
+inline bool seed_comparison_by_error(const USeed a, const USeed b) {
+
+	// TODO: think about whether it makes sense to count complete softclip as mismatch or not (currently not)
+
+	// if equal number of matches
+	if (a->num_errors == b->num_errors) {
+
+		// prefer no front softclip
+		if ( a->cigar_data.front().offset != b->cigar_data.front().offset ) {
+			return ( a->cigar_data.front().offset != NO_MATCH );
+		}
+
+		// prefer shorter front softclip
+		if ( a->cigar_data.front().offset == NO_MATCH && b->cigar_data.front().offset == NO_MATCH) {
+			if ( a->cigar_data.front().length != b->cigar_data.front().length) {
+				return ( a->cigar_data.front().length < b->cigar_data.front().length );
+			}
+		}
+
+		// prefer less cigar elements (if equal, don't care)
+		return a->cigar_data.size() < b->cigar_data.size();
+	}
+
+	return a->num_errors < b->num_errors;
+}
+
+/**
+ * Define '<'-operator for seeds.
+ * Used for sorting by the range in the FM index.
+ * @author Tobias Loka
+ */
+inline bool operator <(const Seed l, const Seed r) {
+
+	// consider VertexDescriptor (range)
+	if ( l.vDesc < r.vDesc )
+		return true;
+	else if ( l.vDesc > r.vDesc )
+		return false;
+
+	else {
+
+		// consider leading softclip (when having the same range, prefer to know more details about it)
+		if ( l.cigar_data.front().offset == NO_MATCH && r.cigar_data.front().offset == NO_MATCH ) {
+			if ( l.cigar_data.front().length < r.cigar_data.front().length )
+				return true;
+			else if ( l.cigar_data.front().length > r.cigar_data.front().length )
+				return false;
+		}
+		else if ( l.cigar_data.front().offset == NO_MATCH )
+			return false;
+		else if ( r.cigar_data.front().offset == NO_MATCH )
+			return true;
+
+		// consider mismatches
+		return l.num_errors < r.num_errors;
+
+	}
+	return false;
+}
+
 
 
 
@@ -59,126 +154,213 @@ typedef SeedVec::iterator SeedVecIt;
 //------  The Read-Alignment class  ---------------------------------//
 //-------------------------------------------------------------------//
 
-
+/**
+ * Class for the organization of the complete alignment of a single read.
+ */
 class ReadAlignment {
 
  private:
 
-  // read length
-  CountType total_cycles;
+	/** Number of cycles for the current alignment */
+	CountType total_cycles;
 
-  // sequence of the read so far, saved as vector<uint8_t> so interpretation is not that trivial.
-  CountType sequenceLen=0;
-  std::vector<uint8_t> sequenceStoreVector;
+	/** Length of the read sequence */
+	CountType sequenceLen=0;
 
-  // sequence of the barcode so far, saved as vector<uint8_t> so interpretation is not that trivial
-  CountType barcodeLen=0;
-  std::vector<uint8_t> barcodeStoreVector;
+	/** Sequence of the read */
+	std::vector<uint8_t> sequenceStoreVector;
 
-  // Extend or create a placeholder seed for read with only trimmed matches
-  void create_placeholder_seed();
+	/** Length of the barcode */
+	CountType barcodeLen=0;
 
-  // Create new seeds from a list of kmer positions and add to current seeds
-  void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension);
+	/** Barcode Sequence of the read */
+	std::vector<uint8_t> barcodeStoreVector;
 
-  /**
-   * This function is the modified pigeonhole principle holding for both spaced and unspaced kmers.
-   * It computes the minimum number of errors in an error region of a given CIGAR vector.
-   * An error region is a region that is surrounded by MATCH elements of length >= ( kmer_span - 1 ).
-   * The error region cannot contain MATCH elements of length >= ( kmer_span - 1 ).
-   *
-   * @param region_length Sum of all (!) elements within the error region, including involved MATCH elements.
-   * @param border Number of included borders of the CIGAR vector (begin and/or end). Must be in [0,2].
-   * @param Absolute number (positive) of the offset change during a region
-   * @return Minimum number of errors that caused a region of the given length.
-   * @author Tobias Loka, Jakob Schulze
-   */
-  CountType minErrors_in_region(CountType region_length, CountType border, CountType offset_change=0 );
+	/**
+	 * Extend a single seed. Creates new seeds for all possible extensions that occur in the reference genome (Match, InDel, SNP)
+	 * @param base The next nucleotide
+	 * @param s The seed to be extended
+	 * @param allowedErrors Number of permitted errors for this seed
+	 * @param index The FM index
+	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
+	 * @author Tobias Loka
+	 */
+	void extendSeed(char base, USeed s, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
 
-  // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
-  void filterAndCreateNewSeeds(GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension);
+	/**
+	 * Extend a seed by alignment matches (Match or SNP)
+	 * @param base_repr Binary representation of the current nucleotide
+	 * @param origin The seed to be extended
+	 * @param allowedErrors Number of permitted errors for this seed
+	 * @param index The FM index
+	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
+	 * @author Tobias Loka
+	 */
+	void getMatchSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
 
-  // updates cigar_data accordingly to a new matching kmer
-  void addMatchingKmer(USeed & s, DiffType offset);
+	/**
+	 * Extend a seed by an insertion
+	 * @param base_repr Binary representation of the current nucleotide
+	 * @param origin The seed to be extended
+	 * @param allowedErrors Number of permitted errors for this seed
+	 * @param index The FM index
+     * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
+	 * @author Tobias Loka
+	 */
+	void getInsertionSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
 
-  // Extend an existing CIGAR string for a seed based on a new basecall. return false if last CIGAR element after extension is mismatch area (NO_MATCH), true otherwise.
-  bool extendSeed(USeed & s, DiffType offset);
 
- public: // have everything public until the apropriate access functions are available
+	/**
+	 * Extend a seed by deletions
+	 * @param base_repr Binary representation of the current nucleotide
+	 * @param origin The seed to be extended
+	 * @param allowedErrors Number of permitted errors for this seed
+	 * @param index The FM index
+	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
+	 * @author Tobias Loka
+	 */
+	void getDeletionSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
 
-  // Flags for this read; 1 = read is valid (illumina flag)
-  unsigned char flags = 1;
+	/**
+	 * Add deletions to the alignment up to the permitted number of errors
+	 * @param base_repr Binary representation of the current nucleotide
+	 * @param origin The seed of the previous iteration
+	 * @param allowedErrors Number of permitted errors for this seed
+	 * @param index The FM index
+	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
+	 * @author Tobias Loka
+	 */
+	void recursive_goDown(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
 
-  // the last invalid cycle
-  CountType last_invalid;
+	/** Create new seeds
+	 * @param index The FM index
+	 * @param settings The alignment settings
+	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
+	 * @author Tobias Loka
+	 */
+	void createSeeds(KixRun* index, SeedVec & newSeeds);
 
-  // the current cycle
-  CountType cycle;
+
+
+ public:
+
+	/** Flag of the illumina read (1=valid) */
+	unsigned char flags = 1;
+
+	/** The current alignment cycle */
+	CountType cycle;
   
-  // a list of all found seeds
-  SeedVec seeds;
-
-  // max number of matches for this read
-  CountType max_num_matches;
-
-  // set the read_length
-  void set_total_cycles(CountType c);
+	/** List of all seeds for the respective read */
+	SeedVec seeds;
   
-  // get the size of the serialized object
-  uint64_t serialize_size();
+	/**
+	 * Get the size of the serialized alignment
+	 * @return Size of the serialized alignment in bytes
+	 */
+	uint64_t serialize_size();
 
-  // serialize the object
-  std::vector<char> serialize();
+	/**
+	 * Serialize the alignment
+	 * @return Serialized alignment.
+	 */
+	std::vector<char> serialize();
 
-  // deserialize (read) data from a char vector
-  uint64_t deserialize(char* d);
+	/**
+	 * Deserialize alignment data from a char vector
+	 * @param d The alignment data
+	 * @return Number of handled bytes
+	 */
+	uint64_t deserialize(char* d);
 
-  // convert and return sequence of the read as string (without barcode)
-  std::string getSequenceString();
+	/**
+	 * Get read sequence as string (without barcode).
+	 * @return The read sequence
+	 */
+	std::string getSequenceString();
 
-  /**
-   * Convert and return sequence of the barcode. Multiple barcodes are concatenated (without delimiter).
-   * @return The Barcode as string
-   * @author Tobias Loka
-   */
-  std::string getBarcodeString();
+	/**
+	 * Convert and return sequence of the barcode. Multiple barcodes are concatenated (without delimiter).
+	 * @return The Barcode as string
+	 * @author Tobias Loka
+	 */
+	std::string getBarcodeString();
 
-  /**
-     * Check whether the barcode of this read fulfills the criteria of at least one user-defined barcode.
-     * The nucleotides are only compared pairwise, not allowing for Indels.
-     * @return The index of the matching barcode in globalAlignmentSettings.multiBarcodeVector. NO_MATCH, if none.
-     * Also return NO_MATCH, if demultiplexing is not activated.
+	/**
+	 * Check whether the barcode of this read fulfills the criteria of at least one user-defined barcode.
+	 * The nucleotides are only compared pairwise, not allowing for Indels.
+	 * @return The index of the matching barcode in globalAlignmentSettings.multiBarcodeVector. NO_MATCH, if none.
+	 * Also return NO_MATCH, if demultiplexing is not activated.
      * @author 	Tobias Loka
      */
-  CountType getBarcodeIndex() ;
+	CountType getBarcodeIndex() ;
+
+	/**
+	 * Append one nucleotide to sequenceStoreVector
+	 * @param nucl The nucleotide. Must be 2-bit-formatted.
+	 * @param appendToBarcode If true, the nucleotide is appended to the barcode instead of the read sequence (default: false).
+	 * @return
+	 * @author Jakob Schulze
+	 */
+	void appendNucleotideToSequenceStoreVector(char bc, bool appendToBarcode=false);
+
+	/**
+	 * Extend alignment by 1 base.
+	 * @param bc The next base (A,C,G or T)
+	 * @param index The FM index
+	 * @param settings The alignment settings
+	 * @author Tobias Loka
+	 */
+	void extend_alignment(char bc, KixRun* index, bool testPrint=false);
+
+	/**
+	 * Disable the alignment.
+	 */
+	void disable();
+
+	/**
+	 * Determine the maximal number of errors that are permitted for a seed
+	 * @param s The seed
+	 * @return Maximal number of permitted errors
+	 * @author Tobias Loka
+	 */
+	CountType getMaxNumErrors(USeed s);
+
+	/**
+	 * Obtain the start position of the alignment with SAM specifications (most left position)
+	 * @param index The FM index
+	 * @param p The position as stored in the index
+	 * @param sd The seed containing the alignment information (CIGAR)
+	 * @return The position in SAM specification
+	 * @author Tobias Loka
+	 */
+	PositionType get_SAM_start_pos(KixRun* index, PositionPairType p, USeed & sd);
 
 
-  /**
-   * Append one nucleotide to sequenceStoreVector
-   * @param nucl The nucleotide. Must be 2-bit-formatted.
-   * @param appendToBarcode If true, the nucleotide is appended to the barcode instead of the read sequence (default: false).
-   * @return
-   * @author Jakob Schulze
-   */
-  void appendNucleotideToSequenceStoreVector(char bc, bool appendToBarcode=false);
+	/**
+	 * Get all positions of a seed
+	 * @param index The FM index
+	 * @param sd The respective seed
+	 * @param position_list Reference to the list of positions (all resulting positions are added to this list)
+	 * @author Tobias Loka
+	 */
+	void getPositions(KixRun* index, USeed sd, PositionPairListType & position_list);
 
-  // extend the alignment by one basecall using reference database index
-  void extend_alignment(char bc, KixRun* index, bool testRead=false);
 
-  // disable this alignment
-  void disable();
+	/**
+	 * Get all seeds for the respective read sorted by errors
+	 * @return Vector containing sorted seeds
+	 * @author Tobias Loka
+	 */
+	void getSeeds_errorsorted(SeedVec & seeds_sorted);
 
-  // obtain start position of a seed according to SAM (leftmost) 
-  PositionType get_SAM_start_pos(USeed & sd);
 
-  /**
-   * Compute the minimum number of errors for a seed by using the modified pigeonhole principle implemented in ReadAlignment::minErrors_in_region.
-   *
-   * @param s The seed.
-   * @return The minimum number of errors for the given seed.
-   * @author Tobias Loka, Jakob Schulze
-   */
-  CountType min_errors(USeed & s);
+	/**
+	 * Constructor for an object of type ReadAlignment
+	 * @param tot_cyc Number of total alignment cycles
+	 * @param cyc Current alignment cycle
+	 * @author Tobias Loka
+	 */
+	ReadAlignment(CountType tot_cyc, CountType cyc){total_cycles=tot_cyc; cycle=cyc;};
 
 }; // END class ReadAlignment 
 

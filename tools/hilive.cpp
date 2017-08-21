@@ -159,7 +159,9 @@ int main(int argc, const char* argv[]) {
     // Load the index
     std::cout << "Loading Index ... " << std::endl;
     KixRun* index = new KixRun();
-    index->deserialize_file(globalAlignmentSettings.get_index_fname());
+
+    index->load_metadata( globalAlignmentSettings.get_index_fname() );
+    index->load_fmindex( globalAlignmentSettings.get_index_fname() );
 
     // Report loaded k-mer properties
     std::cout << std::endl;

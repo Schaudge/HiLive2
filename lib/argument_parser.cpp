@@ -32,7 +32,6 @@ po::options_description BuildIndexArgumentParser::build_options() {
 	po::options_description options("Options");
 	options.add_options()
 	    		("outfile,o", po::value<std::string>(), "Set output file name [Default: INPUT.kix]")
-				("trim,t", po::value<unsigned>(&trim)->default_value(0), "Ignore k-mers with more than t occurrences. [Default: no limit]")
 				("gap-positions,p", po::value< std::vector<unsigned> >()->multitoken()->composing(), "Gap positions in the k-mer pattern (example: -p 3 6 7 for 1101100111 with k=7). [Default: ungapped]")
 				("do-not-convert-spaces", po::bool_switch(&do_not_convert_spaces)->default_value(false), "Do not convert all spaces in reference ids to underscores [Default: converting is on]")
 				("trim-after-space", po::bool_switch(&trim_ids)->default_value(false), "Trim all reference ids after first space [Default: false]");
@@ -96,7 +95,7 @@ bool BuildIndexArgumentParser::set_build_variables(po::variables_map vm) {
 	if (vm.count("outfile")) {
 		index_name = vm["outfile"].as<std::string>();
 	} else {
-		index_name = fasta_name + std::string(".kix");
+		index_name = fasta_name + std::string(".fmix");
 	}
 
 	return true;
@@ -185,6 +184,8 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 //-----HiLiveArgumentParser------------------------------
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
+// TODO: Introduce fast, balanced, accurate modi.
+
 po::options_description HiLiveArgumentParser::general_options() {
 	po::options_description general("General");
 	general.add_options()
@@ -232,6 +233,7 @@ po::options_description HiLiveArgumentParser::alignment_options() {
 					("start-ohw", po::value<CountType>(), "First cycle to apply One-Hit Wonder filter [Default: 20]")
 					("window,w", po::value<DiffType>(), "Set the window size to search for alignment extension, i.e. maximum total insertion/deletion size [Default: 5]")
 					("min-quality", po::value<CountType>(), "Minimum allowed basecall quality [Default: 1]")
+					("anchor-length,a", po::value<CountType>(), "Set the anchor length manually [Default: 12]")
 					("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
 					("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
 					("keep-all-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]");
@@ -268,10 +270,10 @@ void HiLiveArgumentParser::init_help(po::options_description visible_options) {
 }
 
 bool HiLiveArgumentParser::checkPaths() {
-	if (!file_exists(globalAlignmentSettings.get_index_fname())){
-		std::cerr << "Input error: Could not find k-mer index file " << globalAlignmentSettings.get_index_fname() << std::endl;
-		return false;
-	}
+//	if (!file_exists(globalAlignmentSettings.get_index_fname())){
+//		std::cerr << "Input error: Could not find k-mer index file " << globalAlignmentSettings.get_index_fname() << std::endl;
+//		return false;
+//	}
 
 	std::size_t found = globalAlignmentSettings.get_root().find("BaseCalls");
 	if (!(found != std::string::npos && found >= globalAlignmentSettings.get_root().size()-10)) {
@@ -541,6 +543,7 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<CountType>("start-ohw", "settings.align.start_ohw", 20, &AlignmentSettings::set_start_ohw);
 		set_option<DiffType>("window", "settings.align.window", 5, &AlignmentSettings::set_window);
 		set_option<CountType>("min-quality", "settings.align.min_qual", 1, &AlignmentSettings::set_min_qual);
+		set_option<CountType>("anchor-length", "settings.align.anchor", 12, &AlignmentSettings::set_anchor_length);
 
 		std::vector<std::string> barcode_sequences_default;
 		set_option<std::vector<std::string>>("barcodes", "settings.barcodes.sequences", barcode_sequences_default, &AlignmentSettings::set_barcodes);

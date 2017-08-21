@@ -168,4 +168,35 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
  */
 uint32_t num_reads_from_bcl(std::string bcl);
 
+/**
+ * Trim from start (in place).
+ * @param s String to be trimmed.
+ * @author Tobias Loka
+ */
+static inline void ltrim(std::string &s) {
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(),
+            std::not1(std::ptr_fun<int, int>(std::isspace))));
+}
+
+/**
+ * Trim from end (in place).
+ * @param s String to be trimmed.
+ * @author Tobias Loka
+ */
+static inline void rtrim(std::string &s) {
+    s.erase(std::find_if(s.rbegin(), s.rend(),
+            std::not1(std::ptr_fun<int, int>(std::isspace))).base(), s.end());
+}
+
+ /**
+  * Trim from both ends (in place).
+  * @param s String to be trimmed.
+  * @author Tobias Loka
+  */
+static inline void trim(std::string &s) {
+    ltrim(s);
+    rtrim(s);
+}
+
+
 #endif /* TOOLS_STATIC_H */
