@@ -98,6 +98,12 @@ For an overview of additional parameters, type
 	
 	hilive --help
 
+To prevent errors during argument parsing we recommend to set optional parameters AFTER the positional options:
+
+	hilive BC_DIR INDEX CYCLES OUTDIR [options]
+	
+However, if unexpected parsing errors occur, please try to specify all parameters with the "--"-syntax (e.g. --BCDIR /path/to/BaseCalls) instead of using positional arguments. This is also necessary when loading (some of the) positional arguments from a settings file instead of using the command line.
+
 ---
 
 #### Using hilive-out:

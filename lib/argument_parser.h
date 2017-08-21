@@ -396,7 +396,7 @@ protected:
 	 */
 	bool parseRunInfo(po::variables_map vm);
 
-	void report() override;
+	virtual void report() override;
 
 	void init_help(po::options_description visible_options) override;
 
@@ -419,6 +419,8 @@ class HiLiveOutArgumentParser : public HiLiveArgumentParser {
 	using HiLiveArgumentParser::HiLiveArgumentParser;
 
 	void init_help(po::options_description visible_options) override;
+
+	void report() override;
 
 	void set_required_parameters() override { required_options = {"settings", "INDEX"}; };
 };

@@ -46,7 +46,7 @@ void BuildIndexArgumentParser::init_help(po::options_description visible_options
 	help_message << "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-	help_message << "Usage: " << std::endl << "  hilive-build [options] INPUT KMER_WEIGHT" << std::endl << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive-build INPUT KMER_WEIGHT [options]" << std::endl << std::endl;
 	help_message << "Required:" << std::endl;
 	help_message << "  INPUT                 Reference genomes in (multi-) FASTA format." << std::endl;
 	help_message << "  KMER_WEIGHT           Number of non-gap positions in a k-mer (For ungapped k-mers this is the k-mer size)." << std::endl;
@@ -255,7 +255,7 @@ void HiLiveArgumentParser::init_help(po::options_description visible_options) {
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
 
-	help_message << "Usage: " << std::endl << "  hilive [options] BC_DIR INDEX CYCLES OUTDIR" << std::endl << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive BC_DIR INDEX CYCLES OUTDIR [options]" << std::endl << std::endl;
 	help_message << "Required:" << std::endl;
 	help_message << "  BC_DIR                Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
 	help_message << "  INDEX                 Path to k-mer index file (*.kix)" << std::endl;
@@ -579,7 +579,7 @@ void HiLiveOutArgumentParser::init_help(po::options_description visible_options)
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
 
-	help_message << "Usage: " << std::endl << "  hilive-out [options] --settings /path/to/settings/file" << std::endl << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive-out --settings /path/to/settings/file [options]" << std::endl << std::endl;
 	help_message << "Required:" << std::endl;
 	help_message << "  settings              Path to a HiLive settings file (by default, the file is in the temp directory of the respective run)" << std::endl;
 	help_message << std::endl << "All parameters can be set as for the HiLive main program." << std::endl;
@@ -589,4 +589,37 @@ void HiLiveOutArgumentParser::init_help(po::options_description visible_options)
 	help_message << visible_options;
 
 	help = help_message.str();
+}
+
+void HiLiveOutArgumentParser::report() {
+	if (globalAlignmentSettings.get_temp_dir() != "") {
+	        std::cout << "Temporary directory:      " << globalAlignmentSettings.get_temp_dir() << std::endl;
+	}
+	if (!globalAlignmentSettings.get_write_bam())
+		std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
+	else
+		std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
+	std::cout << "Lanes:                    ";
+	for ( uint16_t ln : globalAlignmentSettings.get_lanes() )
+		std::cout << ln << " ";
+	std::cout << std::endl;
+	std::cout << "K-mer index:              " << globalAlignmentSettings.get_index_fname() << std::endl;
+	std::cout << "Total Read lengths:       ";
+	std::string barcode_suffix;
+	for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
+		std::cout << globalAlignmentSettings.getSeqById(read).length;
+		barcode_suffix = globalAlignmentSettings.getSeqById(read).isBarcode() ? "B" : "R";
+		std::cout << barcode_suffix << " ";
+	}
+	std::cout << std::endl;
+	std::cout << "Mapping error:            " << globalAlignmentSettings.get_min_errors() << std::endl;
+	if (globalAlignmentSettings.get_any_best_hit_mode())
+		std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
+	else if (globalAlignmentSettings.get_all_best_hit_mode())
+		std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
+	else if (globalAlignmentSettings.get_all_best_n_scores_mode())
+		std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
+	else
+		std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
+	std::cout << std::endl;
 }
