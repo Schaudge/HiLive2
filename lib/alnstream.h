@@ -3,13 +3,11 @@
 
 #include "headers.h"
 #include "definitions.h"
+#include "global_variables.h"
 #include "kindex.h"
 #include "tools.h"
 #include "alnread.h"
 #include "illumina_parsers.h"
-#include <seqan/basic.h>
-#include <seqan/sequence.h>
-#include <seqan/bam_io.h>
 
 // Output alignment stream: write alignments to file one by one
 class oAlnStream {
@@ -17,7 +15,6 @@ class oAlnStream {
   uint16_t lane;
   uint16_t tile;
   uint16_t cycle;
-  std::string root;
   CountType rlen;
   uint32_t num_reads;
 
@@ -48,7 +45,7 @@ class oAlnStream {
 
  public:
   // constructor initializes all member variables
-  oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, std::string rt, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt);
+  oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt);
 
   // open Alignment stream file and write header
   uint64_t open(std::string fname);
@@ -69,7 +66,6 @@ class iAlnStream {
   uint16_t lane;
   uint16_t tile;
   uint16_t cycle;
-  std::string root;
   CountType rlen;
   uint32_t num_reads;
 
@@ -116,7 +112,6 @@ class iAlnStream {
   inline uint16_t get_lane() {return lane;};
   inline uint16_t get_tile() {return tile;};
   inline uint16_t get_cycle() {return cycle;};
-  inline std::string get_root() {return root;};
   inline CountType get_rlen() {return rlen;};
   inline uint32_t get_num_reads() {return num_reads;};
   inline uint32_t get_num_loaded() {return num_loaded;};
@@ -132,7 +127,6 @@ class StreamedAlignment {
   // dataset information
   uint16_t lane;
   uint16_t tile;
-  std::string root; // the BaseCalls directory
   CountType rlen;
 
   // fetch the next read from the input stream
@@ -142,30 +136,42 @@ class StreamedAlignment {
   uint64_t write_alignment(ReadAlignment& ral);
 
   // get the path to the bcl file of a given cycle
-  std::string get_bcl_file(uint16_t cycle);
+  std::string get_bcl_file(uint16_t cycle, uint16_t read_number);
 
   // get the path to the alignment file. The alignment file is located in
   // <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
-  // if base == "": base = root
-  std::string get_alignment_file(uint16_t cycle, std::string base = "");
+  // if base == "": base = globalAlignmentSettings.get_root()
+  std::string get_alignment_file(uint16_t cycle, uint16_t mate, std::string base = "");
 
   // get the path to the filter file. The illumina filter information is located in
   // <root>/L00<lane>/s_<lane>_<tile>.filter
   std::string get_filter_file();
 
  public:
-  StreamedAlignment(uint16_t ln, uint16_t tl, std::string rt, CountType rl): lane(ln), tile(tl), root(rt), rlen(rl) {};  
+  StreamedAlignment(uint16_t ln, uint16_t tl, CountType rl): lane(ln), tile(tl), rlen(rl) {};  
 
   StreamedAlignment& operator=(const StreamedAlignment& other);
   
   // create directories required to store the alignment files (only if not stored in root)
-  void create_directories(AlignmentSettings* settings);
+  void create_directories();
 
   // initialize empty alignment. Creates files for a virtual Cycle 0
-  void init_alignment(AlignmentSettings* settings);
+  void init_alignment(uint16_t mate);
   
   // extend an existing alignment from cycle <cycle-1> to <cycle>
-  uint64_t extend_alignment(uint16_t cycle, KixRun* index, AlignmentSettings* settings);
+  uint64_t extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index);
+
+  /**
+   * Extend the barcode for all reads with the information of the current sequencing cycle.
+   * @param bc_cycle The cycle of the barcode read.
+   * @param read_cycle The last handled cycle for the respective mate (should always be 0 or the full length)
+   * @param read_no The number of the sequence read for which the barcode will be extended (:= index in globalAlignmentSettings.seqs).
+   * @param mate The read mate to extend the barcode.
+   * @return
+   * @author Tobias Loka
+   */
+  void extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, uint16_t read_no, uint16_t mate);
+
 }; /* END class StreamedAlignment */
 
 
@@ -175,7 +181,6 @@ class StreamedAlignment {
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(uint16_t ln, uint16_t tl, std::string rt, CountType rl, KixRun* index, AlignmentSettings* settings);
-
+uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle);
 
 #endif /* ALNSTREAM_H */

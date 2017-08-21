@@ -1,46 +1,147 @@
+/**
+ * This class provides functions that are dependent of the alignmentSettings!
+ * For functions that are not dependent of any other HiLive class, please use the tools_static class!
+ * Please do NOT add further includes to this file since this will lead to unwanted dependencies!
+ */
+
 #ifndef TOOLS_H
 #define TOOLS_H
 
-#include "headers.h"
-#include "definitions.h"
-#include "kindex.h"
+/* DONT ADD ANY INCLUDES */
+#include "tools_static.h"
+#include "alignmentSettings.h"
+#include "global_variables.h"
+/* DONT ADD ANY INCLUDES */
 
 
-// compare function to sort GenomePosType objects by position
-bool gp_compare (GenomePosType i,GenomePosType j);
+///////////////////////////////////
+////////// K-mer Hashing //////////
+///////////////////////////////////
 
-// calculates the total size of a file in bytes
-std::ifstream::pos_type get_filesize(const std::string &fname);
+/**
+ * Calculate the first forward and reverse complement k-mer in the string <kmer>.
+ * @param kmer Input sequence.
+ * @param _h Reference to forward hash variable.
+ * @param _r Reference to reverse hash variable.
+ * @return The larger hash value (TODO: why?)
+ */
+HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r);
 
-// checks if a directory with the given name exists
-bool is_directory(const std::string &path);
+/**
+ * Calculates the first forward k-mer in the string <kmer>.
+ * @param it Iterator of the input sequence.
+ * @param end End of the iterator of the input sequence.
+ * @param _h Reference to the forward hash variable.
+ * @return Iterator pointing at the last invalid base.
+ */
+std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h);
 
-// checks if a file exists
-bool file_exists(const std::string &fname);
+/**
+ * Calculate the sequence from a hash value.
+ * @param myHash The input hash value.
+ * @param hashLen Length (weight) of the hashed sequence.
+ * @return The unhashed sequence.
+ */
+std::string unhash(HashIntoType myHash, unsigned hashLen=globalAlignmentSettings.get_kmer_weight());
 
-// reads a binary file from hdd and stores its raw content in a char vector
-std::vector<char> read_binary_file(const std::string &fname);
 
-// extract the number of reads from a BCL file
-uint32_t num_reads_from_bcl(std::string bcl);
+////////////////////////////////////////////
+////////// File name construction //////////
+////////////////////////////////////////////
 
-// writes a char vector into a binary file
-uint64_t write_binary_file(const std::string &fname, const std::vector<char> & data);
+/**
+ * Get the name of a bcl file.
+ * @param ln The lane number.
+ * @param tl The tile number.
+ * @param cl The sequencing cycle.
+ * @return Path to the bcl file.
+ */
+std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl);
 
-//------  Hashing helper functions  ---------------------------------//
-HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r, AlignmentSettings & settings);
-std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h, AlignmentSettings & settings);
-//HashIntoType rc(HashIntoType fw); 
-/* returns the sequence of a k-mer */
-std::string unhash(HashIntoType myHash, unsigned hashLen=K_HiLive);
+/**
+ * Get the name of an alignment file.
+ * @param ln The lane number.
+ * @param tl The tile number.
+ * @param cl The cycle for the respective mate.
+ * @param mt The mate number.
+ * @return Path to the alignment file.
+ */
+std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt);
 
-// file name construction functions
-std::string bcl_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl);
-std::string alignment_name(std::string rt, uint16_t ln, uint16_t tl, uint16_t cl);
-std::string filter_name(std::string rt, uint16_t ln, uint16_t tl);
-std::string position_name(std::string rt, uint16_t ln, uint16_t tl);
-std::string sam_tile_name(std::string rt, uint16_t ln, uint16_t tl, bool write_bam);
-std::string sam_lane_name(std::string rt, uint16_t ln, bool write_bam);
+/**
+ * Get the name of a filter file.
+ * @param ln The lane number.
+ * @param tl The tile number.
+ * @return Path to the filter file.
+ */
+std::string filter_name(uint16_t ln, uint16_t tl);
 
+/**
+ * Get the name of a clocs file.
+ * @param ln The lane number.
+ * @param tl The tile number.
+ * @return Path to the clocs file.
+ */
+std::string position_name(uint16_t ln, uint16_t tl);
+
+/**
+ * Get the name of the settings file.
+ * @return Path to the settings file.
+ */
+std::string get_settings_name();
+
+/**
+ * Get the name of the output log file.
+ * @return Path to the output log file.
+ */
+std::string get_out_log_name();
+
+/** Get the current sequencing cycle using the current alignment cycle and read number.
+ * @param cycle The read cycle.
+ * @param seq_id The sequence id (:= id of the respective element in globalAlignmentSettings::seqs)
+ * @return The sequencing cycle.
+ * @author Tobias Loka
+ */
+uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id=1);
+
+/**
+ * Get the cycle of a mate for a given sequencing cycle.
+ * When the mate is completely finished in the given cycle, return its total sequence length.
+ * @param mate_number Mate of interest.
+ * @param seq_cycle The sequencing cycle.
+ * @return Cycle of the mate in the given sequencing cycle.
+ * @author Tobias Loka
+ */
+uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle );
+
+
+////////////////////////////////////
+////////// SAM/BAM output //////////
+////////////////////////////////////
+
+/**
+ * Get the header for a SAM/BAM output file.
+ * @return The BAM header.
+ * @author Tobias Loka
+ */
+seqan::BamHeader getBamHeader();
+
+/**
+ * Name of a temporary SAM/BAM file (for the time it is written).
+ * @param barcode Barcode of the output file (or "undetermined" for undetermined reads)
+ * @param cycle The output cycle.
+ * @return Name of the temporary output file for writing.
+ * @author Tobias Loka
+ */
+std::string getBamTempFileName(std::string barcode, CountType cycle);
+
+/**
+ * Final name of a SAM/BAM file.
+ * @param barcode Barcode of the output file (or "undetermined" for undetermined reads)
+ * @param cycle The output cycle.
+ * @return Name of the final output file.
+ * @author Tobias Loka
+ */
+std::string getBamFileName(std::string barcode, CountType cycle);
 
 #endif /* TOOLS_H */

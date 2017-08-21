@@ -1,13 +1,11 @@
 #include "parallel.h"
 
-
-
 std::ostream& operator<<(std::ostream& os, const Task& t)
 {
-  os << "Lane " << t.lane << " Tile " << t.tile << " Cycle " << t.cycle;
+  std::string mate = t.seqEl.mate == 0 ? "b" : std::to_string(t.seqEl.mate);
+  os << "Lane " << t.lane << " Tile " << t.tile << " Cycle " << mate << "." << t.cycle;
   return os;
 }
-
 
 // Add element to the task list
 void TaskQueue::push(Task t) {
@@ -34,8 +32,6 @@ uint64_t TaskQueue::size() {
   return tasks.size();
 }
 
-
-
 // create a vector with all lane numbers
 std::vector<uint16_t> all_lanes() {
   std::vector<uint16_t> ln;
@@ -48,7 +44,6 @@ std::vector<uint16_t> all_lanes() {
 std::vector<uint16_t> one_lane(uint16_t l) {
   return std::vector<uint16_t> (1,l);
 }
-
 
 // create a vector with all tile numbers
 std::vector<uint16_t> all_tiles() {
@@ -69,33 +64,31 @@ std::vector<uint16_t> one_tile(uint16_t t) {
   return std::vector<uint16_t> (1,t);
 }
 
-
-// initialize agenda with root directory and read length only (all lanes, all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl) {
+// initialize agenda with read length only (all lanes, all tiles)
+Agenda::Agenda (uint16_t rl) {
   
   // add lanes 1-8 to the list
   std::vector<uint16_t> ln = all_lanes();
   
   // call the tiles constructor
-  Agenda(rt, rl, ln);
+  Agenda(rl, ln);
 
 }
 
-// initialize agenda with root directory, read length, and lanes (all tiles)
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln) {
+// initialize agenda with read length and lanes (all tiles)
+Agenda::Agenda (uint16_t rl, std::vector<uint16_t> ln) {
 
   // add all tiles to the list
   std::vector<uint16_t> tl = all_tiles();
   
   // call the full constructor
-  Agenda (rt, rl, ln, tl);
+  Agenda (rl, ln, tl);
 
 }
 
-// initialize agenda with root directory, read length, lanes, and tiles
-Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) {
+// initialize agenda with read length, lanes, and tiles
+Agenda::Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) {
 
-  root = rt;
   rlen = rl;
   lanes = ln;
   tiles = tl;
@@ -116,62 +109,61 @@ Agenda::Agenda (std::string rt, uint16_t rl, std::vector<uint16_t> ln, std::vect
 // check for BCL files and update item status
 void Agenda::update_status () {
 
-  // iterate over lanes
-  for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+	// iterate over lanes
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
 
-    // iterate over all tiles
-    for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+		// iterate over all tiles
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
 
-      // get the first cycle that is not in the FINISHED status
-      uint16_t first_unfinished = 0;
-      while ( (first_unfinished < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == FINISHED)) {
-	first_unfinished++;
-      }
+			// get the first cycle that is not in the FINISHED status
+			uint16_t first_unfinished = 0;
+			while ( (first_unfinished < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == FINISHED)) {
+				first_unfinished++;
+			}
 
-      // if there is one, check if there is a BCL file available
-      if ((first_unfinished != items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == WAITING)) {
-	std::string this_fname = bcl_name(root, lanes[ln_id], tiles[tl_id], first_unfinished+1);
-	// only change the status if the file exists
-	if ( file_exists(this_fname) ) {
-	  // TODO: probably find a way to check if the machine currently writes to that file
-	  items[ln_id][tl_id][first_unfinished] = BCL_AVAILABLE;
+			// if there is one, check if there is a BCL file available
+			if ((first_unfinished != items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == WAITING)) {
+				std::string this_fname = bcl_name(lanes[ln_id], tiles[tl_id], first_unfinished+1);
+				// only change the status if the file exists
+				if ( file_exists(this_fname) ) {
+					// TODO: probably find a way to check if the machine currently writes to that file
+					items[ln_id][tl_id][first_unfinished] = BCL_AVAILABLE;
+				}
+			}
+		}
 	}
-      }
-
-    }
-
-  }
-  
 }
-
 
 // generate a new task from the agenda
 Task Agenda::get_task(){
-  // iterate over lanes
-  for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+	// iterate over lanes
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
 
-    // iterate over all tiles
-    for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+		// iterate over all tiles
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
 
-      // check if there is a cycle with an unprocessed BCL file
-      uint16_t unprocessed = 0;
-      while ( (unprocessed < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][unprocessed] != BCL_AVAILABLE)) {
-	unprocessed++;
-      }
+			// check if there is a cycle with an unprocessed BCL file
+			uint16_t unprocessed = 0;
+			while ( (unprocessed < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][unprocessed] != BCL_AVAILABLE)) {
+				unprocessed++;
+			}
 
-      // generate a new task if there is an unprocessed BCL file
-      if ( unprocessed != items[ln_id][tl_id].size() ) {
-	Task t (lanes[ln_id], tiles[tl_id], unprocessed+1, rlen, root);
-	return t;
-      }
-
-    }
-
-  }
-  // return indicator that no new task could be created
-  return NO_TASK;
+			// generate a new task if there is an unprocessed BCL file
+			if ( unprocessed != items[ln_id][tl_id].size() ) {
+				uint16_t cycle = unprocessed + 1;
+				uint16_t read_no = 0;
+				while ( cycle > globalAlignmentSettings.getSeqById(read_no).length) {
+					cycle -= globalAlignmentSettings.getSeqById(read_no).length;
+					read_no += 1;
+				}
+				Task t (lanes[ln_id], tiles[tl_id], globalAlignmentSettings.getSeqById(read_no), cycle);
+				return t;
+			}
+		}
+	}
+	// return indicator that no new task could be created
+	return NO_TASK;
 }
-
 
 // set a status
 void Agenda::set_status(Task t, ItemStatus status) {
@@ -193,11 +185,10 @@ void Agenda::set_status(Task t, ItemStatus status) {
   if ( (t.cycle > rlen) || (t.cycle == 0) ) {
     throw std::out_of_range("Cycle out of range.");
   }
-  uint16_t cl_id = t.cycle -1;
+  uint16_t cl_id = getSeqCycle(t.cycle,t.seqEl.id) -1;
 
   items[ln_id][tl_id][cl_id] = status;
 }
-
 
 // get the status of a task
 ItemStatus Agenda::get_status(Task t) {
@@ -224,7 +215,6 @@ ItemStatus Agenda::get_status(Task t) {
   return items[ln_id][tl_id][cl_id];
 }
 
-
 // check if all items of the agenda were processed, if possible
 bool Agenda::finished() {
   // check for each tile if either all cycles are finished OR there is a failed status item
@@ -246,12 +236,46 @@ bool Agenda::finished() {
   return true;
 }
 
+// check if all items of the agenda were processed, if possible
+bool Agenda::finished( CountType cycle ) {
+	// check for each tile if either all cycles are finished OR there is a failed status item
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+			for (uint16_t cl_id = 0; cl_id < cycle; ++cl_id) {
+				ItemStatus s = items[ln_id][tl_id][cl_id];
+				if ( s == FAILED ) {
+					// the rest of the tile is "allowed" to be unprocessed --> skip
+					continue;
+				}
+				else if (s != FINISHED) {
+					// otherwise any other status means that the agenda is not finished
+					return false;
+				}
+			}
+		}
+	}
+	return true;
+}
+
+bool Agenda::cycle_available( CountType cycle ) {
+
+	if ( cycle == 0 || cycle > rlen )
+		return false;
+
+	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
+		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
+			if ( items[ln_id][tl_id][cycle-1] == WAITING )
+				return false;
+		}
+	}
+
+	return true;
+}
 
 // the total number of tasks on the agenda
 uint32_t Agenda::task_count() {
   return lanes.size() * tiles.size() * rlen;
 }
-
 
 // the total number of finished tasks on the agenda
 uint32_t Agenda::tasks_finished() {
@@ -267,21 +291,4 @@ uint32_t Agenda::tasks_finished() {
     }
   }
   return num_finished;
-}
-
-
-// generate a complete TaskQueue with tasks to generate SAM files
-// SAM files can only be generated for tiles where all cycles are completed
-std::vector<Task> Agenda::get_SAM_tasks() {
-  std::vector<Task> tv;
-  // find tiles that are completely mapped
-  for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
-    for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
-      if ( items[ln_id][tl_id][rlen-1] == FINISHED ) {
-	tv.push_back(Task(lanes[ln_id],tiles[tl_id],rlen,rlen,root));
-      }
-    }
-  }
-  
-  return tv;
 }

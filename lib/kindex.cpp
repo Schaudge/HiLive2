@@ -1,12 +1,17 @@
 #include "kindex.h"
 
 
-int KixBuild::add_fasta(const std::string &fname, AlignmentSettings & settings, bool convert_spaces, bool trim_ids) {
-  GenomeIdListType added_ids;
-  return add_fasta(fname, added_ids, settings, convert_spaces, trim_ids);
+KixBuild::KixBuild() { // default constructor
+    this->db.resize(pow(4,globalAlignmentSettings.get_kmer_weight()));
 }
 
-int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, AlignmentSettings & settings, bool convert_spaces, bool trim_ids) {
+
+int KixBuild::add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids) {
+  GenomeIdListType added_ids;
+  return add_fasta(fname, added_ids, convert_spaces, trim_ids);
+}
+
+int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, bool convert_spaces, bool trim_ids) {
   std::ios::sync_with_stdio(false);
   std::ifstream::sync_with_stdio(false);
 
@@ -43,19 +48,19 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, Alignme
 
       added_ids.push_back(seq_id);
       seq_names.push_back(seq_name);
-      seq_lengths.push_back(0); // gets later corrected to settings.kmer_span - 1
+      seq_lengths.push_back(0); // gets later corrected to globalAlignmentSettings.get_kmer_span() - 1
       assert(seq_names.size() == num_seq);
       startNewSequence = true;
     } 
     else { // sequence line
       if (startNewSequence) {
-        if (line.length() < settings.kmer_span)
+        if (line.length() < globalAlignmentSettings.get_kmer_span())
             continue; // ignore sequences shorter than K
-        start_sequence(line, tailingKmer, sequencePosition, settings);
+        start_sequence(line, tailingKmer, sequencePosition);
         startNewSequence = false;
       }
       else
-        continue_sequence(line, tailingKmer, sequencePosition, settings);
+        continue_sequence(line, tailingKmer, sequencePosition);
     }
   }
   infile.close();
@@ -68,9 +73,9 @@ int KixBuild::add_fasta(const std::string &fname, GenomeIdListType &ids, Alignme
     A new ID is created for this sequence.
     Return: sequence ID
 */
-GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings) {
+GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition) {
   assert(seq_names.size() == num_seq);
-  assert(s.length() >= settings.kmer_span);
+  assert(s.length() >= globalAlignmentSettings.get_kmer_span());
 
   // add sequence kmers to index
   sequencePosition = 0; // use 1-based positions (to allow for negative positions)
@@ -78,23 +83,23 @@ GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailing
   std::string::const_iterator last_invalid;
   HashIntoType fw; // forward k-mer
 
-  seq_lengths.back()=settings.kmer_span-1;
-  for (; it_s < s.end()-settings.kmer_span+1; ++it_s) {
+  seq_lengths.back()=globalAlignmentSettings.get_kmer_span()-1;
+  for (; it_s < s.end()-globalAlignmentSettings.get_kmer_span()+1; ++it_s) {
     ++sequencePosition; // use 1-based positions (to allow for negative positions)
     seq_lengths.back()+=1;
-    last_invalid = hash_fw(it_s, s.end(), fw, settings);
+    last_invalid = hash_fw(it_s, s.end(), fw);
 
     // add k-mer to database
     if (last_invalid < it_s)
       add_kmer(fw,num_seq-1,sequencePosition);
     else {
-      unsigned jumplength = std::min(last_invalid - it_s, s.end() - settings.kmer_span - it_s);
+      unsigned jumplength = std::min(last_invalid - it_s, s.end() - globalAlignmentSettings.get_kmer_span() - it_s);
       sequencePosition += jumplength;
       seq_lengths.back() += jumplength;
       it_s = last_invalid;
     }
   }
-  tailingKmer = s.substr(s.length()-settings.kmer_span);
+  tailingKmer = s.substr(s.length()-globalAlignmentSettings.get_kmer_span());
   return num_seq;
 }
 
@@ -102,7 +107,7 @@ GenomeIdType KixBuild::start_sequence(const std::string &s, std::string& tailing
 /* Continue adding all k-mers in a sequence string s to the database.
     Return: sequence ID
 */
-GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings) {
+GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition) {
   assert(seq_names.size() == num_seq);
 
   std::string concatString = tailingKmer + s;
@@ -111,22 +116,22 @@ GenomeIdType KixBuild::continue_sequence(const std::string &s, std::string& tail
   std::string::const_iterator last_invalid;
   HashIntoType fw; // forward k-mer
 
-  for (; it_s < concatString.end()-settings.kmer_span+1; ++it_s) {
+  for (; it_s < concatString.end()-globalAlignmentSettings.get_kmer_span()+1; ++it_s) {
     ++sequencePosition; // use 1-based positions (to allow for negative positions)
     seq_lengths.back()+=1;
-    last_invalid = hash_fw(it_s, concatString.end(), fw, settings);
+    last_invalid = hash_fw(it_s, concatString.end(), fw);
 
     // add k-mer to database
     if (last_invalid < it_s)
       add_kmer(fw,num_seq-1,sequencePosition);
     else {
-      unsigned jumplength = std::min(last_invalid - it_s, concatString.end()- settings.kmer_span - it_s);
+      unsigned jumplength = std::min(last_invalid - it_s, concatString.end()- globalAlignmentSettings.get_kmer_span() - it_s);
       sequencePosition += jumplength;
       seq_lengths.back() += jumplength;
       it_s = last_invalid;
     }
   }
-  tailingKmer = concatString.substr(concatString.length()-settings.kmer_span);
+  tailingKmer = concatString.substr(concatString.length()-globalAlignmentSettings.get_kmer_span());
   return num_seq;
 }
 
@@ -161,6 +166,7 @@ uint64_t KixBuild::trim(uint64_t max_count) {
 
 
 std::vector<char> KixBuild::serialize() {
+
   // first of all, sort the database entries by position
   for (auto it = db.begin(); it != db.end(); ++it)
     std::sort(it->begin(), it->end(), gp_compare);
@@ -168,8 +174,14 @@ std::vector<char> KixBuild::serialize() {
   // calculate total size
   unsigned long int total_size = 0;
 
-  // K_HiLive itself
+  // The k-mer weight itself
   total_size += 1;
+
+  // The number of gaps
+  total_size += 1;
+
+  // The gaps themselves
+  total_size += globalAlignmentSettings.get_kmer_gaps().size();
 
   // total number of sequences in database
   total_size += sizeof(GenomeIdType);
@@ -200,9 +212,21 @@ std::vector<char> KixBuild::serialize() {
   char* d = data.data();
 
   // write K
-  uint8_t kk = K_HiLive;
+  uint8_t kk = globalAlignmentSettings.get_kmer_weight();
   memcpy(d,&kk,1);
   d++;
+
+  // number of gaps
+  std::vector<unsigned> kmer_gaps = globalAlignmentSettings.get_kmer_gaps();
+  uint8_t gap_num = kmer_gaps.size();
+  memcpy(d,&gap_num,1);
+  d++;
+
+  // The gaps themselves
+  for ( uint8_t gap : kmer_gaps) {
+	 memcpy(d,&gap,1);
+	 d++;
+  }
 
   // total number of sequences in database
   memcpy(d,&num_seq,sizeof(GenomeIdType));
@@ -276,121 +300,34 @@ uint64_t KixBuild::serialize_file(std::string f) {
 }
 
 
-uint64_t KixBuild::deserialize(char* d) {
-  // the total number of bytes read
-  uint64_t bytes = 0; 
-
-  // read and check K
-  uint8_t kk;
-  memcpy(&kk,d+bytes,1);
-  bytes++;
-  assert(K_HiLive == kk);
-
-  // read total number of sequences in database
-  memcpy(&num_seq,d+bytes,sizeof(GenomeIdType));
-  bytes += sizeof(GenomeIdType);
-
-
-  // sequence names
-  seq_names.clear();
-  seq_lengths.clear();
-  for (uint32_t i = 0; i < num_seq; i++) {
-    uint16_t nm_length;
-    memcpy(&nm_length,d+bytes,sizeof(uint16_t));
-    bytes += sizeof(uint16_t);
-
-    char * tmp = new char[nm_length+1];
-    memcpy(tmp,d+bytes,nm_length);
-    tmp[nm_length] = 0; // make the string null-terminated
-    seq_names.push_back(tmp);
-    delete tmp;
-    bytes += nm_length;
-  }
-  for (uint32_t i = 0; i < num_seq; i++) {
-    uint64_t seq_len;
-    memcpy(&seq_len,d+bytes,sizeof(uint64_t));
-    bytes += sizeof(uint64_t);
-    seq_lengths.push_back(seq_len);
-  }
-
-  
-  // database entries
-  for (auto it = db.begin(); it != db.end(); ++it) {
-    // number of positions
-    uint32_t num_positions;
-    memcpy(&num_positions,d+bytes,sizeof(uint32_t));
-    bytes += sizeof(uint32_t);
-    (*it).clear();
-    (*it).reserve(num_positions);
-
-    // genome ID and position
-    for( uint32_t i = 0; i < num_positions; i++) {
-      GenomeIdType gid;
-      PositionType pos;
-      GenomePosType gp;
-      
-      memcpy(&gid,d+bytes,sizeof(GenomeIdType));
-      bytes += sizeof(GenomeIdType);
-      
-      memcpy(&pos,d+bytes,sizeof(PositionType));
-      bytes += sizeof(PositionType);
-      
-      gp.gid = gid;
-      gp.pos = pos;
-      
-      (*it).push_back(gp);
-    }
-  }
-
-  return bytes;
-}
-
-
-uint64_t KixBuild::deserialize_file(std::string f) {
-  std::string fname = f;
-  
-  // obtain file size
-  unsigned long int size = get_filesize(fname);
-
-  // open binary file
-  FILE* ifile;
-  ifile = fopen(fname.c_str(), "rb");
-
-  if (!ifile) {
-    std::cerr << "Error reading from file " << fname << ": Could not open file." << std::endl;
-    return 0;
-  }
-
-  // allocate memory
-  std::vector<char> sdata (size);
-  
-  // read all data
-  unsigned long int read = fread(sdata.data(), 1, size, ifile);
-
-  // close file
-  fclose (ifile);
-
-  if (read != size){
-    std::cerr << "Error reading from file " << fname << ": File size: " << size << " bytes. Read: " << read << " bytes." << std::endl;
-    return 0;
-  }
-
-  // deserialize data
-  deserialize(sdata.data());
-
-  return read;
-}
-
-
 uint64_t KixRun::deserialize(char* d) {
+
   // the total number of bytes read
   uint64_t bytes = 0; 
 
-  // read and check K
+  // read k-mer weight
   uint8_t kk;
   memcpy(&kk,d+bytes,1);
   bytes++;
-  assert(kk == K_HiLive);
+  this->kmer_weight = kk;
+
+  // read number of gaps in k-mer pattern
+  uint8_t gap_num;
+  memcpy(&gap_num,d+bytes,1);
+  bytes++;
+
+  // read k-mer pattern
+  for ( uint8_t i = 0; i < gap_num; i++ ) {
+	  uint8_t gap;
+	  memcpy(&gap, d+bytes, 1);
+	  kmer_gaps.push_back(gap);
+	  bytes++;
+  }
+
+
+//  globalAlignmentSettings.set_kmer_weight(this->kmer_weight);
+  store_kmer();
+  this->db.resize(pow(4,globalAlignmentSettings.get_kmer_weight()));
 
   // read total number of sequences in database
   memcpy(&num_seq,d+bytes,sizeof(GenomeIdType));
@@ -450,14 +387,22 @@ uint64_t KixRun::deserialize_file(std::string f) {
 }
 
 
+// return k-mer weight read from index
+uint8_t KixRun::get_kmer_weight() {
+  return(this->kmer_weight);
+}
+
 /* Retrieve all occurrences (fwd & rc) of kmer in the reference from the index */
-GenomePosListType KixRun::retrieve_positions(std::string kmerSpan, AlignmentSettings & settings) {
+GenomePosListType KixRun::retrieve_positions(std::string kmerSpan) {
 
   // get the reverse complement of the kmer
   HashIntoType fwHashValue;
   HashIntoType rcHashValue;
-  hash(kmerSpan.c_str(), fwHashValue, rcHashValue, settings);
+  hash(kmerSpan.c_str(), fwHashValue, rcHashValue);
   
+//  std::cout << "FW:  " << fwHashValue << std::endl;
+//  std::cout << "REV: " << rcHashValue << std::endl;
+
   // obtain the list of positions for each k-mer
   char* fwd_begin = db[fwHashValue];
   uint32_t fwd_len;
@@ -499,3 +444,67 @@ GenomePosListType KixRun::retrieve_positions(std::string kmerSpan, AlignmentSett
 
   return pos;
 }
+
+/**
+ * get kix-header information only to not load the complete index
+ * structure:
+ * 8 bit (k-mer size)
+ * 32 bit (# sequences)
+ * for each sequence: 16 bit (sequence name length) + sequence name
+ * for each sequence: 32 bit (length of sequence)
+ */
+uint64_t KixRun::get_header_information(std::string f) {
+	std::string fname = f;
+
+	// open binary file
+	FILE* fi;
+	fi = fopen(fname.c_str(), "rb");
+
+	if (!fi) {
+		std::cerr << "Error reading binary file " << fname << ": Could not open file." << std::endl;
+		return 0;
+	}
+
+	uint16_t seq_name_len;
+	uint64_t seq_amount, seq_len;
+	int c;
+
+	// sequence names & lengths
+	seq_names.clear();
+	seq_lengths.clear();
+	fread(&kmer_weight,1,1,fi);
+
+
+	// Ignore k-mer gaps
+	uint8_t gap_num;
+	fread(&gap_num,1,sizeof(uint8_t),fi);
+
+	// read k-mer pattern
+	for ( uint8_t i = 0; i < gap_num; i++ ) {
+		uint8_t gap;
+		fread(&gap, 1, sizeof(uint8_t), fi);
+	}
+
+	fread(&seq_amount,4,1,fi);
+
+	//get the names for every sequence
+	for( unsigned a = 0; a < seq_amount; a = a + 1 ){
+		fread(&seq_name_len,2,1,fi);
+		std::string seq_name;
+		for( unsigned b = 0; b < seq_name_len; b = b + 1 ){
+			c = fgetc(fi);
+			seq_name.push_back(c);
+		}
+		seq_names.push_back(seq_name);
+	}
+
+	for( unsigned a = 0; a < seq_amount; a = a + 1 ) {
+		fread(&seq_len,4,1,fi);
+	}
+	seq_lengths.push_back(seq_len);
+
+
+	fclose(fi);
+	return seq_amount;
+}
+

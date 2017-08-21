@@ -4,182 +4,340 @@
 #include "headers.h"
 
 
+/////////////////////////////////////////////
+////////// Sequences / Nucleotides //////////
+/////////////////////////////////////////////
 
-// bit representation of A/C/G/T.
+/**
+ * Two-bit representation of a nucleotide.
+ * @param ch Nucleotide as char
+ * @return 2-bit representation
+ */
 #define twobit_repr(ch) ((toupper(ch)) == 'A' ? 0LL : \
                          (toupper(ch)) == 'C' ? 1LL : \
                          (toupper(ch)) == 'G' ? 2LL : 3LL)
 
-// complement bit representation of A/C/G/T.
+/**
+ * Complementary two-bit representation of a nucleotide.
+ * @param ch Nucleotide as char
+ * @return Complementary 2-bit representation
+ */
 #define twobit_comp(ch) ((toupper(ch)) == 'A' ? 3LL : \
                          (toupper(ch)) == 'C' ? 2LL : \
                          (toupper(ch)) == 'G' ? 1LL : 0LL)
 
-// bit representation to character
+/**
+ * Nucleotide of a 2-bit representation.
+ * @param n 2-bit representation of a nucleotide.
+ * @return Nucleotide as char
+ */
 #define revtwobit_repr(n) ((n) == 0 ? 'A' : \
                            (n) == 1 ? 'C' : \
                            (n) == 2 ? 'G' : 'T')
 
-
-
-
-// Allowed characters in sequence
+/**
+ * Supported nucleotides.
+ */
 const std::string seq_chars = "ACGTacgt";
 
-// largest number we're going to hash into. (8 bytes/64 bits/32 nt)
-// probably 32 bit/16 nt are enough here
-typedef uint64_t HashIntoType;
 
-// construct a mask to truncate a binary representation of a k-mer to length K
-const HashIntoType MASK = HashIntoType(pow(4,K_HiLive))-1;
+////////////////////////////////////////
+////////// Genome Identifiers //////////
+////////////////////////////////////////
 
-// identifiers for genome sequences
+/**
+ * Type for the identifier of genomes (gid).
+ */
 typedef uint32_t GenomeIdType;
+
+/**
+ * Constant variable to tag a k-mer as "trimmed".
+ */
 const GenomeIdType TRIMMED = std::numeric_limits<GenomeIdType>::max();
 
-// list of genome identifiers
+/**
+ * A list of Genome Ids
+ */
 typedef std::vector<GenomeIdType> GenomeIdListType;
 
-// list of strings
-typedef std::vector<std::string> StringListType;
 
-// position in a genome
+//////////////////////////////////////
+////////// Genome Positions //////////
+//////////////////////////////////////
+
+/**
+ * Type for positions in a genome.
+ */
 typedef int32_t PositionType;
 
-// pair of genome ID and position
+/**
+ * A pair of genome ID and position.
+ */
 struct GenomePosType {
+
   GenomeIdType gid;
   PositionType pos;
 
   GenomePosType()=default;
   GenomePosType(GenomeIdType g, PositionType p): gid(g), pos(p) {};
 };
-//typedef std::tuple<GenomeIdType,PositionType> GenomePosType;
 
-// size of a pair of genome ID and position
+/**
+ * Size of a pair of genome ID and position (in bytes)
+ */
 const uint64_t GenomePos_size = sizeof(GenomeIdType) + sizeof(PositionType);
 
-// vector of ID:position pairs 
+/**
+ * A vector of GenomePosTypes.
+ */
 typedef std::vector<GenomePosType> GenomePosListType;
 
-// iterator on GenomePosList
+/**
+ * Iterator on GenomePosListType.
+ */
 typedef GenomePosListType::iterator GenomePosListIt;
 
-// the k-mer index array
-const HashIntoType n_kmer = pow(4,K_HiLive);
-typedef std::array<GenomePosListType,n_kmer> KmerIndexType;
 
-// small counters
+/////////////////////////////////
+////////// K-mer index //////////
+/////////////////////////////////
+
+/**
+ * Type to hash k-mers into.
+ * This type also limits the k-mer weight (currently to 32).
+ */
+typedef uint64_t HashIntoType;
+
+/**
+ * K-mer index type.
+ */
+typedef std::vector<GenomePosListType> KmerIndexType;
+
+/**
+ * A lightweight type for storing the index.
+ */
+typedef std::vector<char*> KixRunDB;
+
+
+////////////////////////////////////////
+////////// Integer data types //////////
+////////////////////////////////////////
+
+/**
+ * Type for small counters.
+ */
 typedef uint16_t CountType;
 
-// difference between k-mer position in the read and matching position in the reference
+/**
+* Difference between k-mer position in the read and matching position in the reference.
+*/
 typedef int16_t DiffType;
 
-// define a mismatch as max(DiffType)
+
+////////////////////////////////////////
+////////// Offset definitions //////////
+////////////////////////////////////////
+
+/**
+ * Define a mismatch as maximum value of DiffType.
+ */
 const DiffType NO_MATCH = std::numeric_limits<DiffType>::max();
 
-// define a trimmed position as max(DiffType)-1
+/**
+ * Define a trimmed match  maximum value of DiffType -1.
+ */
 const DiffType TRIMMED_MATCH = std::numeric_limits<DiffType>::max()-1;
 
-// one element in Cigar vector containing match/mismatch information about consecutive k-mers
+
+////////////////////////////////////
+////////// CIGAR elements //////////
+////////////////////////////////////
+
+/**
+ * One (internal) CIGAR element.
+ */
 struct CigarElement {
+
+	/** Length of the region. */
     CountType length;
+
+    /** Offset of the region to the original start pos (created by InDels). */
     DiffType offset;
+
     CigarElement (CountType l, DiffType o): length(l), offset(o) {};
     CigarElement (): length(0), offset(NO_MATCH) {};
 };
 
-// CigarVector containing CIGAR string like information about the alignments
+/**
+ * Vector of CIGAR elements, representing the alignment information for one seed.
+ */
 typedef std::list<CigarElement> CigarVector;
 
 
+///////////////////////////////////////
+////////// Sequence Elements //////////
+///////////////////////////////////////
 
+/**
+ * Information about the sequences.
+ * One element can be a read or a barcode.
+ * @author Tobias Loka
+ */
+struct SequenceElement {
 
-// all user parameters are stored in the alignment settings
-struct AlignmentSettings {
-  // HARD CODED: kmer gap structure (this is not used anywhere)
-  //std::string kmer_structure = "11111110111110111";
-  std::string kmer_structure = "111111111111111";
+	/** The id of the read. Equals the position in the argument list and in the AlignmentSettings::seqs vector (0-based). */
+	CountType id;
 
-  // HARD CODED: kmer gap positions (one-based)
-  //std::vector<unsigned> kmer_gaps = {8, 14};
-  std::vector<unsigned> kmer_gaps;
+	/** The mate number. 0 for barcodes, increasing for sequence reads in the given order (1-based). */
+	CountType mate;
 
-  // HARD CODED: kmer span (kmer weight is K_HiLive)
-  //unsigned kmer_span = K_HiLive+2;
-  unsigned kmer_span = K_HiLive;
+	/** The length of the respective read. */
+	CountType length;
 
-  // PARAMETER: Base Call quality cutoff, treat BC with quality < bc_cutoff as miscall
-  CountType min_qual;
+	/**
+	 * Constructor of a SequenceElement NULL object.
+	 * @author Tobias Loka
+	 */
+	SequenceElement () : id(0), mate(0), length(0) {};
 
-  // PARAMETER: max. insert/deletion size
-  DiffType window;
+	/**
+	 * Constructor of a valid SequenceElement object.
+	 * @param id The id of the read.
+	 * @param m The mate number of the read (0 for barcodes, incrementing for sequence reads)
+	 * @param l The length of the read
+	 * @author Tobias Loka
+	 */
+	SequenceElement (CountType id, CountType m, CountType l): id(id), mate(m), length(l) {};
 
-  // PARAMETER: minimum number of errors allowed in alignment
-  CountType min_errors;
-
-  // SWITCH: discard One-hit-wonders
-  bool discard_ohw;
-
-  // PARAMETER: first cycle to discard one-hit-wonders
-  CountType start_ohw;
-
-  // SWITCH: Best-Hit-Mode
-  bool any_best_hit_mode;
-
-  // SWITCH: Best-Hit-Mode
-  bool all_best_hit_mode;
-
-  // SWITCH: Best-N-Mode
-  bool all_best_n_scores_mode;
-
-  // PARAMETER: Best-N-Mode::N
-  CountType best_n;
-
-  // PARAMETER: temporary directory for the streamed alignment
-  std::string temp_dir;
-
-  // SWITCH: write sam/bam output or not
-  bool write_bam=false;
-
-  // SWITCH: Keep the old alignment files of previous cycles
-  bool keep_aln_files;
-
-  // PARAMETER: Memory block size for the input and output buffer in the streamed alignment
-  uint64_t block_size;
-
-  // PARAMETER: Compression format for alignment files
-  uint8_t compression_format;
-
-  // PARAMETER: list of lanes to process
-  std::vector<uint16_t> lanes;
-  
-  // PARAMETER: list of tiles to process
-  std::vector<uint16_t> tiles;
-
-  // PARAMETER: root directory of hilive run
-  std::string root;
-
-  // PARAMETER: path to the index file
-  std::string index_fname;
-
-  // PARAMETER: read length of all reads (including barcodes)
-  CountType rlen;
-
-  // PARAMETER: length of the sequence of all reads (excluding barcodes)
-  CountType seqlen;
-
-  // PARAMETER: vector containing all barcodes of the reads which should be outputted
-  std::vector<std::string> barcodeVector;
-
-  // PARAMETER: directory in which to create the output directory structure 
-  std::string out_dir;
-
-  // PARAMETER: number of threads to use
-  CountType num_threads;
+	/**
+	 * Check whether the SequenceElement object is a barcode or not.
+	 * @return true, if SequenceElement is a barcode. False if not.
+	 * @author Tobias Loka
+	 */
+	bool isBarcode() { return (mate==0);}
 };
 
+/**
+ * Check if two Sequence elements are equal.
+ */
+inline bool operator==(const SequenceElement l, const SequenceElement r) {return (l.length==r.length) && (l.mate==r.mate) && (l.id==r.id);}
 
+/**
+ * Checks if two sequence elements are not equal.
+ */
+inline bool operator!=(const SequenceElement l, const SequenceElement r) {return !(l==r);}
+
+/**
+ * An undefined sequence element (NULL element).
+ */
+const SequenceElement NULLSEQ = SequenceElement();
+
+
+////////////////////////////////////////////
+////////// Unmodifiable variables //////////
+////////////////////////////////////////////
+
+/**
+ * Exception specialization for Unmodifiable data types.
+ * @author Tobias Loka
+ */
+class unmodifiable_error : public std::logic_error
+{
+public:
+	using std::logic_error::logic_error;
+};
+
+/**
+ * Template to define data types that can only be set once.
+ * @type T Data type of the unmodifiable object.
+ * @author Tobias Loka
+ */
+template <typename T>
+class Unmodifiable {
+
+private:
+
+	/** The unmodifiable object. */
+	T unmodifiable_object;
+
+	/** Flag to check if the object was already set once. */
+	bool setFlag = false;
+
+public:
+
+	/** Constructor without setting the object (to only declare the object).*/
+	Unmodifiable(){	}
+
+	/** Constructor with setting the object (to init the object).*/
+	Unmodifiable(T object) {
+		unmodifiable_object = object;
+	}
+
+	/** Automatic cast to of the unmodifiable to the object type. */
+	operator T() { return unmodifiable_object; }
+
+	/**
+	 * Set the unmodifiable object (will only work once!).
+	 * @param object The object to be copied to this unmodifiable data type.
+	 * @return true if setting was successful
+	 * @author Tobias Loka
+	 */
+	void set(T object) {
+		if ( isSet() ) {
+			throw unmodifiable_error("Tried to modify unmodifiable object");
+		}
+
+		unmodifiable_object = object;
+		setFlag = true;
+	}
+
+	/**
+	 * Check if the object was already set.
+	 * @return true if the object was already set.
+	 * @author Tobias Loka
+	 */
+	bool isSet() {
+		return setFlag;
+	}
+
+	/**
+	 * Return a copy of the unmodifiable object.
+	 * @param allow_unset if false, an exception is thrown when the object was not set before. Should only be true for
+	 * objects that require access to certain properties before their initialization (e.g. to check a container's size
+	 * without knowing if the container was already set).
+	 * @return (copy/value of) the unmodifiable object
+	 * @author Tobias Loka
+	 */
+	T get(bool allow_unset = false ) {
+		if ( ! isSet() && ! allow_unset) {
+			throw unmodifiable_error("Tried to access uninitialized object");
+		}
+
+		return unmodifiable_object;
+	}
+
+};
+
+///////////////////////////////////////
+////////// Other definitions //////////
+///////////////////////////////////////
+
+/**
+ * A list of strings
+ */
+typedef std::vector<std::string> StringListType;
+
+/**
+ * The different alignment modes.
+ * @author Tobias Loka
+ */
+enum AlignmentMode:char {
+	ALL='A',
+	ALLBEST='H',
+	ANYBEST='B',
+	BESTN='N',
+	UNKNOWN='U'
+};
 
 
 #endif /* DEFINITIONS_H */

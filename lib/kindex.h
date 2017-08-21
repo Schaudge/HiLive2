@@ -3,6 +3,7 @@
  
 #include "headers.h"
 #include "definitions.h"
+#include "global_variables.h"
 #include "tools.h"
 
 
@@ -18,13 +19,16 @@ class KixBuild {
 
  public:
   
+  // constructor resizing db (see below) to match the number of possible k-mers
+  KixBuild();
+
   // add k-mers of all sequences in FASTA file
-  int add_fasta(const std::string &fname, GenomeIdListType &ids, AlignmentSettings & settings, bool convert_spaces, bool trim_ids);
-  int add_fasta(const std::string &fname, AlignmentSettings & settings, bool convert_spaces, bool trim_ids);
+  int add_fasta(const std::string &fname, GenomeIdListType &ids, bool convert_spaces, bool trim_ids);
+  int add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids);
   
   // add all k-mers in a string sequence to the database
-  GenomeIdType start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings);
-  GenomeIdType continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition, AlignmentSettings & settings);
+  GenomeIdType start_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition);
+  GenomeIdType continue_sequence(const std::string &s, std::string& tailingKmer, PositionType& sequencePosition);
 
   // trim the database: remove kmers with more than max_count occurrences
   uint64_t trim(uint64_t max_count);
@@ -35,14 +39,8 @@ class KixBuild {
   // serialize and store the KixBuild to a file
   uint64_t serialize_file(std::string f);
 
-  // deserialize KixBuild
-  uint64_t deserialize(char* d);
-  
-  // load and deserialize KixBuild from file
-  uint64_t deserialize_file(std::string f);
 
-
-  GenomeIdType num_seq; // total number of sequences in the database
+  GenomeIdType num_seq=0; // total number of sequences in the database
   KmerIndexType db; // the database structure itself
   StringListType seq_names; // names of the sequences in the database
   std::vector<uint32_t> seq_lengths; // lengths of the sequences in the database
@@ -56,21 +54,29 @@ class KixBuild {
 //-------------------------------------------------------------------//
 
 
-typedef std::array<char*,n_kmer> KixRunDB;
-
 class KixRun {
+ private:
+  uint8_t kmer_weight; // k-mer weight read from file
+  std::vector<unsigned> kmer_gaps;
  public:
   // pointer to the matching positions for a k-mer
   char* kmer(HashIntoType kmer);
   
   // retrieve all fwd and rc occurrences of kmer in the index
-  GenomePosListType retrieve_positions(std::string kmerSpan, AlignmentSettings & settings);
+  GenomePosListType retrieve_positions(std::string kmerSpan);
 
-  // deserialize Kix
+  // deserialize Kix, also sets kmer_weight and globalAlignmentSettings.kmer_weight
   uint64_t deserialize(char* d);
   
   // load and deserialize Kix from file
   uint64_t deserialize_file(std::string f);
+
+  // return k-mer weight of the k-mers in the index
+  uint8_t get_kmer_weight();
+
+  uint64_t get_header_information(std::string f);
+
+  void store_kmer() { globalAlignmentSettings.set_kmer(kmer_weight, kmer_gaps); };
 
   // Database content
   GenomeIdType num_seq; // total number of sequences in the database

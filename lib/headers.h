@@ -1,4 +1,3 @@
-#include "config.h"
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -10,6 +9,7 @@
 #include <string>
 #include <cstring>
 #include <math.h>
+#include <numeric>
 #include <assert.h>
 #include <tuple>
 #include <algorithm>
@@ -24,3 +24,10 @@
 #include <stdexcept>
 #include <utility>
 #include <boost/filesystem.hpp>
+#include <boost/property_tree/xml_parser.hpp>
+#include <boost/property_tree/ptree.hpp>
+#include <boost/optional/optional.hpp>
+#include <boost/foreach.hpp>
+#include <seqan/basic.h>
+#include <seqan/sequence.h>
+#include <seqan/bam_io.h>
