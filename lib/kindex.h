@@ -17,20 +17,17 @@
 class KixBuild {
 
  public:
-  
-  // constructor resizing db (see below) to match the number of possible k-mers
-  KixBuild();
-  
-  /**
-   * Create an FM index.
-   * @param fname Name of the input FASTA file
-   * @param iname Name of the output index file
-   * @param convert_spaces If true, spaces in the sequence headers are converted
-   * @param trim_ids If true, sequence headers are trimed after the first white space
-   * @return 0 if successful, error code otherwise.
-   * @author Tobias Loka
-   */
-  int create_index( const std::string &fname, const std::string &iname, bool convert_spaces, bool trim_ids);
+
+	/**
+	 * Function to build the fm-index from a input (multi-)fasta file.
+	 * @param fname Name of the input fasta file
+	 * @param iname Name of the output index file(s)
+	 * @param convert_spaces If true, inner spaces are converted to underscores
+	 * @param trim_ids If true, the id is trimmed after the first whitespace
+	 * @return 0 if successful, error code otherwise
+	 * @author Tobias Loka
+	 */
+	int create_index( const std::string &fname, const std::string &iname, bool convert_spaces, bool trim_ids);
 
 	/** Names of the sequences in the index. */
 	StringListType seq_names;
@@ -39,75 +36,68 @@ class KixBuild {
 	std::vector<uint32_t> seq_lengths;
 
 	/** Sequences in the index. */
-  seqan::StringSet<seqan::DnaString> seqs;
+	seqan::StringSet<seqan::DnaString> seqs;
 
-private:
+ private:
 
-  /**
-   * Add a FASTA sequence to the index.
-   * @param fname Name of the input FASTA file.
-   * @param convert_spaces If true, spaces in the sequence headers are converted
-   * @param trim_ids If true, sequence headers are trimed after the first white space
-   * @return Number of loaded sequences
-   * @author Tobias Loka
-   */
-  int add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids);
+	/**
+	 * Read a fasta file and load the sequences to the HiLive data structure.
+	 * @param fname Name of the input fasta file
+	 * @param convert_spaces If true, inner spaces are converted to underscores
+	 * @param trim_ids If true, the id is trimmed after the first whitespace
+	 * @return Number of loaded sequences
+	 * @author Martin Lindner, Tobias Loka
+	 */
+	int add_fasta(const std::string &fname, bool convert_spaces, bool trim_ids);
 
-  /**
-   * Write the FM index to the hard drive.
-   * @param idx The internal FM index object
-   * @param iname Name of the output index file
-   * @return 0 if successful, error code otherwise
-   * @author Tobias Loka
-   */
-  int save_fmindex(FMIndex & idx, const std::string &iname);
+	/**
+	 * Save the SeqAn FM-index to file.
+	 * @param idx The SeqAn FM-index structure
+	 * @param iname The name of the output index file(s)
+	 * @return 0 if successful, error code otherwise
+	 * @author Tobias Loka
+	 */
+	int save_fmindex(FMIndex & idx, const std::string &iname);
 
-  /**
-   * Save the metadata to file.
-   * @param iname The name of the output index file(s)
-   * @return 0 if successful, error code otherwise
-   * @author Tobias Loka
-   */
-  int save_metadata(const std::string &iname);
+	/**
+	 * Save the metadata to file.
+	 * @param iname The name of the output index file(s)
+	 * @return 0 if successful, error code otherwise
+	 * @author Tobias Loka
+	 */
+	int save_metadata(const std::string &iname);
 
-  /**
-   * Save the Sequence names to file.
-   * @param iname The name of the output index file(s)
-   * @return 0 if successful, error code otherwise
-   * @author Tobias Loka
-   */
-  int save_seqnames(const std::string &iname);
+	/**
+	 * Save the Sequence names to file.
+	 * @param iname The name of the output index file(s)
+	 * @return 0 if successful, error code otherwise
+	 * @author Tobias Loka
+	 */
+	int save_seqnames(const std::string &iname);
 
-  /**
-   * Save the Sequence lengths to file.
-   * @param iname The name of the output index file(s)
-   * @return 0 if successful, error code otherwise
-   * @author Tobias Loka
-   */
-  int save_seqlengths(const std::string &iname);
-
+	/**
+	 * Save the Sequence lengths to file.
+	 * @param iname The name of the output index file(s)
+	 * @return 0 if successful, error code otherwise
+	 * @author Tobias Loka
+	 */
+	int save_seqlengths(const std::string &iname);
 
 };  // END class KixBuild
-
 
 
 //-------------------------------------------------------------------//
 //------  The k-mer runtime index: KixRun ---------------------------//
 //-------------------------------------------------------------------//
 
-
 class KixRun {
 
  public:
 
-	/** The FM index itself. */
-	FMIndex idx;
-
 	/**
-	 * Load an FM-index from the hard drive.
-	 * @param index_name Name of the input index file.
-	 * @return 0 on success, other value on error
-	 * @author Tobias Loka
+	 * Load the complete fm-index from file (incl. meta data)
+	 * @param index_name: path to the index file(s)
+	 * @return 0 on success, other value on failure
 	 */
 	int load_fmindex(std::string index_name);
 
@@ -172,6 +162,9 @@ class KixRun {
 	 * @return true, if alignment is on the reverse strand
 	 */
 	bool isReverse(uint32_t gid){ return gid%2==1; };
+
+	/** The FM index itself. */
+	FMIndex idx;
 
  private:
 

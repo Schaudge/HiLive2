@@ -41,9 +41,9 @@ int main(int argc, const char* argv[]) {
 	// load the index
 	std::cout << "Loading Index Header..." << std::endl;
 	KixRun* index = new KixRun();
-
-	index->get_header_information(globalAlignmentSettings.get_index_fname());
-	index->store_kmer();
+//
+//	index->get_header_information(globalAlignmentSettings.get_index_fname());
+//	index->store_kmer();
 
 	std::cout << "Start writing ouput." << std::endl;
 

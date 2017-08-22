@@ -31,7 +31,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
             bool success = true;
             try {
 
-                StreamedAlignment s (t.lane, t.tile, t.seqEl.length);
+                StreamedAlignment s (t.lane, t.tile, globalAlignmentSettings.get_root(), t.seqEl.length);
                 uint64_t num_seeds;
 
                 // Seed extension if current read is sequence fragment.
@@ -194,7 +194,7 @@ int main(int argc, const char* argv[]) {
         for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
             CountType mate = 1;
             for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
-                StreamedAlignment s (ln, tl, globalAlignmentSettings.getSeqByMate(mate).length);
+                StreamedAlignment s (ln, tl, globalAlignmentSettings.get_root(), globalAlignmentSettings.getSeqByMate(mate).length);
                 s.create_directories();
                 s.init_alignment(mate);
             }

@@ -665,15 +665,15 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	// Init the bamIOContext (the same object can be used for all output streams)
 	seqan::StringSet<seqan::CharString> referenceNames;
 
-	  for (unsigned i=0; i<seqan::length(index->seq_names); i++) {
-	      seqan::appendValue(referenceNames, index->seq_names[i]);
-	  }
+//	  for (unsigned i=0; i<seqan::length(index->seq_names); i++) {
+//	      seqan::appendValue(referenceNames, index->seq_names[i]);
+//	  }
 
 	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
 	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
 
-	seqan::contigNames(bamIOContext) = index->seq_names;
-	seqan::contigLengths(bamIOContext) = index->seq_lengths;
+	seqan::contigNames(bamIOContext) = index->getSeqNames();
+	seqan::contigLengths(bamIOContext) = index->getSeqLengths();
 
 	// Init the header (the same object can be used for all output streams)
 	seqan::BamHeader header = getBamHeader();
@@ -859,7 +859,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 						unsigned cigarElemSum = 0;
 						unsigned deletionSum = 0;
 						unsigned supposed_cigar_length = mateCycles[mateAlignmentIndex];
-						CountType min_as_score = mateCycles[mateAlignmentIndex] * globalAlignmentSettings.get_min_as_ratio();
+//						CountType min_as_score = mateCycles[mateAlignmentIndex] * globalAlignmentSettings.get_min_as_ratio();
 
 //						unsigned as_score = (*it)->num_matches;
 						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {

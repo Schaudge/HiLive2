@@ -454,77 +454,81 @@ CountType ReadAlignment::getMaxNumErrors(USeed s) {
 
 void ReadAlignment::extendSeed(char base, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds){
 
+	// The new base / nucleotide
 	CountType tbr = twobit_repr(base);
 
-	CigarVector front;
-	CountType num_matches_placeholder = 0;
-
+	// Extend alignment match (can be match or NO_MATCH)
 	getMatchSeeds(tbr, origin, allowedErrors, index, newSeeds);
+
+	// Extend insertion
 	getInsertionSeeds(tbr, origin, allowedErrors, index, newSeeds);
+
+	// Extend deletion
 	getDeletionSeeds(tbr, origin, allowedErrors, index, newSeeds);
+
 
 }
 
 
-void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeed) {
-
-	SeedVec newSeeds;
+void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds) {
 
 	// iterate through possible bases
-	for (int b=0; b<4; b++) {
+		for (int b=0; b<4; b++) {
 
-		FMTopDownIterator it(index->idx, origin->vDesc); 	// Create index iterator
+			FMTopDownIterator it(index->idx, origin->vDesc); 	// Create index iterator
 
-		// Only handle when the path exist in the genome
-		if (goDown(it,revtwobit_repr(b))) {
+			// Only handle when the path exist in the genome
+			if (goDown(it,revtwobit_repr(b))) {
 
-			// handle a MATCH
-			if ( b == base_repr ) {
+				// handle a MATCH
+				if ( b == base_repr ) {
 
-				// copy data from origin seed
-				USeed s (new Seed);
-				s->vDesc = it.vDesc;
-				s->cigar_data = origin->cigar_data;
-				s->num_errors = origin->num_errors;
+					// copy data from origin seed
+					USeed s (new Seed);
+					s->vDesc = it.vDesc;
+					s->cigar_data = origin->cigar_data;
+					s->num_errors = origin->num_errors;
 
-				// Insert MATCH region if necessary
-				if ( s->cigar_data.back().offset >= DELETION )
-					s->cigar_data.emplace_back(0, 0); // TODO: add offset of previous match regions (if not deprecated)
+					// Insert MATCH region if necessary
+					if ( s->cigar_data.back().offset >= DELETION )
+						s->cigar_data.emplace_back(0, 0); // TODO: add offset of previous match regions (if not deprecated)
 
-				s->cigar_data.back().length += 1; // Increase match region length
-				newSeeds.push_back(s); // Push the new seed to the vector.
-			}
+					s->cigar_data.back().length += 1; // Increase match region length
 
-			// handle a NO_MATCH
-			else {
+					newSeeds.emplace_back(s); // Push the new seed to the vector.
+				}
 
-				// Stop when maximal number of errors is reached
-				if ( origin->num_errors >= allowedErrors )
-					continue;
+				// handle a NO_MATCH
+				else {
 
-				// DON'T FINISH DELETION AND INSERTION REGIONS BY NO_MATCH!!!
-				if ( origin->cigar_data.back().offset == DELETION )
-					continue;
+					// Stop when maximal number of errors is reached
+					if ( origin->num_errors >= allowedErrors )
+						continue;
 
-				if ( origin->cigar_data.back().offset == INSERTION )
-					continue;
+					// DON'T FINISH DELETION AND INSERTION REGIONS BY NO_MATCH!!!
+					if ( origin->cigar_data.back().offset == DELETION )
+						continue;
 
+					if ( origin->cigar_data.back().offset == INSERTION )
+						continue;
 
-				// copy data from origin seed
-				USeed s (new Seed);
-				s->vDesc = it.vDesc;
-				s->cigar_data = origin->cigar_data;
-				s->num_errors = origin->num_errors + 1;
-				// Insert MATCH region if necessary
-				if ( s->cigar_data.back().offset != NO_MATCH )
-					s->cigar_data.emplace_back(0, NO_MATCH);
+					// copy data from origin seed
+					USeed s (new Seed);
+					s->vDesc = it.vDesc;
+					s->cigar_data = origin->cigar_data;
+					s->num_errors = origin->num_errors + 1;
 
-				s->cigar_data.back().length += 1; // Increase match region length
+					// Insert MATCH region if necessary
+					if ( s->cigar_data.back().offset != NO_MATCH )
+						s->cigar_data.emplace_back(0, NO_MATCH);
 
-				newSeeds.push_back(s); // Push the new seed to the vector.
+					s->cigar_data.back().length += 1; // Increase match region length
+
+					newSeeds.emplace_back(s); // Push the new seed to the vector.
+				}
 			}
 		}
-	}
+
 }
 
 void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds) {
