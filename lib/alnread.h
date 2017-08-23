@@ -67,7 +67,7 @@ typedef std::shared_ptr<Seed> USeed;
 /**
  * Shared pointer to seeds.
  */
-typedef std::list<USeed> SeedVec;
+typedef std::vector<USeed> SeedVec;
 
 /**
  * Iterator for a list of shared pointers to seeds.
@@ -113,6 +113,7 @@ inline bool seed_comparison_by_error(const USeed a, const USeed b) {
 	return a->num_errors < b->num_errors;
 }
 
+
 /**
  * Define '<'-operator for seeds.
  * Used for sorting by the range in the FM index.
@@ -120,34 +121,38 @@ inline bool seed_comparison_by_error(const USeed a, const USeed b) {
  */
 inline bool operator <(const Seed l, const Seed r) {
 
-	// consider VertexDescriptor (range)
+	// Lower range wins
 	if ( l.vDesc < r.vDesc )
 		return true;
-	else if ( l.vDesc > r.vDesc )
+	else if ( l.vDesc != r.vDesc )
 		return false;
 
+	// If range equal:
 	else {
 
-		// consider leading softclip (when having the same range, prefer to know more details about it)
-		if ( l.cigar_data.front().offset == NO_MATCH && r.cigar_data.front().offset == NO_MATCH ) {
-			if ( l.cigar_data.front().length < r.cigar_data.front().length )
-				return true;
-			else if ( l.cigar_data.front().length > r.cigar_data.front().length )
-				return false;
-		}
-		else if ( l.cigar_data.front().offset == NO_MATCH )
-			return false;
-		else if ( r.cigar_data.front().offset == NO_MATCH )
-			return true;
+		auto lCig = l.cigar_data.begin();
+		auto rCig = r.cigar_data.begin();
 
-		// consider mismatches
-		return l.num_errors < r.num_errors;
+		// Different offsets -> MATCH wins.
+		if ( lCig->offset != rCig->offset ) {
+			return ( lCig->offset != NO_MATCH );
+		}
+
+		// Equal offsets
+		else {
+
+			// both match or equal length -> less errors win
+			if ( lCig->offset != NO_MATCH || lCig->length == rCig->length )
+				return l.num_errors < r.num_errors;
+
+			// both NO_MATCH and different length -> lower length wins
+			else
+				return lCig->length < rCig->length;
+		}
 
 	}
 	return false;
 }
-
-
 
 
 //-------------------------------------------------------------------//

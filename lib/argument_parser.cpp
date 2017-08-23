@@ -23,8 +23,7 @@ po::options_description BuildIndexArgumentParser::general_options() {
 po::options_description BuildIndexArgumentParser::positional_options() {
 	po::options_description parameters("Required");
 	parameters.add_options()
-	    		("INPUT", po::value<std::string>()->required(), "Reference genomes in (multi-) FASTA format.")
-				("KMER_WEIGHT", po::value<uint16_t>()->required(), "Number of non-gap positions in a k-mer (For ungapped k-mers this is the k-mer size).");
+	    		("INPUT", po::value<std::string>()->required(), "Reference genomes in (multi-) FASTA format.");
 	return parameters;
 }
 
@@ -32,7 +31,6 @@ po::options_description BuildIndexArgumentParser::build_options() {
 	po::options_description options("Options");
 	options.add_options()
 	    		("outfile,o", po::value<std::string>(), "Set output file name [Default: INPUT.kix]")
-				("gap-positions,p", po::value< std::vector<unsigned> >()->multitoken()->composing(), "Gap positions in the k-mer pattern (example: -p 3 6 7 for 1101100111 with k=7). [Default: ungapped]")
 				("do-not-convert-spaces", po::bool_switch(&do_not_convert_spaces)->default_value(false), "Do not convert all spaces in reference ids to underscores [Default: converting is on]")
 				("trim-after-space", po::bool_switch(&trim_ids)->default_value(false), "Trim all reference ids after first space [Default: false]");
 	return options;
@@ -45,10 +43,9 @@ void BuildIndexArgumentParser::init_help(po::options_description visible_options
 	help_message << "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-	help_message << "Usage: " << std::endl << "  hilive-build INPUT KMER_WEIGHT [options]" << std::endl << std::endl;
-	help_message << "Required:" << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive-build INPUT [options]" << std::endl << std::endl;
+	help_message << "Required: " << std::endl;
 	help_message << "  INPUT                 Reference genomes in (multi-) FASTA format." << std::endl;
-	help_message << "  KMER_WEIGHT           Number of non-gap positions in a k-mer (For ungapped k-mers this is the k-mer size)." << std::endl;
 
 	help_message << visible_options;
 
@@ -60,20 +57,9 @@ bool BuildIndexArgumentParser::set_positional_variables(po::variables_map vm) {
 	// Name of the input fasta file
 	fasta_name = vm["INPUT"].as<std::string>();
 
-
-	// User-defined k-mer weight
-	kmer_weight = vm["KMER_WEIGHT"].as<uint16_t>();
-
 	// Check if input file exists
 	if ( !file_exists(fasta_name) ){
 		std::cerr << "Input error: Could not find input file " << fasta_name << std::endl;
-		return false;
-	}
-
-	// Check for maximal k-mer size
-	CountType maxKmerWeight = sizeof(HashIntoType)*4;
-	if ( kmer_weight > maxKmerWeight ) {
-		std::cerr << "K-mer weight is too high. Maximal k-mer weight is " << maxKmerWeight << "." << std::endl;
 		return false;
 	}
 
@@ -81,15 +67,6 @@ bool BuildIndexArgumentParser::set_positional_variables(po::variables_map vm) {
 }
 
 bool BuildIndexArgumentParser::set_build_variables(po::variables_map vm) {
-
-	if ( vm.count("gap-positions") ) {
-		gap_positions = vm["gap-positions"].as< std::vector <unsigned> >();
-	}
-
-	// Init the k-mer structure
-	if ( ! globalAlignmentSettings.set_kmer(kmer_weight, gap_positions) ) {
-		return false;
-	}
 
 	// Name of the ouput .kix file
 	if (vm.count("outfile")) {
@@ -103,21 +80,21 @@ bool BuildIndexArgumentParser::set_build_variables(po::variables_map vm) {
 
 void BuildIndexArgumentParser::report() {
 
-	std::cout << "K-mer weight:        " << (uint16_t) globalAlignmentSettings.get_kmer_weight() << std::endl;
-	std::cout << "K-mer span:          " << (uint16_t) globalAlignmentSettings.get_kmer_span() << std::endl;
-	std::cout << "K-mer gap positions: ";
-
-	if ( globalAlignmentSettings.get_kmer_gaps().size() > 0 ) {
-		for ( auto pos : globalAlignmentSettings.get_kmer_gaps() ) {
-			if ( pos != *(globalAlignmentSettings.get_kmer_gaps().begin()) )
-				std::cout << ",";
-			std::cout << (uint16_t) pos;
-		}
-		std::cout << std::endl;
-	} else {
-		std::cout << "-" << std::endl;
-	}
-	std::cout << std::endl;
+//	std::cout << "K-mer weight:        " << (uint16_t) globalAlignmentSettings.get_kmer_weight() << std::endl;
+//	std::cout << "K-mer span:          " << (uint16_t) globalAlignmentSettings.get_kmer_span() << std::endl;
+//	std::cout << "K-mer gap positions: ";
+//
+//	if ( globalAlignmentSettings.get_kmer_gaps().size() > 0 ) {
+//		for ( auto pos : globalAlignmentSettings.get_kmer_gaps() ) {
+//			if ( pos != *(globalAlignmentSettings.get_kmer_gaps().begin()) )
+//				std::cout << ",";
+//			std::cout << (uint16_t) pos;
+//		}
+//		std::cout << std::endl;
+//	} else {
+//		std::cout << "-" << std::endl;
+//	}
+//	std::cout << std::endl;
 
 }
 
@@ -137,7 +114,6 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 
 	po::positional_options_description p;
 	p.add("INPUT", 1);
-	p.add("KMER_WEIGHT", 1);
 
 	po::variables_map vm;
 	try {
@@ -343,6 +319,8 @@ void HiLiveArgumentParser::report() {
         std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
     else
         std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
+    std::cout << "Anchor length:            " << globalAlignmentSettings.get_anchor_length() << std::endl;
+    std::cout << "Increase error rate:      " << globalAlignmentSettings.get_error_rate() << std::endl;
     std::cout << std::endl;
 }
 

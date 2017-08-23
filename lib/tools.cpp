@@ -68,7 +68,7 @@ std::string unhash(HashIntoType myHash, unsigned hashLen)
 	unsigned mask = 3;
 	for (unsigned i = 1; i<pow(2,2*hashLen); i *= 4) {
 		kmer.push_back(revtwobit_repr(myHash & mask));
-		myHash = myHash >> 2;
+		myHash = myHash >> 4;
 	}
 	std::reverse(kmer.begin(), kmer.end());
 	return kmer;

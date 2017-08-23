@@ -163,16 +163,6 @@ int main(int argc, const char* argv[]) {
     index->load_metadata( globalAlignmentSettings.get_index_fname() );
     index->load_fmindex( globalAlignmentSettings.get_index_fname() );
 
-    // Report loaded k-mer properties
-    std::cout << std::endl;
-    std::cout << "kmer span:   " << std::to_string(globalAlignmentSettings.get_kmer_span()) << std::endl;
-    std::cout << "kmer weight: " << std::to_string(globalAlignmentSettings.get_kmer_weight()) << std::endl;
-    std::cout << "kmer gaps:   ";
-    for ( auto gap : globalAlignmentSettings.get_kmer_gaps() ) {
-    	std::cout << gap << " ";
-    }
-    std::cout << std::endl << std::endl;
-
   	// Write the alignment settings to an XML file
   	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
   	if ( ! write_xml(xml_out, get_settings_name()) )

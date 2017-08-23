@@ -62,6 +62,11 @@ uint64_t oAlnStream::open(std::string fname) {
   total_size += sizeof(uint16_t); // tile
   total_size += sizeof(CountType); // cycle
 
+  // root directory name
+  uint16_t root_size = root.size();
+  total_size += sizeof(uint16_t);
+  total_size += root_size;
+
   // read length
   total_size += sizeof(CountType);
 
@@ -83,6 +88,13 @@ uint64_t oAlnStream::open(std::string fname) {
   // write the cycle
   memcpy(d,&cycle,sizeof(CountType));
   d += sizeof(CountType);
+
+  // root directory name
+  memcpy(d,&root_size,sizeof(uint16_t));
+  d += sizeof(uint16_t);
+
+  memcpy(d,root.c_str(),root_size);
+  d += root_size;
 
   // write the read length
   memcpy(d,&rlen,sizeof(CountType));
@@ -106,6 +118,7 @@ uint64_t oAlnStream::open(std::string fname) {
 // writes a read alignment to the output Alignment file. 
 // Buffering is handled internally
 uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
+
   if ( (!ofile && (format == 0 || format == 2)) || (ozfile == Z_NULL && format == 1) ){
     throw std::runtime_error("Could not write alignment to file. File handle not valid.");
   }
@@ -131,14 +144,11 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
     memcpy(buffer.data()+buf_pos,temp.data(),first_part);
 
     // write out buffer
-    uint64_t written = 0;
     switch (format) {
-    case 0: written = fwrite(buffer.data(), 1, buffer.size(), ofile); break;
-    case 1: written = gzwrite(ozfile, buffer.data(), buffer.size()); break;
-    case 2: written = lz4write(buffer.data(), buffer.size()); break;
+    case 0: fwrite(buffer.data(), 1, buffer.size(), ofile); break;
+    case 1: gzwrite(ozfile, buffer.data(), buffer.size()); break;
+    case 2: lz4write(buffer.data(), buffer.size()); break;
     }
-    if(written != buf_size)
-      throw std::runtime_error("Could not write out buffer 1 in oAlnStream::write_alignment.");
 
     // copy remaining data
     memcpy(buffer.data(),temp.data()+first_part,sizeof(uint32_t)-first_part);
@@ -155,14 +165,11 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
 
     // write buffer to disk if full
     if(buf_pos >= buf_size){
-      uint64_t written = 0;
       switch (format) {
-      case 0: written = fwrite(buffer.data(), 1, buffer.size(), ofile); break;
-      case 1: written = gzwrite(ozfile, buffer.data(), buffer.size()); break;
-      case 2: written = lz4write(buffer.data(), buffer.size()); break;
+      case 0: fwrite(buffer.data(), 1, buffer.size(), ofile); break;
+      case 1: gzwrite(ozfile, buffer.data(), buffer.size()); break;
+      case 2: lz4write(buffer.data(), buffer.size()); break;
       }
-      if(written != buf_size)
-        throw std::runtime_error("Could not write out buffer 2 in oAlnStream::write_alignment.");
       buf_pos = 0;
     }
   }
@@ -176,14 +183,11 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
 bool oAlnStream::close() {
   if ( ((format == 0 || format == 2) && ofile) || (format == 1 && ozfile != Z_NULL) ) {
     // write remaining buffer content to file
-    uint64_t written = 0;
     switch (format) {
-    case 0: written = fwrite(buffer.data(), 1, buf_pos, ofile); break;
-    case 1: written = gzwrite(ozfile, buffer.data(), buf_pos); break;
-    case 2: written = lz4write(buffer.data(), buf_pos); break;
+    case 0: fwrite(buffer.data(), 1, buf_pos, ofile); break;
+    case 1: gzwrite(ozfile, buffer.data(), buf_pos); break;
+    case 2: lz4write(buffer.data(), buf_pos); break;
     }
-    if(written != buf_pos)
-      throw std::runtime_error("Could not write out buffer in oAlnStream::close.");
     buf_pos = 0;
     if (num_written == num_reads) {
       switch (format) {
@@ -204,14 +208,13 @@ bool oAlnStream::close() {
 }
 
 
-
 //-------------------------------------------------------------------//
 //------  The input Alignment Stream class  -------------------------//
 //-------------------------------------------------------------------//
 
 // new Alignment Stream class
 iAlnStream::iAlnStream(uint64_t bs, uint8_t fmt):
-  lane(0), tile(0), cycle(0), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), ifile(NULL), izfile(Z_NULL) {}
+  lane(0), tile(0), cycle(0), root(""), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), ifile(NULL), izfile(Z_NULL) {}
 
 
 // read function for lz4 decompression, reads one block of data
@@ -264,6 +267,7 @@ uint64_t iAlnStream::open(std::string fname) {
   // load the header:
 
   uint64_t bytes = 0;
+  uint16_t root_size;
   switch (format) {
   case 0: case 2:
     {
@@ -273,6 +277,14 @@ uint64_t iAlnStream::open(std::string fname) {
       bytes += fread(&tile,sizeof(uint16_t),1,ifile);
       // read the cycle
       bytes += fread(&cycle,sizeof(CountType),1,ifile);
+      // root directory name size
+      bytes += fread(&root_size,sizeof(uint16_t),1,ifile);
+      // root name
+      char * tmp = new char[root_size+1];
+      bytes += fread(tmp,1,root_size,ifile);
+      tmp[root_size] = 0; // make the string null-terminated
+      root = tmp;
+      delete tmp;
       // read the read length
       bytes += fread(&rlen,sizeof(CountType),1,ifile);
       // read the number of reads
@@ -287,6 +299,14 @@ uint64_t iAlnStream::open(std::string fname) {
       bytes += gzread(izfile,&tile,sizeof(uint16_t));
       // read the cycle
       bytes += gzread(izfile,&cycle,sizeof(CountType));
+      // root directory name size
+      bytes += gzread(izfile,&root_size,sizeof(uint16_t));
+      // root name
+      char * tmp = new char[root_size+1];
+      bytes += gzread(izfile,tmp,root_size);
+      tmp[root_size] = 0; // make the string null-terminated
+      root = tmp;
+      delete tmp;
       // read the read length
       bytes += gzread(izfile,&rlen,sizeof(CountType));
       // read the number of reads
@@ -310,6 +330,7 @@ ReadAlignment* iAlnStream::get_alignment() {
 
   // first, get the size of the serialized alignment (uint32_t = 4 bytes)
   uint32_t al_size = 0;
+
   if (buf_pos+sizeof(uint32_t) <= buf_size) {
     // directly copy if all 4 bytes are in the buffer (should be almost always the case)
     memcpy(&al_size,buffer.data()+buf_pos,sizeof(uint32_t));
@@ -325,12 +346,15 @@ ReadAlignment* iAlnStream::get_alignment() {
     switch (format) {
     case 0:
       fread(buffer.data(),1,buf_size,ifile);
+//      assert( /*(loaded == buf_size) ||*/ feof(ifile) );
       break;
     case 1:
-      gzread(izfile,buffer.data(),buf_size);    
+      gzread(izfile,buffer.data(),buf_size);
+//      assert( /*(loaded == buf_size) ||*/ gzeof(izfile) );
       break;
     case 2:
-      lz4read_block();    
+      lz4read_block();
+//      assert( /*loaded>0 ||*/ feof(ifile) );
       break;
     }
 
@@ -353,17 +377,21 @@ ReadAlignment* iAlnStream::get_alignment() {
     if(buf_pos >= buf_size){
       switch (format) {
       case 0:
-        fread(buffer.data(),1,buf_size,ifile);
-        break;
+	fread(buffer.data(),1,buf_size,ifile);
+//	assert( (loaded == buf_size) || feof(ifile) );
+	break;
       case 1:
-        gzread(izfile,buffer.data(),buf_size);    
-        break;
+	gzread(izfile,buffer.data(),buf_size);
+//	assert( /*(loaded == buf_size) ||*/ gzeof(izfile) );
+	break;
       case 2:
-        lz4read_block();    
-        break;
+	lz4read_block();
+//	assert( loaded>0 || feof(ifile) );
+	break;
       }
       buf_pos = 0;
     }
+
   }
 
   // finally, deserialize the alignment. Set total number of cycles to rlen and increase cycle number by 1.
@@ -371,6 +399,7 @@ ReadAlignment* iAlnStream::get_alignment() {
 
   ra->deserialize(data.data());
   
+
   num_loaded++;
 
   return ra;
@@ -538,26 +567,28 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
 	  bool testRead = false;
 
-    ReadAlignment* ra = input.get_alignment();
-    if (filters.size() > 0 && filters.has_next()) {
-      // filter file was found -> apply filter
-      if(filters.next()) {
-        ra->extend_alignment(basecalls.next(), index, testRead);
-        num_seeds += ra->seeds.size();
-      }
-      else {
-        basecalls.next();
-        ra->disable();
-      }
-    }
-    // filter file was not found -> treat every alignment as valid
-    else {
-      ra->extend_alignment(basecalls.next(), index, testRead);
-      num_seeds += ra->seeds.size();
-    }
+	  ReadAlignment* ra = input.get_alignment();
 
-    output.write_alignment(ra);
-    delete ra;
+	  if (filters.size() > 0 && filters.has_next()) {
+		  // filter file was found -> apply filter
+
+		  if ( filters.next()){
+			  ra->extend_alignment(basecalls.next(), index, testRead);
+			  num_seeds += ra->seeds.size();
+		  }
+		  else {
+			  basecalls.next();
+			  ra->disable();
+		  }
+	  }
+	  // filter file was not found -> treat every alignment as valid
+	  else {
+		  ra->extend_alignment(basecalls.next(), index, testRead);
+		  num_seeds += ra->seeds.size();
+	  }
+
+	  output.write_alignment(ra);
+	  delete ra;
   }
 
 
@@ -664,11 +695,6 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 	// Init the bamIOContext (the same object can be used for all output streams)
 	seqan::StringSet<seqan::CharString> referenceNames;
-
-//	  for (unsigned i=0; i<seqan::length(index->seq_names); i++) {
-//	      seqan::appendValue(referenceNames, index->seq_names[i]);
-//	  }
-
 	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
 	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
 
@@ -799,112 +825,122 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				unsigned printedMates = 0;
 				for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
 
+					SeedVec mateSeeds;
+					mateAlignments[mateAlignmentIndex]->getSeeds_errorsorted(mateSeeds);
+
 					// for all seeds
 					/////////////////////////////////////////////////////////////////////////////
-					for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ) {
-//						if ( (*it)->gid == TRIMMED ) {
-//							//TODO: count trimmed reads for output stats
-//							++it;
-//							continue;
-//						}
+					  for (SeedVecIt it = mateSeeds.begin(); it != mateSeeds.end(); ++it) {
 
-						seqan::clear(record);
-
-						record.qName = readname.str();
-
-//						record.rID = (*it)->gid;
-						record.rID = 0;
-
-//						record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it)-1; // seqan expects 0-based positions, but in HiLive we use 1-based
-						if (record.beginPos < 0) {
-							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-							continue;
-						}
-
-						unsigned nm_i = 0;
-						record.cigar = (*it)->returnSeqanCigarString(); // TODO: add NM:i.
-
-						// flag and seq
-						record.flag = 0;
-						record.seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
-//						if ((*it)->start_pos < 0) { // if read matched reverse complementary
-//							seqan::reverseComplement(record.seq);
-//							record.flag |= 16;
-//						}
-						if (printedMates >= mateAlignments.size()) { // if current seed is secondary alignment
-							record.flag |= 256;
-							seqan::clear(record.seq);
-							seqan::clear(record.qual);
-						}
-						if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
-							record.flag |= 1;
-							if (mateAlignmentIndex == 0) {
-								record.flag |= 64;
-							} else if (mateAlignmentIndex == mateAlignments.size()-1) {
-								record.flag |= 128;
-							} else {
-								record.flag |= 192; // 64 + 128
-							}
-
-							bool eachMateAligned = true;
-							for (auto e:mateAlignments)
-								eachMateAligned = eachMateAligned && e->seeds.size() > 0;
-							if (eachMateAligned)
-								record.flag |= 2;
-						}
-
+						// get CIGAR-String
+						seqan::String<seqan::CigarElement<> > cigar = (*it)->returnSeqanCigarString();
 
 						// check if cigar string sums up to read length
 						// TODO Potentially conflicts with the 'eachMateAligned' flag if done here.
 						unsigned cigarElemSum = 0;
 						unsigned deletionSum = 0;
 						unsigned supposed_cigar_length = mateCycles[mateAlignmentIndex];
-//						CountType min_as_score = mateCycles[mateAlignmentIndex] * globalAlignmentSettings.get_min_as_ratio();
+						CountType min_as_score = mateCycles[mateAlignmentIndex] * globalAlignmentSettings.get_min_as_ratio();
 
-//						unsigned as_score = (*it)->num_matches;
-						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(record.cigar); elem != end(record.cigar); ++elem) {
+						unsigned as_score = 0;
+						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(cigar); elem != end(cigar); ++elem) {
 							if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
 								cigarElemSum += elem->count;
-//							if ( (elem->operation == 'I') )
-//								as_score += elem->count - 1;
+							if ( (elem->operation == 'I') )
+								as_score += elem->count - 1;
 							if (elem->operation == 'D') {
 								deletionSum += elem->count;
-//								as_score -= 1;
+								as_score -= 1;
 							}
 						}
 						if (cigarElemSum != supposed_cigar_length) {
-//							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had length " << cigarElemSum << std::endl;
+							logfile << "WARNING: Excluded an alignment of read " << readname.str() << " because its cigar vector had length " << cigarElemSum << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
 						if (deletionSum >= supposed_cigar_length) {
-//							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
+							logfile << "WARNING: Excluded an alignment of read " << readname.str() << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
 							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 							continue;
 						}
 
-//						if (as_score < min_as_score) {
-////							logfile << "WARNING: Excluded an alignment of read " << record.qName << " at position " << mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it) << " because its AS:i score was below the threshold." << std::endl;
-//							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-//							continue;
-//						}
+						std::string barcode = globalAlignmentSettings.format_barcode(mateAlignments[mateAlignmentIndex]->getBarcodeString());
+						std::string seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
 
-						// tags
-						seqan::BamTagsDict dict;
-//						seqan::appendTagValue(dict, "AS", ( as_score ) );
-						if (barcode!="") { // if demultiplexing is on
-							seqan::appendTagValue(dict, "BC", barcode);
+						PositionPairListType pos_list;
+						mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list);
+
+						auto p = pos_list.begin();
+
+						// handle all positions
+						while ( p != pos_list.end() ) {
+
+							seqan::clear(record);
+
+							record.qName = readname.str();
+
+							record.rID = CountType(p->first / 2);
+
+							record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(index, *p, *it);
+
+							// skip invalid positions
+							if (record.beginPos < 0 || record.beginPos == std::numeric_limits<PositionType>::max()) {
+								p = pos_list.erase(p);
+								continue;
+							}
+
+							// skip positions that were already written (equivalent alignments). This can be done because the best alignment for this position is written first.
+//							if ( alignmentPositions.find(record.beginPos - ( record.beginPos % equivalentAlignmentWindow ) ) != alignmentPositions.end() ||
+//									alignmentPositions.find(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ) ) != alignmentPositions.end()) {
+//								p = pos_list.erase(p);
+//								continue;
+//							}
+
+							record.cigar = cigar;
+							if ( index->isReverse(p->first) )
+								seqan::reverse(record.cigar);
+
+
+							unsigned nm_i = 0;
+
+							// TODO: correct flag
+							// flag and seq
+							record.flag = 0;
+							record.seq = seq;
+
+							//TODO: is it correct to reverse the sequence??
+							if ( index->isReverse(p->first) ) { // if read matched reverse complementary
+								seqan::reverseComplement(record.seq);
+								record.flag |= 16;
+							}
+//							if (printedFirstSeed) { // if current seed is secondary alignment
+//								record.flag |= 256;
+//								seqan::clear(record.seq);
+//								record.qual = "*";
+//							}
+
+							// tags
+							seqan::BamTagsDict dict;
+							seqan::appendTagValue(dict, "AS", as_score);
+
+							if (barcode!="")
+								seqan::appendTagValue(dict, "BC", barcode);
+
+							seqan::appendTagValue(dict, "NM", (*it)->num_errors);
+							record.tags = seqan::host(dict);
+
+							// TODO
+							// write to equivalentPositions set
+//							alignmentPositions.insert(record.beginPos - ( record.beginPos % equivalentAlignmentWindow) );
+//							alignmentPositions.insert(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ));
+
+							// write record to disk
+							seqan::writeRecord(*bfos[barcodeIndex], record);
+
+							++num_alignments;
+							++printedMates;
+							++p;
 						}
-						seqan::appendTagValue(dict, "NM", nm_i);
-						record.tags = seqan::host(dict);
-
-
-						// write record to disk
-						seqan::writeRecord(*bfos[barcodeIndex], record);
-
-						++num_alignments;
-						++printedMates;
-						++it;
 					}
 				}
 
@@ -942,5 +978,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	logfile.close();
 
 	return 1;
+
+
 
 }
