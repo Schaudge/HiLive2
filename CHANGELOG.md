@@ -32,7 +32,7 @@ Index:
 v0.3
 -----
 
- * Live demultiplexing (also supporting dual barcodes)
+ * Live demultiplexing
  * Code optimization
 
 v0.2
