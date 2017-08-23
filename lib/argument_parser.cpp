@@ -202,7 +202,7 @@ po::options_description HiLiveArgumentParser::positional_options() {
 	        		("BC_DIR", po::value<std::string>(), "Illumina BaseCalls directory")
 					("INDEX", po::value<std::string>(), "Path to k-mer index")
 					("CYCLES", po::value<CountType>(), "Number of cycles")
-					("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: temporary or BaseCalls directory");
+					("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: ./out");
 
 	return parameters;
 }
@@ -210,7 +210,7 @@ po::options_description HiLiveArgumentParser::positional_options() {
 po::options_description HiLiveArgumentParser::io_options() {
 	po::options_description io_settings("IO settings");
 	io_settings.add_options()
-	        		("temp", po::value<std::string>(), "Temporary directory for the alignment files [Default: use BaseCalls directory]")
+	        		("temp", po::value<std::string>(), "Temporary directory for the alignment files [Default: ./temp]")
 					("bam,B", po::bool_switch(), "Create BAM files instead of SAM files [Default: false]")
 					("output-cycles,O", po::value<std::vector<CountType>>()->multitoken()->composing(), "Cycles for alignment output. The respective temporary files are kept. [Default: last cycle]")
 					("extended-cigar", po::bool_switch(), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
@@ -516,10 +516,10 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<std::string>("BC_DIR", "settings.paths.root", "", &AlignmentSettings::set_root);
 		set_option<std::string>("INDEX", "settings.paths.index", "", &AlignmentSettings::set_index_fname);
 		set_option<CountType>("CYCLES", "settings.cycles", 0, &AlignmentSettings::set_cycles);
-		set_option<std::string>("OUTDIR", "settings.paths.out_dir", "", &AlignmentSettings::set_out_dir);
+		set_option<std::string>("OUTDIR", "settings.paths.out_dir", "./out", &AlignmentSettings::set_out_dir);
 
 		// Set I/O options
-		set_option<std::string>("temp", "settings.paths.temp_dir", "", &AlignmentSettings::set_temp_dir);
+		set_option<std::string>("temp", "settings.paths.temp_dir", "./temp", &AlignmentSettings::set_temp_dir);
 		set_option<bool>("bam", "settings.out.bam", false, &AlignmentSettings::set_write_bam);
 
 		std::vector<CountType> output_cycles = {globalAlignmentSettings.get_cycles()};

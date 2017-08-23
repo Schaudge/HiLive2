@@ -528,7 +528,9 @@ public:
   }
 
   std::string get_temp_dir() {
-      return get_unmodifiable(temp_dir, "temp_dir");
+	  std::string dir = get_unmodifiable(temp_dir, "temp_dir");
+	  dir = dir!="" ? dir : get_unmodifiable(root, "root");
+	  return dir;
   }
 
   void set_write_bam(bool value) {
