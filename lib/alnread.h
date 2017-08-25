@@ -41,6 +41,18 @@ struct Seed {
 	seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
 
 	/**
+	 * Get the alignment score of a seed (AS:i).
+	 * @return Alignment score.
+	 */
+	CountType get_as();
+
+	/**
+	 * Get the number of errors of a seed (NM:i).
+	 * @return Number of errors.
+	 */
+	CountType get_nm();
+
+	/**
 	 * Determine size of the serialized seed
 	 * @return size in bytes
 	 */

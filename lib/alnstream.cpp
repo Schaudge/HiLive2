@@ -672,12 +672,12 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-// TODO: completely modify SAM output for HiLive2
 uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle) {
 
+
+	// Init output log entry
 	std::ofstream logfile;
 	logfile.open( get_out_log_name(), std::ofstream::app );
-
 	logfile << "Start to write output for cycle " << std::to_string(cycle) << "." << std::endl;
 	logfile << "Only alignments with a relative alignment score of >= " << std::to_string(globalAlignmentSettings.get_min_as_ratio()) << " are considered." << std::endl;
 
@@ -698,26 +698,27 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
 	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
 
+	// Add sequence names and lengths to the bamIOContext
 	seqan::contigNames(bamIOContext) = index->getSeqNames();
 	seqan::contigLengths(bamIOContext) = index->getSeqLengths();
 
-	// Init the header (the same object can be used for all output streams)
+	// Init the BAM header (the same object can be used for all output streams)
 	seqan::BamHeader header = getBamHeader();
 
 	// Vector that contains the output streams (USE POINTERS !)
-	std::vector<std::unique_ptr<seqan::BamFileOut>> bfos;
+	std::vector<std::unique_ptr<seqan::BamFileOut>> bamOutStreams;
 
 	// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
-	for ( unsigned barcode=0; barcode < (barcodes.size() + 1); barcode ++) {
+	for ( unsigned barcode=0; barcode <= barcodes.size(); barcode ++) {
 		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
 
 			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
 
 			// Open file in Bam output stream and write the header
 			std::unique_ptr<seqan::BamFileOut> bfo( new seqan::BamFileOut(getBamTempFileName(barcode_string, cycle).c_str()));
-			bfos.push_back( std::move(bfo) );
-			bfos[barcode]->context = bamIOContext;
-			seqan::writeHeader(*bfos[barcode], header);
+			bamOutStreams.push_back( std::move(bfo) );
+			bamOutStreams[barcode]->context = bamIOContext;
+			seqan::writeHeader(*bamOutStreams[barcode], header);
 		}
 	}
 
@@ -730,35 +731,33 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	unsigned totalNumberOfReads = 0;
 
 	// for all lanes
-	/////////////////////////////////////////////////////////////////////////////
-	for (auto ln:lns) {
+	for ( auto ln:lns ) {
 
 		// for all tiles
-		/////////////////////////////////////////////////////////////////////////////
-		for (auto tl:tls) {
+		for ( auto tl:tls ) {
 
 			// set the filter file
 			std::string filter_fname = filter_name(ln, tl);
 			FilterParser filters;
-			if (file_exists(filter_fname)) {
-				filters.open(filter_fname);
+			if ( file_exists( filter_fname ) ) {
+				filters.open( filter_fname );
 			}
 			else
-				logfile << "Could not find .filter file: " <<  filter_fname  << ". Treated all reads as valid."<< std::endl;
+				logfile << "Could not find filter file: " <<  filter_fname  << ". Treated all reads as valid."<< std::endl;
 
 
 			// set the alignment files
 			std::vector<iAlnStream*> alignmentFiles;
-			unsigned numberOfAlignments = 0;
-			for (unsigned mateIndex = 1; mateIndex <= mateCycles.size(); mateIndex++) {
+			unsigned num_reads = 0;
+			for ( unsigned mate = 1; mate <= mateCycles.size(); mate++ ) {
 
-				if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ )
+				if ( globalAlignmentSettings.getSeqByMate(mate) == NULLSEQ )
 					return 0;
 
-				CountType mateCycle = mateCycles[mateIndex-1];
+				CountType mateCycle = mateCycles[mate-1];
 
 				// Open alignment file
-				std::string alignment_fname = alignment_name(ln, tl, mateCycle, mateIndex);
+				std::string alignment_fname = alignment_name(ln, tl, mateCycle, mate);
 				if ( !file_exists(alignment_fname) ) {
 					logfile << "Alignment file not found: " << alignment_fname << ". Ignored all related alignments." << std::endl;
 					continue;
@@ -770,40 +769,40 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				if (file_exists(filter_fname) && input->get_num_reads() != filters.size()) {
 					std::string msg = std::string("Number of reads in filter file (") + std::to_string(filters.size()) + ") does not match the number of reads in the alignment file (" + std::to_string(input->get_num_reads()) + ").";
 					logfile << "Writing output for cycle " << std::to_string(cycle) << "not successful: " << msg.c_str() << std::endl;
-					throw std::length_error(msg.c_str());
+					throw std::runtime_error(msg.c_str());
 				}
 
 				// compare number of reads in alignment file with number of reads in previous alignment file
-				if (mateIndex != 1 && input->get_num_reads() != numberOfAlignments) {
+				if (mate != 1 && input->get_num_reads() != num_reads) {
 					std::string msg = std::string("Number of reads in alignment file (") + std::to_string(input->get_num_reads()) + ") does not match the number of reads in previous alignment file (" + std::to_string(input->get_num_reads()) + ").";
 					logfile << "Writing output for cycle " << std::to_string(cycle) << "not successful: " << msg.c_str() << std::endl;
-					throw std::length_error(msg.c_str());
+					throw std::runtime_error(msg.c_str());
 				}
 
-				numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
+				num_reads = input->get_num_reads();
 				alignmentFiles.push_back(input);
 			}
 
-			totalNumberOfReads += numberOfAlignments;
+			totalNumberOfReads += num_reads;
 
-			// for all reads in a tile
-			/////////////////////////////////////////////////////////////////////////////
-			for (uint64_t i = 0; i < numberOfAlignments; ++i) {
+			// for all reads
+			for (uint64_t i = 0; i < num_reads; ++i) {
 
-				std::vector<ReadAlignment*> mateAlignments;
-				for (auto e:alignmentFiles) {
-					mateAlignments.push_back(e->get_alignment());
+				// Get alignments for each mate
+				std::vector<ReadAlignment*> alignments_by_mate;
+				for ( auto e : alignmentFiles ) {
+					alignments_by_mate.push_back( e->get_alignment() );
 				}
 
-				// if the filter file is available and the filter flag is 0 then skip
+				// Skip invalid filter flags
 				if (filters.size() != 0 && filters.next() == false)
 					continue;
 
 				// compute barcode sequence as it should be written to BC tag
-				std::string barcode = globalAlignmentSettings.format_barcode(mateAlignments[0]->getBarcodeString());
+				std::string barcode = globalAlignmentSettings.format_barcode(alignments_by_mate[0]->getBarcodeString());
 
 				// Barcode index for the read
-				CountType barcodeIndex = mateAlignments[0]->getBarcodeIndex();
+				CountType barcodeIndex = alignments_by_mate[0]->getBarcodeIndex();
 
 				// If read has undetermined barcode and keep_all_barcodes is not set, skip this read
 				if ( barcodeIndex == NO_MATCH && !globalAlignmentSettings.get_keep_all_barcodes() )
@@ -818,62 +817,88 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				std::stringstream readname;
 				readname << "lane." << ln << "|tile." << tl << "|read." << i;
 
+				// Track equivalent alignments for the same mate (similar positions from different seeds -> only keep the best one)
+				// TODO: implement equivalent alignment window as user parameter
+				PositionType equivalentAlignmentWindow = 10;
+				std::set<PositionType> alignmentPositions;
 
 				// for all mates
-				/////////////////////////////////////////////////////////////////////////////
 				seqan::BamAlignmentRecord record;
 				unsigned printedMates = 0;
-				for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
+				for ( unsigned mate_index = 0; mate_index < alignments_by_mate.size(); ++mate_index ) {
 
+					// Set the minimum alignment score to write an alignment
+					CountType min_as_score = mateCycles[mate_index] * globalAlignmentSettings.get_min_as_ratio();
+
+					// Sort seeds for the current mate by their "score"
 					SeedVec mateSeeds;
-					mateAlignments[mateAlignmentIndex]->getSeeds_errorsorted(mateSeeds);
+					alignments_by_mate[mate_index]->getSeeds_errorsorted(mateSeeds);
+
+					if ( mateSeeds.size() == 0 )
+						continue;
+
+					bool printedFirstSeed = false;
+					uint32_t firstSeedError;
+
+					std::string barcode = globalAlignmentSettings.format_barcode(alignments_by_mate[mate_index]->getBarcodeString());
+					std::string seq = alignments_by_mate[mate_index]->getSequenceString();
 
 					// for all seeds
-					/////////////////////////////////////////////////////////////////////////////
 					  for (SeedVecIt it = mateSeeds.begin(); it != mateSeeds.end(); ++it) {
 
-						// get CIGAR-String
-						seqan::String<seqan::CigarElement<> > cigar = (*it)->returnSeqanCigarString();
+						  // If no alignment was printed before, the current one has the best "score"
+						  if ( !printedFirstSeed )
+							  firstSeedError = (*it)->num_errors;
 
-						// check if cigar string sums up to read length
-						// TODO Potentially conflicts with the 'eachMateAligned' flag if done here.
-						unsigned cigarElemSum = 0;
-						unsigned deletionSum = 0;
-						unsigned supposed_cigar_length = mateCycles[mateAlignmentIndex];
-						CountType min_as_score = mateCycles[mateAlignmentIndex] * globalAlignmentSettings.get_min_as_ratio();
+						  // Stop in all best mode when error of seed is higher than the lowest error.
+						  if( globalAlignmentSettings.get_all_best_hit_mode() && firstSeedError < (*it)->num_errors)
+							  goto nextmate;
 
-						unsigned as_score = 0;
-						for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(cigar); elem != end(cigar); ++elem) {
-							if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
-								cigarElemSum += elem->count;
-							if ( (elem->operation == 'I') )
-								as_score += elem->count - 1;
-							if (elem->operation == 'D') {
-								deletionSum += elem->count;
-								as_score -= 1;
-							}
-						}
-						if (cigarElemSum != supposed_cigar_length) {
-							logfile << "WARNING: Excluded an alignment of read " << readname.str() << " because its cigar vector had length " << cigarElemSum << std::endl;
-							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-							continue;
-						}
-						if (deletionSum >= supposed_cigar_length) {
-							logfile << "WARNING: Excluded an alignment of read " << readname.str() << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
-							it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
-							continue;
-						}
+						  // Don't write this seed if the user-specified score is not fulfilled
+						  CountType as = (*it)->get_as();
+						  if ( as < min_as_score ) {
+							  continue;
+						  }
 
-						std::string barcode = globalAlignmentSettings.format_barcode(mateAlignments[mateAlignmentIndex]->getBarcodeString());
-						std::string seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
+						  // get CIGAR-String
+						  seqan::String<seqan::CigarElement<> > cigar = (*it)->returnSeqanCigarString();
 
-						PositionPairListType pos_list;
-						mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list);
+						  // check if cigar string sums up to read length
+						  // TODO Potentially conflicts with the 'eachMateAligned' flag if done here.
+						  unsigned cigarElemSum = 0;
+						  unsigned deletionSum = 0;
+						  unsigned supposed_cigar_length = mateCycles[mate_index];
 
-						auto p = pos_list.begin();
+						  for (seqan::Iterator<seqan::String<seqan::CigarElement<> > >::Type elem = seqan::begin(cigar); elem != end(cigar); ++elem) {
+							  if ((elem->operation == 'M') || (elem->operation == 'I') || (elem->operation == 'S') || (elem->operation == '=') || (elem->operation == 'X'))
+								  cigarElemSum += elem->count;
 
-						// handle all positions
-						while ( p != pos_list.end() ) {
+							  if (elem->operation == 'D') {
+								  deletionSum += elem->count;
+							  }
+						  }
+						  if (cigarElemSum != supposed_cigar_length) {
+							  logfile << "WARNING: Excluded an alignment of read " << readname.str() << " because its cigar vector had length " << cigarElemSum << std::endl;
+							  it = alignments_by_mate[mate_index]->seeds.erase(it);
+							  continue;
+						  }
+						  if (deletionSum >= supposed_cigar_length) {
+							  logfile << "WARNING: Excluded an alignment of read " << readname.str() << " because its cigar vector had " << deletionSum << " deletions" << std::endl;
+							  it = alignments_by_mate[mate_index]->seeds.erase(it);
+							  continue;
+						  }
+
+						  // Get positions for the current seed
+						  PositionPairListType pos_list;
+						  alignments_by_mate[mate_index]->getPositions(index, *it, pos_list);
+
+						  // handle all positions
+						  auto p = pos_list.begin();
+						  while ( p != pos_list.end() ) {
+
+							// Stop in any best mode when first alignment was already written
+							if( globalAlignmentSettings.get_any_best_hit_mode() && printedFirstSeed )
+								goto nextmate;
 
 							seqan::clear(record);
 
@@ -881,70 +906,88 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 							record.rID = CountType(p->first / 2);
 
-							record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(index, *p, *it);
+							record.beginPos = alignments_by_mate[mate_index]->get_SAM_start_pos(index, *p, *it);
 
 							// skip invalid positions
-							if (record.beginPos < 0 || record.beginPos == std::numeric_limits<PositionType>::max()) {
+							if (record.beginPos < 0 || PositionType(record.beginPos) == std::numeric_limits<PositionType>::max()) {
 								p = pos_list.erase(p);
 								continue;
 							}
 
 							// skip positions that were already written (equivalent alignments). This can be done because the best alignment for this position is written first.
-//							if ( alignmentPositions.find(record.beginPos - ( record.beginPos % equivalentAlignmentWindow ) ) != alignmentPositions.end() ||
-//									alignmentPositions.find(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ) ) != alignmentPositions.end()) {
-//								p = pos_list.erase(p);
-//								continue;
-//							}
+							if ( alignmentPositions.find(record.beginPos - ( record.beginPos % equivalentAlignmentWindow ) ) != alignmentPositions.end() ||
+									alignmentPositions.find(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ) ) != alignmentPositions.end()) {
+								p = pos_list.erase(p);
+								continue;
+							}
 
 							record.cigar = cigar;
 							if ( index->isReverse(p->first) )
 								seqan::reverse(record.cigar);
 
-
-							unsigned nm_i = 0;
-
-							// TODO: correct flag
 							// flag and seq
 							record.flag = 0;
 							record.seq = seq;
 
-							//TODO: is it correct to reverse the sequence??
 							if ( index->isReverse(p->first) ) { // if read matched reverse complementary
 								seqan::reverseComplement(record.seq);
 								record.flag |= 16;
 							}
-//							if (printedFirstSeed) { // if current seed is secondary alignment
-//								record.flag |= 256;
-//								seqan::clear(record.seq);
-//								record.qual = "*";
-//							}
+
+							if ( printedFirstSeed ) { // if current seed is secondary alignment
+								record.flag |= 256;
+								seqan::clear(record.seq);
+								record.qual = "*";
+							}
+
+							if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
+								record.flag |= 1;
+								if (mate_index == 0) {
+									record.flag |= 64;
+								} else if (mate_index == alignments_by_mate.size()-1) {
+									record.flag |= 128;
+								} else {
+									record.flag |= 192; // 64 + 128
+								}
+
+								bool eachMateAligned = true;
+								for (auto e:alignments_by_mate)
+									eachMateAligned = eachMateAligned && e->seeds.size() > 0;
+								if (eachMateAligned)
+									record.flag |= 2;
+							}
+
 
 							// tags
 							seqan::BamTagsDict dict;
-							seqan::appendTagValue(dict, "AS", as_score);
+
+							seqan::appendTagValue(dict, "AS", as);
 
 							if (barcode!="")
 								seqan::appendTagValue(dict, "BC", barcode);
 
-							seqan::appendTagValue(dict, "NM", (*it)->num_errors);
+							seqan::appendTagValue(dict, "NM", (*it)->get_nm());
 							record.tags = seqan::host(dict);
 
-							// TODO
-							// write to equivalentPositions set
-//							alignmentPositions.insert(record.beginPos - ( record.beginPos % equivalentAlignmentWindow) );
-//							alignmentPositions.insert(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ));
-
 							// write record to disk
-							seqan::writeRecord(*bfos[barcodeIndex], record);
+							seqan::writeRecord(*bamOutStreams[barcodeIndex], record);
+
+							// write to equivalentPositions set
+							alignmentPositions.insert(record.beginPos - ( record.beginPos % equivalentAlignmentWindow) );
+							alignmentPositions.insert(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ));
 
 							++num_alignments;
-							++printedMates;
+							if ( !printedFirstSeed )
+								++printedMates;
+
+							printedFirstSeed = true;
 							++p;
 						}
-					}
+					  }
+					  nextmate: {};
 				}
 
-				for (auto e:mateAlignments)
+				for (auto e:alignments_by_mate)
 					delete e;
 			}
 			for (auto e:alignmentFiles)
@@ -970,9 +1013,6 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	statsfile << "Number of reads\t" << totalNumberOfReads << std::endl;
 	statsfile << "Number of alignments\t" << num_alignments << std::endl;
 	statsfile.close();
-
-	// TODO What todo with completely trimmed reads?
-	// --> Amount could for example be written in the stats file(s)
 
 	logfile << "Writing output for cycle " << std::to_string(cycle) << " finished." << std::endl;
 	logfile.close();

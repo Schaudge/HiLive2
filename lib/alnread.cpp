@@ -66,15 +66,20 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 
 void Seed::cout(){
 	std::cout << "----- SEED START -----" << std::endl;
-//	std::cout << "gid: " << this->gid << std::endl;
-//	std::cout << "start_pos: " << this->start_pos << std::endl;
 	std::cout << "num_errors: " << this->num_errors << std::endl;
 	std::cout << "CIGAR: ";
 	for ( auto el : this->cigar_data ) {
 		std::cout << el.length;
 		if ( el.offset == NO_MATCH ) {
 			std::cout << "X ";
-		}else {
+		}
+		else if ( el.offset == INSERTION ) {
+			std::cout << "I ";
+		}
+		else if ( el.offset == DELETION ) {
+			std::cout << "D ";
+		}
+		else {
 			std::cout << "M(" << el.offset << ") ";
 		}
 	}
@@ -202,6 +207,27 @@ uint16_t Seed::deserialize(char* d) {
   }
 
   return bytes;  
+}
+
+CountType Seed::get_as() {
+
+	CountType as = 0;
+
+	for ( auto el : cigar_data )
+		as += el.offset < DELETION ? el.length : 0;
+
+	return as;
+}
+
+CountType Seed::get_nm() {
+
+	CountType nm = 0;
+
+	// Don't count mismatches at front or end of the CIGAR string
+	for ( auto el = ++(cigar_data.begin()); el != --(cigar_data.end()); ++el )
+		nm += el->offset >= DELETION ? el->length : 0;
+
+	return nm;
 }
 
 uint64_t ReadAlignment::serialize_size() {
@@ -692,8 +718,8 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
     }
 
     // create new seeds in defined intervals
-//    if ( cycle % globalAlignmentSettings.get_anchor_length() == 0 ) {
-    if ( cycle >= globalAlignmentSettings.get_anchor_length() ) {
+//    if ( cycle % globalAlignmentSettings.get_anchor_length() == 0 ) {  	// Each anchor_length cycles
+    if ( cycle >= globalAlignmentSettings.get_anchor_length() ) {			// Each cycle
     	createSeeds(index, newSeeds);
     }
 
