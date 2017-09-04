@@ -27,12 +27,22 @@ struct Seed {
 	/**
 	 * Minimal number of errors (minimal in terms of the front softclip, number of errors after seeding is exact)
 	 */
-	CountType num_errors;
+//	CountType num_errors;
+
+	/**
+	 * Maximal AS:i score that can be reached based on the current alignment.
+	 */
+	ScoreType max_as;
 
 	/**
 	 * Information about matches/mismatches (similar to CIGAR). The last element is the current one
 	 */
 	CigarVector cigar_data;
+
+	/** Vector to store nucleotides of the index sequence when different to the read. */
+	std::vector<uint8_t> mdz_nucleotides;
+
+	uint8_t mdz_length;
 
 	/**
 	 * Get the CIGAR string in SeqAn format
@@ -44,13 +54,17 @@ struct Seed {
 	 * Get the alignment score of a seed (AS:i).
 	 * @return Alignment score.
 	 */
-	CountType get_as();
+	ScoreType get_as();
 
 	/**
 	 * Get the number of errors of a seed (NM:i).
 	 * @return Number of errors.
 	 */
 	CountType get_nm();
+
+	void add_mdz_nucleotide(char nucl);
+
+	std::string getMDZString();
 
 	/**
 	 * Determine size of the serialized seed
@@ -99,12 +113,12 @@ template <typename T> bool PComp(const T & a, const T & b)
  * Comparator for seeds to sort them by their number of errors.
  * @author Tobias Loka
  */
-inline bool seed_comparison_by_error(const USeed a, const USeed b) {
+inline bool seed_comparison_by_as(const USeed a, const USeed b) {
 
 	// TODO: think about whether it makes sense to count complete softclip as mismatch or not (currently not)
 
 	// if equal number of matches
-	if (a->num_errors == b->num_errors) {
+	if (a->get_as() == b->get_as()) {
 
 		// prefer no front softclip
 		if ( a->cigar_data.front().offset != b->cigar_data.front().offset ) {
@@ -122,7 +136,7 @@ inline bool seed_comparison_by_error(const USeed a, const USeed b) {
 		return a->cigar_data.size() < b->cigar_data.size();
 	}
 
-	return a->num_errors < b->num_errors;
+	return a->get_as() > b->get_as();
 }
 
 
@@ -153,9 +167,9 @@ inline bool operator <(const Seed l, const Seed r) {
 		// Equal offsets
 		else {
 
-			// both match or equal length -> less errors win
+			// both match or equal length -> higher score wins
 			if ( lCig->offset != NO_MATCH || lCig->length == rCig->length )
-				return l.num_errors < r.num_errors;
+				return l.max_as > r.max_as;
 
 			// both NO_MATCH and different length -> lower length wins
 			else
@@ -202,7 +216,7 @@ class ReadAlignment {
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void extendSeed(char base, USeed s, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
+	void extendSeed(char base, USeed s, KixRun* index, SeedVec & newSeeds);
 
 	/**
 	 * Extend a seed by alignment matches (Match or SNP)
@@ -213,7 +227,7 @@ class ReadAlignment {
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getMatchSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
+	void getMatchSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
 
 	/**
 	 * Extend a seed by an insertion
@@ -224,7 +238,7 @@ class ReadAlignment {
      * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getInsertionSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
+	void getInsertionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
 
 
 	/**
@@ -236,7 +250,7 @@ class ReadAlignment {
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getDeletionSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
+	void getDeletionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
 
 	/**
 	 * Add deletions to the alignment up to the permitted number of errors
@@ -247,7 +261,7 @@ class ReadAlignment {
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void recursive_goDown(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds);
+	void recursive_goDown(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
 
 	/** Create new seeds
 	 * @param index The FM index
@@ -335,14 +349,6 @@ class ReadAlignment {
 	void disable();
 
 	/**
-	 * Determine the maximal number of errors that are permitted for a seed
-	 * @param s The seed
-	 * @return Maximal number of permitted errors
-	 * @author Tobias Loka
-	 */
-	CountType getMaxNumErrors(USeed s);
-
-	/**
 	 * Obtain the start position of the alignment with SAM specifications (most left position)
 	 * @param index The FM index
 	 * @param p The position as stored in the index
@@ -368,7 +374,8 @@ class ReadAlignment {
 	 * @return Vector containing sorted seeds
 	 * @author Tobias Loka
 	 */
-	void getSeeds_errorsorted(SeedVec & seeds_sorted);
+	void getSeeds_scoresorted(SeedVec & seeds_sorted);
+
 
 
 	/**

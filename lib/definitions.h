@@ -36,6 +36,14 @@
                            (n) == 1 ? 'C' : \
                            (n) == 2 ? 'G' : 'T')
 
+#define revfourbit_repr(n) ((n) <= 3 ? 'N' : \
+							revtwobit_repr(n & 3))
+
+#define comp(ch) ((toupper(ch)) == 'A' ? 'T' : \
+				 (toupper(ch)) == 'C' ? 'G' : \
+				 (toupper(ch)) == 'G' ? 'C' : \
+				 (toupper(ch)) == 'T' ? 'A' : 'N');
+
 /**
  * Supported nucleotides.
  */
@@ -133,7 +141,7 @@ typedef std::vector<char*> KixRunDB;
 /**
  * FM-Index Config.
  */
-typedef seqan::FMIndexConfig<void, uint64_t> FMIConfig;
+typedef seqan::FastFMIndexConfig<void, uint64_t,2 ,1> FMIConfig;
 
 /**
  * FM-Index data type.
@@ -189,6 +197,8 @@ typedef uint16_t CountType;
 */
 typedef int16_t DiffType;
 
+/** Data type for alignment scores. */
+typedef int16_t ScoreType;
 
 ////////////////////////////////////////
 ////////// Offset definitions //////////

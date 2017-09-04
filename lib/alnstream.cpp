@@ -679,7 +679,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	std::ofstream logfile;
 	logfile.open( get_out_log_name(), std::ofstream::app );
 	logfile << "Start to write output for cycle " << std::to_string(cycle) << "." << std::endl;
-	logfile << "Only alignments with a relative alignment score of >= " << std::to_string(globalAlignmentSettings.get_min_as_ratio()) << " are considered." << std::endl;
+	logfile << "Only alignments with an alignment score of >= " << std::to_string(globalAlignmentSettings.get_min_as()) << " are considered." << std::endl;
 
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;
@@ -828,17 +828,17 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				for ( unsigned mate_index = 0; mate_index < alignments_by_mate.size(); ++mate_index ) {
 
 					// Set the minimum alignment score to write an alignment
-					CountType min_as_score = mateCycles[mate_index] * globalAlignmentSettings.get_min_as_ratio();
+//					CountType min_as_score = mateCycles[mate_index] * globalAlignmentSettings.get_min_as_ratio();
 
 					// Sort seeds for the current mate by their "score"
 					SeedVec mateSeeds;
-					alignments_by_mate[mate_index]->getSeeds_errorsorted(mateSeeds);
+					alignments_by_mate[mate_index]->getSeeds_scoresorted(mateSeeds);
 
 					if ( mateSeeds.size() == 0 )
 						continue;
 
 					bool printedFirstSeed = false;
-					uint32_t firstSeedError;
+					ScoreType firstSeedAS;
 
 					std::string barcode = globalAlignmentSettings.format_barcode(alignments_by_mate[mate_index]->getBarcodeString());
 					std::string seq = alignments_by_mate[mate_index]->getSequenceString();
@@ -848,15 +848,16 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 						  // If no alignment was printed before, the current one has the best "score"
 						  if ( !printedFirstSeed )
-							  firstSeedError = (*it)->num_errors;
+							  firstSeedAS = (*it)->get_as();
 
-						  // Stop in all best mode when error of seed is higher than the lowest error.
-						  if( globalAlignmentSettings.get_all_best_hit_mode() && firstSeedError < (*it)->num_errors)
+						  // Stop in all best mode when AS:i score is lower than the first
+						  if( globalAlignmentSettings.get_all_best_hit_mode() && firstSeedAS > (*it)->get_as())
 							  goto nextmate;
 
+
 						  // Don't write this seed if the user-specified score is not fulfilled
-						  CountType as = (*it)->get_as();
-						  if ( as < min_as_score ) {
+						  ScoreType as = (*it)->get_as();
+						  if ( as < globalAlignmentSettings.get_min_as() ) {
 							  continue;
 						  }
 
@@ -890,6 +891,7 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 						  // Get positions for the current seed
 						  PositionPairListType pos_list;
+
 						  alignments_by_mate[mate_index]->getPositions(index, *it, pos_list);
 
 						  // handle all positions
@@ -967,6 +969,15 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 								seqan::appendTagValue(dict, "BC", barcode);
 
 							seqan::appendTagValue(dict, "NM", (*it)->get_nm());
+
+							std::string mdz = (*it)->getMDZString();
+
+							if ( index->isReverse(p->first))
+								mdz = reverse_mdz(mdz);
+
+							seqan::appendTagValue(dict, "MD", mdz);
+
+
 							record.tags = seqan::host(dict);
 
 							// write record to disk

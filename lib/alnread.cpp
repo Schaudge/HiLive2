@@ -66,7 +66,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 
 void Seed::cout(){
 	std::cout << "----- SEED START -----" << std::endl;
-	std::cout << "num_errors: " << this->num_errors << std::endl;
+	std::cout << "Max. alignment score: " << this->max_as << std::endl;
 	std::cout << "CIGAR: ";
 	for ( auto el : this->cigar_data ) {
 		std::cout << el.length;
@@ -94,8 +94,8 @@ uint16_t Seed::serialize_size() {
   // Size of FM-Index vertex descriptor
   total_size += sizeof(FMVertexDescriptor);
 
-  // Number of errors
-  total_size += sizeof(CountType);
+  // Maximal AS
+  total_size += sizeof(ScoreType);
   
   if (cigar_data.size() >= 256)
     throw std::overflow_error("CIGAR information contains more than 255 elements!");
@@ -107,6 +107,12 @@ uint16_t Seed::serialize_size() {
 
   // Length and offset for each CIGAR element
   total_size += cigar_len*(sizeof(CountType));
+
+  // Size of mdz_nucleotides vector
+  total_size += sizeof(uint8_t);
+
+  // MD:Z nucleotides
+  total_size += mdz_nucleotides.size() * sizeof(uint8_t);
 
   return total_size;
 }
@@ -128,8 +134,8 @@ std::vector<char> Seed::serialize() {
   d += sizeof(FMVertexDescriptor);
 
   // Write number of errors
-  memcpy(d,&num_errors,sizeof(CountType));
-  d += sizeof(CountType);
+  memcpy(d,&max_as,sizeof(ScoreType));
+  d += sizeof(ScoreType);
 
   // Write number of CIGAR elements
   memcpy(d,&cigar_len,sizeof(uint8_t));
@@ -155,6 +161,18 @@ std::vector<char> Seed::serialize() {
 
   }
   
+  // Write size of mdz_nucleotides vector
+  memcpy(d,&mdz_length,sizeof(uint8_t));
+  d += sizeof(uint8_t);
+
+  // MD:Z nucleotides
+  for ( auto it = mdz_nucleotides.begin(); it != mdz_nucleotides.end(); ++it) {
+	  uint8_t next_byte = *it;
+
+	  memcpy(d,&next_byte,sizeof(uint8_t));
+	  d += sizeof(uint8_t);
+  }
+
   return data;
 }
 
@@ -168,8 +186,8 @@ uint16_t Seed::deserialize(char* d) {
   bytes += sizeof(FMVertexDescriptor);
 
   // Number of errors
-  memcpy(&num_errors,d+bytes,sizeof(CountType));
-  bytes += sizeof(CountType);
+  memcpy(&max_as,d+bytes,sizeof(ScoreType));
+  bytes += sizeof(ScoreType);
 
   // Number of CIGAR elements
   uint8_t cigar_len = 0;
@@ -206,15 +224,77 @@ uint16_t Seed::deserialize(char* d) {
     cigar_data.emplace_back(cig);
   }
 
+  // Read size of mdz_nucleotides vector
+  memcpy(&mdz_length, d+bytes, sizeof(uint8_t));
+  bytes += sizeof(uint8_t);
+
+  // MD:Z nucleotides
+  for ( CountType i = 0; i < (mdz_length+3)/4; i++ ) {
+	  uint8_t next_byte;
+
+	  memcpy(&next_byte, d+bytes, sizeof(uint8_t));
+	  bytes += sizeof(uint8_t);
+
+	  mdz_nucleotides.push_back(next_byte);
+
+  }
+
   return bytes;  
 }
 
-CountType Seed::get_as() {
+ScoreType Seed::get_as() {
 
-	CountType as = 0;
+	ScoreType as = 0;
+	auto cigar_it = cigar_data.begin();
 
-	for ( auto el : cigar_data )
-		as += el.offset < DELETION ? el.length : 0;
+	for ( ;cigar_it != cigar_data.end(); ++cigar_it ) {
+
+		if ( cigar_it->length == 0 )
+			continue;
+
+		switch ( cigar_it->offset ) {
+
+		case NO_MATCH:
+
+			// Softclip
+			if ( cigar_it == cigar_data.begin() || std::next(cigar_it) == cigar_data.end() )
+				as -= ( globalAlignmentSettings.get_softclip_opening_penalty() + ( ( cigar_it->length - 1 ) * globalAlignmentSettings.get_softclip_extension_penalty() ) );
+//				as -= cigar_it->length * globalAlignmentSettings.get_mismatch_penalty();
+
+			// Regular mismatch
+			else
+				as -= cigar_it->length * globalAlignmentSettings.get_mismatch_penalty();
+
+			break;
+
+		case INSERTION:
+
+			// Opening
+			as -= globalAlignmentSettings.get_insertion_opening_penalty();
+
+			// Extension
+			as -= ( ( cigar_it->length - 1 ) * globalAlignmentSettings.get_insertion_extension_penalty() );
+
+			break;
+
+		case DELETION:
+
+			// Opening
+			as -= globalAlignmentSettings.get_deletion_opening_penalty();
+
+			// Extension
+			as -= ( ( cigar_it->length - 1 ) * globalAlignmentSettings.get_deletion_extension_penalty() );
+
+			break;
+
+		default:
+
+			as += ( cigar_it->length * globalAlignmentSettings.get_match_score() );
+
+			break;
+		}
+
+	}
 
 	return as;
 }
@@ -228,6 +308,73 @@ CountType Seed::get_nm() {
 		nm += el->offset >= DELETION ? el->length : 0;
 
 	return nm;
+}
+
+void Seed::add_mdz_nucleotide(char nucl) {
+
+	uint8_t n = twobit_repr(nucl) << (6 - ( 2 * (mdz_length % 4) ) );
+	if ( mdz_length % 4 == 0 )
+		mdz_nucleotides.push_back(n);
+	else {
+		mdz_nucleotides.back() = mdz_nucleotides.back() | n;
+	}
+	mdz_length += 1;
+
+}
+
+std::string Seed::getMDZString() {
+
+	std::string mdz_string = "";
+	uint8_t nucleotide_pos = 0;
+	auto mdz_it = mdz_nucleotides.begin();
+	CountType match_counter = 0;
+
+	for ( auto el = cigar_data.begin(); el != cigar_data.end(); ++el ) {
+
+		// Softclip --> not included in MD:Z
+		if ( el == cigar_data.begin() && el->offset == NO_MATCH )
+			continue;
+
+		switch ( el->offset ) {
+
+		// DELETION or NO_MATCH: Add previous match length and nucleotides for the current region.
+		case DELETION:
+		case NO_MATCH:
+
+			if ( match_counter != 0 )
+				mdz_string += std::to_string(match_counter);
+
+			for ( CountType i=0; i<el->length; i++ ) {
+				mdz_string += revtwobit_repr( ( (*mdz_it) >> ( 6 - (2*nucleotide_pos) ) ) & 3);
+				if ( nucleotide_pos >= 3 ) {
+					nucleotide_pos = 0;
+					++mdz_it;
+				}
+				else {
+					nucleotide_pos += 1;
+				}
+			}
+
+			match_counter = 0;
+			break;
+
+		// INSERTION: Do nothing.
+		case INSERTION:
+			break;
+
+		// Match: Count the region length.
+		default:
+			match_counter += el->length;
+			break;
+		}
+
+	}
+
+	// Add last match sequence if exist
+	if ( match_counter != 0 )
+		mdz_string += std::to_string(match_counter);
+
+	return mdz_string;
 }
 
 uint64_t ReadAlignment::serialize_size() {
@@ -431,7 +578,7 @@ void ReadAlignment::appendNucleotideToSequenceStoreVector(char bc, bool appendTo
 	uint8_t qual = bc >> 2;
 
 	// Convert nucl and qual to four-bit value (first two bits describing the quality (0=N; 1=invalid; 2=valid); second two bits describing the nucleotide)
-	uint8_t four_bit_repr = ( ((qual != 0) + (qual > globalAlignmentSettings.get_min_qual())) << 2 ) | nucl;
+	uint8_t four_bit_repr = ( ((qual != 0) + (qual >= globalAlignmentSettings.get_min_qual())) << 2 ) | nucl;
 
 	CountType & len = appendToBarCode ? barcodeLen : sequenceLen;
 	std::vector<uint8_t> & seqVector = appendToBarCode ? barcodeStoreVector : sequenceStoreVector;
@@ -449,40 +596,23 @@ void ReadAlignment::appendNucleotideToSequenceStoreVector(char bc, bool appendTo
     }
 }
 
-CountType ReadAlignment::getMaxNumErrors(USeed s) {
-
-	// Determine length of the softclip
-	CountType softclip_length = s->cigar_data.front().offset == NO_MATCH ? s->cigar_data.front().length : 0;
-
-	// Determine the cycle without considering the softclip
-	CountType seedCycle = cycle - softclip_length;
-
-	// Determine the number of errors the seed startet with when created due to softclip length
-	CountType softClipErrors = softclip_length == 0 ? 0 : ( ( softclip_length - 1 ) / globalAlignmentSettings.get_anchor_length() ) + 1;
-
-	if (seedCycle <= globalAlignmentSettings.get_anchor_length() )
-		return 0;
-
-	return std::min(globalAlignmentSettings.get_min_errors(), CountType(( (seedCycle - globalAlignmentSettings.get_anchor_length() - 1) / globalAlignmentSettings.get_error_rate() ) + 1 + softClipErrors) );
-}
-
-void ReadAlignment::extendSeed(char base, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds){
+void ReadAlignment::extendSeed(char base, USeed origin, KixRun* index, SeedVec & newSeeds){
 
 	// The new base / nucleotide
 	CountType tbr = twobit_repr(base);
 
 	// Extend alignment match (can be match or NO_MATCH)
-	getMatchSeeds(tbr, origin, allowedErrors, index, newSeeds);
+	getMatchSeeds(tbr, origin, index, newSeeds);
 
 	// Extend insertion
-	getInsertionSeeds(tbr, origin, allowedErrors, index, newSeeds);
+	getInsertionSeeds(tbr, origin, index, newSeeds);
 
 	// Extend deletion
-	getDeletionSeeds(tbr, origin, allowedErrors, index, newSeeds);
+	getDeletionSeeds(tbr, origin, index, newSeeds);
 
 }
 
-void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
 
 	// iterate through possible bases
 	for (int b=0; b<4; b++) {
@@ -490,7 +620,7 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType a
 		FMTopDownIterator it(index->idx, origin->vDesc); 	// Create index iterator
 
 		// Only handle when the path exist in the genome
-		if (goDown(it,revtwobit_repr(b))) {
+		if (goDown(it,seqan::DnaString(revtwobit_repr(b)))) {
 
 			// handle a MATCH
 			if ( b == base_repr ) {
@@ -499,7 +629,9 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType a
 				USeed s (new Seed);
 				s->vDesc = it.vDesc;
 				s->cigar_data = origin->cigar_data;
-				s->num_errors = origin->num_errors;
+				s->mdz_nucleotides = origin->mdz_nucleotides;
+				s->max_as = origin->max_as;
+				s->mdz_length = origin->mdz_length;
 
 				// Insert MATCH region if necessary
 				if ( s->cigar_data.back().offset >= DELETION )
@@ -513,8 +645,11 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType a
 			// handle a NO_MATCH
 			else {
 
-				// Stop when maximal number of errors is reached
-				if ( origin->num_errors >= allowedErrors )
+				// Compute new max_as
+				ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_mismatch_penalty() - globalAlignmentSettings.get_match_score();
+
+				// If max_as is no longer valid
+				if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
 					continue;
 
 				// DON'T FINISH DELETION AND INSERTION REGIONS BY NO_MATCH!!!
@@ -528,7 +663,9 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType a
 				USeed s (new Seed);
 				s->vDesc = it.vDesc;
 				s->cigar_data = origin->cigar_data;
-				s->num_errors = origin->num_errors + 1;
+				s->mdz_nucleotides = origin->mdz_nucleotides;
+				s->max_as = new_max_as;
+				s->mdz_length = origin->mdz_length;
 
 				// Insert MATCH region if necessary
 				if ( s->cigar_data.back().offset != NO_MATCH )
@@ -536,22 +673,30 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, CountType a
 
 				s->cigar_data.back().length += 1; // Increase match region length
 
+				// Add nucleotide for MDZ tag
+				s->add_mdz_nucleotide(revtwobit_repr(b));
+
+
 				newSeeds.emplace_back(s); // Push the new seed to the vector.
 			}
 		}
 	}
 }
 
-void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
 
 	// Don't handle insertions after deletions.
 	if ( origin->cigar_data.back().offset == DELETION )
 		return;
 
+	// Don't handle if insertion region is getting too long
+	if ( origin->cigar_data.back().offset == INSERTION && origin->cigar_data.back().length > globalAlignmentSettings.get_max_gap_length())
+		return;
+
 	// If all occurences of the seed match the current base, insertion is not required.
 	FMTopDownIterator it(index->idx, origin->vDesc);
 	uint64_t range = origin->vDesc.range.i2 - origin->vDesc.range.i1;
-	if ( seqan::goDown(it, revtwobit_repr(base_repr)) ) {
+	if ( seqan::goDown(it, seqan::DnaString(revtwobit_repr(base_repr))) ) {
 		if ( it.vDesc.range.i2 - it.vDesc.range.i1 == range )
 			return;
 	}
@@ -559,8 +704,16 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, CountTy
 	// handle all non-deletion regions
 	if ( origin->cigar_data.back().offset != DELETION ) {
 
+
+		// Compute new maximal alignment score when having an insertion
+		ScoreType new_max_as;
+		if ( origin->cigar_data.back().offset == INSERTION)
+			new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_extension_penalty() - globalAlignmentSettings.get_match_score();
+		else
+			new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_opening_penalty() - globalAlignmentSettings.get_match_score();
+
 		// Extend insertion region as long as number of errors is allowed.
-		if ( origin->num_errors < allowedErrors ) {
+		if ( new_max_as >= getMinCycleScore(cycle, total_cycles) ) {
 
 			// Don't go down the tree since an insertion means to stay at the same index position!
 
@@ -568,7 +721,9 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, CountTy
 			USeed s (new Seed);
 			s->vDesc = origin->vDesc;
 			s->cigar_data = origin->cigar_data;
-			s->num_errors = origin->num_errors + 1; // Increase number of errors
+			s->mdz_length = origin->mdz_length;
+			s->mdz_nucleotides = origin->mdz_nucleotides;
+			s->max_as = new_max_as; // Increase number of errors
 
 			// Insert INSERTION region if necessary
 			if ( s->cigar_data.back().offset != INSERTION )
@@ -581,7 +736,7 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, CountTy
 	}
 }
 
-void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
 
 	// Don't handle insertion regions
 	if ( origin->cigar_data.back().offset == INSERTION )
@@ -590,31 +745,40 @@ void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, CountTyp
 	// iterate through possible bases
 	for (int b=0; b<4; b++) {
 
+		// Can only be opening (extension is performed in recursive_goDown() function)
+		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_opening_penalty();
+
 		// Don't start iteration with a match base (no deletion region required there!) or when having already all allowed errors.
-		if ( b == base_repr || origin->num_errors >= allowedErrors )
+		if ( b == base_repr || new_max_as < getMinCycleScore(cycle, total_cycles) )
 			continue;
 
 		// Create index iterator
 		FMTopDownIterator it(index->idx, origin->vDesc);
 
 		// Only consider paths existing in the index
-		if ( goDown(it, revtwobit_repr(b))) {
+		if ( goDown(it, seqan::DnaString(revtwobit_repr(b)))) {
 
 			// copy data from origin seed
 			USeed s (new Seed);
 			s->vDesc = it.vDesc;
 			s->cigar_data = origin->cigar_data;
-			s->num_errors = origin->num_errors + 1; // Increase number of errors
+			s->mdz_length = origin->mdz_length;
+			s->mdz_nucleotides = origin->mdz_nucleotides;
+			s->max_as = new_max_as; // Increase number of errors
 
 			s->cigar_data.emplace_back(1, DELETION); // init deletion region
-			recursive_goDown(base_repr, s, allowedErrors, index, newSeeds);
+
+			// Add MDZ nucleotide
+			s->add_mdz_nucleotide(revtwobit_repr(b));
+
+			recursive_goDown(base_repr, s, index, newSeeds);
 		}
 	}
 }
 
-void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, CountType allowedErrors, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
 
-	if ( origin->num_errors > allowedErrors ) // too many errors -> no seeds
+	if ( origin->max_as < globalAlignmentSettings.get_min_as() ) // too many errors -> no seeds
 		return;
 
 	// Only handle deletion regions
@@ -628,7 +792,7 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, CountTyp
 			FMTopDownIterator it(index->idx, origin->vDesc);
 
 			// Only consider paths existing in the index
-			if ( goDown(it, revtwobit_repr(b))) {
+			if ( goDown(it, seqan::DnaString(revtwobit_repr(b)))) {
 
 				// Finish deletion region when a match occurs
 				if ( b == base_repr ) {
@@ -637,28 +801,35 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, CountTyp
 					USeed s (new Seed);
 					s->vDesc = it.vDesc;
 					s->cigar_data = origin->cigar_data;
-					s->num_errors = origin->num_errors ;
+					s->mdz_length = origin->mdz_length;
+					s->mdz_nucleotides = origin->mdz_nucleotides;
+					s->max_as = origin->max_as ;
 
 					s->cigar_data.emplace_back(1, 0); // init MATCH region
 					newSeeds.emplace_back(s);
 
 				}
 
-				// Continue deletion region otherwise
-				else {
+				// Continue deletion region otherwise (only as long as it is shorter than maximal InDel length)
+				else if ( origin->cigar_data.back().length < globalAlignmentSettings.get_max_gap_length() ){
+
+					ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_extension_penalty();
 
 					// stop if maximum number of errors reached
-					if ( origin->num_errors >= allowedErrors)
+					if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
 						continue;
 
 					// copy data from origin seed
 					USeed s (new Seed);
 					s->vDesc = it.vDesc;
 					s->cigar_data = origin->cigar_data;
-					s->num_errors = origin->num_errors + 1; // Increase number of errors
+					s->mdz_length = origin->mdz_length;
+					s->mdz_nucleotides = origin->mdz_nucleotides;
+					s->max_as = new_max_as; // Increase number of errors
 
 					s->cigar_data.back().length += 1; // extend deletion region
-					recursive_goDown(base_repr, s, allowedErrors, index, newSeeds);
+					s->add_mdz_nucleotide(revtwobit_repr(b));
+					recursive_goDown(base_repr, s, index, newSeeds);
 
 				}
 			}
@@ -670,21 +841,19 @@ void ReadAlignment::createSeeds(KixRun* index, SeedVec & newSeeds) {
 	if ( cycle < globalAlignmentSettings.get_anchor_length() )
 		return;
 
-	// use as exact mode? Becomes quite complex when using a high number of errors.
-	uint32_t min_mismatches = cycle == globalAlignmentSettings.get_anchor_length() ? 0 : ( ( cycle - globalAlignmentSettings.get_anchor_length() - 1 ) / globalAlignmentSettings.get_anchor_length() ) + 1;
+	CountType softclip_cycles = cycle - globalAlignmentSettings.get_anchor_length();
+	CountType max_match_cycles = total_cycles - softclip_cycles;
+	ScoreType max_as = ( max_match_cycles * globalAlignmentSettings.get_match_score() ) - getMinSoftclipPenalty(softclip_cycles);
 
-	// use as fast mode?
-//	uint32_t min_mismatches = this->getMaxNumErrors(settings);
-
-	if ( min_mismatches > globalAlignmentSettings.get_min_errors() )
+	if ( max_as < getMinCycleScore(cycle, total_cycles) )
 		return;
 
 	std::string anchor_seq = getSequenceString().substr( sequenceLen - globalAlignmentSettings.get_anchor_length(), globalAlignmentSettings.get_anchor_length());
 
 	FMTopDownIterator it(index->idx);
-	if ( seqan::goDown(it, anchor_seq) ) {
+	if ( seqan::goDown(it, seqan::DnaString(anchor_seq)) ) {
 		USeed seed ( new Seed() );
-		seed->num_errors = min_mismatches;
+		seed->max_as = max_as;
 		if ( cycle != globalAlignmentSettings.get_anchor_length() )
 			seed->cigar_data.emplace_back( ( cycle - globalAlignmentSettings.get_anchor_length()) , NO_MATCH ); // add softclip
 		seed->cigar_data.emplace_back(globalAlignmentSettings.get_anchor_length(), 0);
@@ -714,7 +883,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
 	// extend existing seeds
     char base = revtwobit_repr(bc & 3);
     for ( auto seed = seeds.begin(); seed != seeds.end(); ++seed ) {
-    	extendSeed(base, (*seed), getMaxNumErrors(*seed), index, newSeeds);
+    	extendSeed(base, (*seed), index, newSeeds);
     }
 
     // create new seeds in defined intervals
@@ -748,7 +917,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
 				else
 					std::cout << "M";
 		    }
-			std::cout << " NUM_ERRORS: " << (*sd)->num_errors;
+			std::cout << " MAX_AS: " << (*sd)->max_as;
 			std::cout << " RANGE: " << (*sd)->vDesc.range;
 			std::cout << std::endl;
 		}
@@ -784,7 +953,7 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
 				else
 					std::cout << "M";
 		    }
-			std::cout << " NUM_ERRORS: " << (*sd)->num_errors;
+			std::cout << " MAX_AS: " << (*sd)->max_as;
 			std::cout << " RANGE: " << (*sd)->vDesc.range;
 			std::cout << std::endl;
 		}
@@ -886,19 +1055,21 @@ PositionType ReadAlignment::get_SAM_start_pos(KixRun* index, PositionPairType p,
 
 void ReadAlignment::getPositions(KixRun* index, USeed sd, PositionPairListType & position_list) {
 
+
 	seqan::Pair<unsigned> hitInterval = sd->vDesc.range;
 	for (; hitInterval.i1 < hitInterval.i2; ++hitInterval.i1) {
-	    	std::pair<GenomeIdType, PositionType> el ( seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i1, seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i2);
-	    	position_list.push_back(el);
+		std::pair<GenomeIdType, PositionType> el ( seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i1, seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i2);
+		position_list.push_back(el);
 	}
+
 
 }
 
-void ReadAlignment::getSeeds_errorsorted(SeedVec & seeds_sorted) {
+void ReadAlignment::getSeeds_scoresorted(SeedVec & seeds_sorted) {
 //	SeedVec seeds_sorted;
 	seeds_sorted.insert(seeds_sorted.end(), seeds.begin(), seeds.end());
 //	seeds_sorted.sort(seed_comparison_by_error);
-	std::sort(seeds_sorted.begin(), seeds_sorted.end(), seed_comparison_by_error);
+	std::sort(seeds_sorted.begin(), seeds_sorted.end(), seed_comparison_by_as);
 }
 
 // Calculate the mapping quality for all alignments of the read based on the other alignments and the number of matching positions.

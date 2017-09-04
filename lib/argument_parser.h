@@ -375,6 +375,13 @@ protected:
 	po::options_description alignment_options();
 
 	/**
+	 * Scorings scheme of HiLive.
+	 * @return Option descriptor containing all scoring options that can be set by the user.
+	 * @author Martin Lindner
+	 */
+	po::options_description scoring_options();
+
+	/**
 	 * Technical options of HiLive.
 	 * @return Option descriptor containing all technical options that can be set by the user.
 	 * @author Martin Lindner

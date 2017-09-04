@@ -10,35 +10,8 @@ class AlignmentSettings {
 
 private:
 
-  // kmer gap positions
-  Unmodifiable<std::vector<unsigned>> kmer_gaps;
-
-  // reverse gap positions
-  Unmodifiable<std::vector<unsigned>> rev_kmer_gaps;
-
-  // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
-  Unmodifiable<uint8_t> kmer_span;
-
-  // PARAMETER: Weight of the k-mers
-  Unmodifiable<uint8_t> kmer_weight;
-
-  // VARIABLE: maximum number of consecutive gaps in the gap pattern (will be computed at runtime)
-  Unmodifiable<CountType> max_consecutive_gaps;
-
   // PARAMETER: Base Call quality cutoff, treat BC with quality < bc_cutoff as miscall
   Unmodifiable<CountType> min_qual;
-
-  // PARAMETER: max. insert/deletion size
-  Unmodifiable<DiffType> window;
-
-  // PARAMETER: minimum number of errors allowed in alignment
-  Unmodifiable<CountType> min_errors;
-
-  // SWITCH: discard One-hit-wonders
-  Unmodifiable<bool> discard_ohw;
-
-  // PARAMETER: first cycle to discard one-hit-wonders
-  Unmodifiable<CountType> start_ohw;
 
   // PARAMETER: All-Best-N-Scores-Mode::N
   Unmodifiable<CountType> best_n;
@@ -106,12 +79,21 @@ private:
 
   Unmodifiable<AlignmentMode> mode;
 
-  Unmodifiable<float> min_as_ratio;
-
   // Definitions for FM index.
   Unmodifiable<CountType> anchorLength;
   Unmodifiable<CountType> errorRate;
 
+  // Scoring scheme
+  Unmodifiable<ScoreType> min_as;
+  Unmodifiable<CountType> match_score;
+  Unmodifiable<CountType> mismatch_penalty;
+  Unmodifiable<CountType> insertion_opening_penalty;
+  Unmodifiable<CountType> deletion_opening_penalty;
+  Unmodifiable<CountType> insertion_extension_penalty;
+  Unmodifiable<CountType> deletion_extension_penalty;
+  Unmodifiable<float> softclip_opening_penalty;
+  Unmodifiable<float> softclip_extension_penalty;
+  Unmodifiable<CountType> max_gap_length;
 
   template<typename T>
   bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
@@ -195,7 +177,6 @@ public:
 	  // General settings
 	  xml_out.add_child("settings.lanes", getXMLnode_vector ( get_lanes() ));
 	  xml_out.add_child("settings.tiles", getXMLnode_vector ( get_tiles() ));
-	  xml_out.add_child("settings.min_errors", getXMLnode (get_min_errors() ));
 	  xml_out.add_child("settings.cycles", getXMLnode ( get_cycles() ));
 	  xml_out.add_child("settings.sequences", getXMLnode_vector ( xmlParse_seqs() ));
 
@@ -220,7 +201,7 @@ public:
 	  xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
 	  xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
 	  xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
-	  xml_out.add_child("settings.out.min_as_ratio", getXMLnode ( get_min_as_ratio()) );
+	  xml_out.add_child("settings.out.min_as", getXMLnode ( get_min_as()) );
 
 	  // Technical settings
 	  xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
@@ -230,9 +211,6 @@ public:
 
 	  // Alignment algorithm settings
 	  xml_out.add_child("settings.align.min_qual", getXMLnode (get_min_qual() ));
-	  xml_out.add_child("settings.align.window", getXMLnode (get_window() ));
-	  xml_out.add_child("settings.align.discard_ohw", getXMLnode ( get_discard_ohw() ));
-	  xml_out.add_child("settings.align.start_ohw", getXMLnode ( get_start_ohw() ));
 	  xml_out.add_child("settings.align.anchor", getXMLnode ( get_anchor_length() ));
 
 	  return xml_out;
@@ -393,82 +371,6 @@ public:
 	  return NULLSEQ;
   }
 
-  std::vector<unsigned> get_kmer_gaps() {
-      return get_unmodifiable(kmer_gaps, "kmer_gaps", true);
-  }
-
-  std::vector<unsigned> get_rev_kmer_gaps() {
-      return get_unmodifiable(rev_kmer_gaps, "rev_kmer_gaps", true);
-  }
-
-  bool set_kmer( uint8_t kmer_weight, std::vector<unsigned> gaps ) {
-
-	  if ( gaps.size() > 0 ) {
-		  // Prepare user-defined list of gap positions (sort and erase duplicates)
-		  std::sort(gaps.begin(), gaps.end());
-		  gaps.erase( std::unique(gaps.begin(), gaps.end()), gaps.end());
-
-		  // Weight and gap positions not consistent
-		  if ( kmer_weight + gaps.size() <= *(std::max_element(gaps.begin(), gaps.end())) || *(std::min_element(gaps.begin(), gaps.end())) <= 1 ) {
-			  std::cerr << "Warning: k-mer weight and gap pattern not consistent. Ensure that the first gap positions is >1 and" <<
-					  "the maximal gap positions is lower than the total length of the k-mer pattern." << std::endl;
-			  return false;
-		  }
-	  }
-
-	  // Set k-mer variables
-	  set_unmodifiable(this->kmer_weight, kmer_weight, "kmer_weight");
-	  set_unmodifiable(this->kmer_gaps, gaps, "kmer_gaps");
-	  set_unmodifiable(this->kmer_span, uint8_t(kmer_weight + gaps.size()), "kmer_span");
-
-	  std::vector<unsigned> rev_kmer_gaps;
-	  for ( auto gap:gaps ) {
-		  rev_kmer_gaps.push_back(this->kmer_span - gap + 1);
-	  }
-	  std::reverse(rev_kmer_gaps.begin(), rev_kmer_gaps.end());
-	  set_unmodifiable(this->rev_kmer_gaps, rev_kmer_gaps, "rev_kmer_gaps");
-
-	  // Compute maximal consecutive gaps in gap pattern
-	  CountType current_consecutive_gaps = 0;
-	  CountType last_gap = 0;
-	  CountType temp_max_consecutive_gaps = 0;
-
-	  for ( unsigned el : this->get_kmer_gaps() ) {
-
-		  // init first gap
-		  if ( last_gap == 0 ) {
-			  current_consecutive_gaps = 1;
-			  last_gap = el;
-			  continue;
-		  }
-
-		  // handle consecutive gaps
-		  else if ( el == unsigned( last_gap + 1 ) ){
-			  current_consecutive_gaps += 1;
-			  last_gap = el;
-		  }
-
-		  // handle end of gap region
-		  else {
-			  temp_max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
-			  current_consecutive_gaps = 1;
-			  last_gap = el;
-		  }
-
-	  }
-	  set_unmodifiable(this->max_consecutive_gaps, std::max ( temp_max_consecutive_gaps, current_consecutive_gaps ), "max_consecutive_gaps");
-
-	  return true;
-  }
-
-  uint8_t get_kmer_span() {
-      return get_unmodifiable(kmer_span, "kmer_span");
-  }
-
-  uint8_t get_kmer_weight() {
-      return get_unmodifiable(kmer_weight, "kmer_weight");
-  }
-
   void set_min_qual(CountType value) {
     	  set_unmodifiable(min_qual, value, "min_qual");
   }
@@ -477,36 +379,20 @@ public:
       return get_unmodifiable(min_qual, "min_qual");
   }
 
-  void set_window(DiffType value) {
-      set_unmodifiable(window, value, "window");
+  void set_min_as(ScoreType value) {
+	  set_unmodifiable(min_as, value, "min_as");
   }
 
-  DiffType get_window() {
-      return get_unmodifiable(window, "window");
+  ScoreType get_min_as() {
+	  return get_unmodifiable(min_as, "min_as");
   }
 
-  void set_min_errors(CountType value) {
-	  set_unmodifiable(min_errors, value, "min_errors");
+  void set_max_gap_length(CountType value) {
+	  set_unmodifiable(max_gap_length, value, "max_gap_length");
   }
 
-  CountType get_min_errors() {
-      return get_unmodifiable(min_errors, "min_errors");
-  }
-
-  void disable_ohw(bool value) {
-	  set_unmodifiable(discard_ohw, !value, "discard_ohw");
-  }
-
-  bool get_discard_ohw() {
-      return get_unmodifiable(discard_ohw, "discard_ohw");
-  }
-
-  void set_start_ohw(CountType value) {
-	  set_unmodifiable(start_ohw, value, "start_ohw");
-  }
-
-  CountType get_start_ohw() {
-      return get_unmodifiable(start_ohw, "start_ohw");
+  CountType get_max_gap_length() {
+	  return get_unmodifiable(max_gap_length, "max_gap_length");
   }
 
   bool get_any_best_hit_mode() {
@@ -758,22 +644,6 @@ public:
       return get_unmodifiable(extended_cigar, "extended_cigar");
   }
 
-  CountType get_max_consecutive_gaps() {
-      return get_unmodifiable(max_consecutive_gaps, "max_consecutive_gaps");
-  }
-
-  float get_min_as_ratio() {
-        return get_unmodifiable(min_as_ratio, "min_as_ratio");
-    }
-
-  void set_min_as_ratio(float value) {
-	  if ( value > 1.0f )
-		  value = 1.0f;
-	  if ( value < 0.0f )
-		  value = 0.0f;
-	  set_unmodifiable(min_as_ratio, value, "min_as_ratio");
-  }
-
   CountType get_anchor_length() {
 	  return get_unmodifiable(anchorLength, "anchorLength");
   }
@@ -785,6 +655,70 @@ public:
 
   CountType get_error_rate() {
 	  return get_unmodifiable(errorRate, "errorRate");
+  }
+
+  CountType get_match_score() {
+	  return get_unmodifiable(match_score, "match_score");
+  }
+
+  void set_match_score(CountType value) {
+	  set_unmodifiable(match_score, value, "match_score");
+  }
+
+  CountType get_mismatch_penalty() {
+	  return get_unmodifiable(mismatch_penalty, "mismatch_penalty");
+  }
+
+  void set_mismatch_penalty(CountType value) {
+	  set_unmodifiable(mismatch_penalty, value, "mismatch_penalty");
+  }
+
+  CountType get_insertion_opening_penalty() {
+	  return get_unmodifiable(insertion_opening_penalty, "insertion_opening_penalty");
+  }
+
+  void set_insertion_opening_penalty(CountType value) {
+	  set_unmodifiable(insertion_opening_penalty, value, "insertion_opening_penalty");
+  }
+
+  CountType get_deletion_opening_penalty() {
+	  return get_unmodifiable(deletion_opening_penalty, "deletion_opening_penalty");
+  }
+
+  void set_deletion_opening_penalty(CountType value) {
+	  set_unmodifiable(deletion_opening_penalty, value, "deletion_opening_penalty");
+  }
+
+  CountType get_insertion_extension_penalty() {
+	  return get_unmodifiable(insertion_extension_penalty, "insertion_extension_penalty");
+  }
+
+  void set_insertion_extension_penalty(CountType value) {
+	  set_unmodifiable(insertion_extension_penalty, value, "insertion_extension_penalty");
+  }
+
+  CountType get_deletion_extension_penalty() {
+	  return get_unmodifiable(deletion_extension_penalty, "deletion_extension_penalty");
+  }
+
+  void set_deletion_extension_penalty(CountType value) {
+	  set_unmodifiable(deletion_extension_penalty, value, "deletion_extension_penalty");
+  }
+
+  float get_softclip_extension_penalty() {
+	  return get_unmodifiable(softclip_extension_penalty, "softclip_extension_penalty");
+  }
+
+  void set_softclip_extension_penalty(float value) {
+	  set_unmodifiable(softclip_extension_penalty, value, "softclip_extension_penalty");
+  }
+
+  float get_softclip_opening_penalty() {
+	  return get_unmodifiable(softclip_opening_penalty, "softclip_opening_penalty");
+  }
+
+  void set_softclip_opening_penalty(float value) {
+	  set_unmodifiable(softclip_opening_penalty, value, "softclip_opening_penalty");
   }
 
 };

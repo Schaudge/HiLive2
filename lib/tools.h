@@ -19,30 +19,12 @@
 ///////////////////////////////////
 
 /**
- * Calculate the first forward and reverse complement k-mer in the string <kmer>.
- * @param kmer Input sequence.
- * @param _h Reference to forward hash variable.
- * @param _r Reference to reverse hash variable.
- * @return The larger hash value (TODO: why?)
- */
-HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r);
-
-/**
- * Calculates the first forward k-mer in the string <kmer>.
- * @param it Iterator of the input sequence.
- * @param end End of the iterator of the input sequence.
- * @param _h Reference to the forward hash variable.
- * @return Iterator pointing at the last invalid base.
- */
-std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h);
-
-/**
  * Calculate the sequence from a hash value.
  * @param myHash The input hash value.
  * @param hashLen Length (weight) of the hashed sequence.
  * @return The unhashed sequence.
  */
-std::string unhash(HashIntoType myHash, unsigned hashLen=globalAlignmentSettings.get_kmer_weight());
+std::string unhash(HashIntoType myHash, unsigned hashLen);
 
 
 ////////////////////////////////////////////
@@ -143,5 +125,23 @@ std::string getBamTempFileName(std::string barcode, CountType cycle);
  * @author Tobias Loka
  */
 std::string getBamFileName(std::string barcode, CountType cycle);
+
+/** Reverse a MD:Z tag for reverse alignments. */
+std::string reverse_mdz(std::string mdz);
+
+
+/////////////////////////////
+////////// Scoring //////////
+/////////////////////////////
+
+uint16_t getMinSingleErrorPenalty();
+
+uint16_t getMaxSingleErrorPenalty();
+
+uint16_t getMaxPossibleScore( CountType cycles );
+
+uint16_t getMinSoftclipPenalty( CountType softclip_length );
+
+ScoreType getMinCycleScore( CountType cycle, CountType read_length );
 
 #endif /* TOOLS_H */

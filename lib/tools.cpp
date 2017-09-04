@@ -1,77 +1,22 @@
 #include "tools.h"
 
 
-///////////////////////////////////
-////////// K-mer Hashing //////////
-///////////////////////////////////
-
-HashIntoType hash(const char * kmer, HashIntoType& _h, HashIntoType& _r)
-{
-  assert(strlen(kmer) >= globalAlignmentSettings.get_kmer_span());
-
-  HashIntoType h = 0, r = 0;
-
-  h |= twobit_repr(kmer[0]);
-  r |= twobit_comp(kmer[globalAlignmentSettings.get_kmer_span()-1]);
-
-  for (unsigned int i = 1, j = globalAlignmentSettings.get_kmer_span()-2; i < globalAlignmentSettings.get_kmer_span(); i++, j--) {
-	  // if i not gap position
-
-	  auto gaps_vec = globalAlignmentSettings.get_kmer_gaps();
-	  if (std::find(gaps_vec.begin(), gaps_vec.end(), i+1) == gaps_vec.end()) {
-      h = h << 2;
-      h |= twobit_repr(kmer[i]);
-      r = r << 2;
-      r |= twobit_comp(kmer[j]);
-
-    }
-  }
-
-  _h = h;
-  _r = r;
-
-  return (h)<(r)?h:r;
-}
-
-std::string::const_iterator hash_fw(std::string::const_iterator it, std::string::const_iterator end, HashIntoType& _h)
-{
-  if (!(it+globalAlignmentSettings.get_kmer_span()-1 < end)) {
-    std::cerr << "Error: hash_fw was called using an begin position which had not at least kmer_span bases behind it." << std::endl;
-  }
-  HashIntoType h = 0;
-  std::string::const_iterator last_invalid = it-1;
-
-  h |= twobit_repr(*it);
-
-  std::string::const_iterator kmerEnd = it+globalAlignmentSettings.get_kmer_span();
-  ++it;
-  int positionInKmer = 2;
-  auto kmer_gaps = globalAlignmentSettings.get_kmer_gaps();
-  for (; it != kmerEnd; ++it, ++positionInKmer) {
-    if (std::find(kmer_gaps.begin(), kmer_gaps.end(), positionInKmer) != kmer_gaps.end())
-        continue;
-    h = h << 2;
-    h |= twobit_repr(*it);
-    if ( seq_chars.find(*it) == std::string::npos ) {
-      last_invalid = it+globalAlignmentSettings.get_kmer_span()-1;
-    }
-  }
-
-  _h = h;
-  return last_invalid;
-}
+//////////////////////////////////////
+////////// Sequence Hashing //////////
+//////////////////////////////////////
 
 std::string unhash(HashIntoType myHash, unsigned hashLen)
 {
-	std::string kmer = "";
+	std::string seq = "";
 
-	unsigned mask = 3;
+	unsigned mask = 15;
 	for (unsigned i = 1; i<pow(2,2*hashLen); i *= 4) {
-		kmer.push_back(revtwobit_repr(myHash & mask));
+//		kmer.push_back(revtwobit_repr(myHash & mask));
+		seq.push_back(revfourbit_repr(myHash & mask));
 		myHash = myHash >> 4;
 	}
-	std::reverse(kmer.begin(), kmer.end());
-	return kmer;
+	std::reverse(seq.begin(), seq.end());
+	return seq;
 }
 
 
@@ -130,20 +75,17 @@ uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 	return 0;
 }
 
-
 std::string filter_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
   path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".filter";
   return path_stream.str();
 }
 
-
 std::string position_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
   path_stream << globalAlignmentSettings.get_root() << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
   return path_stream.str();
 }
-
 
 std::string get_settings_name() {
 	std::ostringstream path_stream;
@@ -152,11 +94,9 @@ std::string get_settings_name() {
 	return path_stream.str();
 }
 
-
 std::string get_out_log_name() {
 	return ( globalAlignmentSettings.get_out_dir() + "/hilive_out.log" );
 }
-
 
 
 ////////////////////////////////////
@@ -206,4 +146,76 @@ std::string getBamFileName(std::string barcode, CountType cycle) {
 	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
 	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << file_suffix;
 	return fname.str();
+}
+
+std::string reverse_mdz(std::string mdz) {
+
+	std::string reverse = "";
+	std::string next_match = "";
+
+	for ( auto string_it = mdz.rbegin(); string_it!=mdz.rend(); ++string_it) {
+		if ( seq_chars.find(*string_it) != std::string::npos ) {
+			std::reverse(next_match.begin(), next_match.end());
+			reverse += next_match;
+			next_match = "";
+			reverse += comp(*string_it);
+		}
+		else {
+			next_match += *string_it;
+		}
+	}
+	std::reverse(next_match.begin(), next_match.end());
+	reverse += next_match;
+	return reverse;
+}
+
+
+/////////////////////////////
+////////// Scoring //////////
+/////////////////////////////
+
+uint16_t getMinSingleErrorPenalty() {
+
+	// Mismatch: +1 mismatch, -1 match
+	uint16_t mismatch_penalty = globalAlignmentSettings.get_mismatch_penalty() + globalAlignmentSettings.get_match_score();
+
+	// Deletion: +1 deletion, maximum number of matches can still be reached
+	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty();
+
+	// Insertion: +1 insertion, -1 match
+	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_match_score();
+
+	return std::min(mismatch_penalty, std::min(insertion_penalty, deletion_penalty));
+}
+
+uint16_t getMaxSingleErrorPenalty() {
+
+	// Mismatch: +1 mismatch, -1 match
+	uint16_t mismatch_penalty = globalAlignmentSettings.get_mismatch_penalty() + globalAlignmentSettings.get_match_score();
+
+	// Deletion: +1 deletion, maximum number of matches can still be reached
+	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty();
+
+	// Insertion: +1 insertion, -1 match
+	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_match_score();
+
+	return std::max(mismatch_penalty, std::max(insertion_penalty, deletion_penalty));
+}
+
+uint16_t getMaxPossibleScore( CountType cycles ) {
+	return cycles * globalAlignmentSettings.get_match_score();
+}
+
+CountType getMinSoftclipPenalty( CountType softclip_length ) {
+	return ceil( softclip_length / globalAlignmentSettings.get_anchor_length() ) * getMinSingleErrorPenalty();
+}
+
+ScoreType getMinCycleScore( CountType cycle, CountType read_length ) {
+
+	if ( cycle < globalAlignmentSettings.get_anchor_length() )
+		return globalAlignmentSettings.get_min_as();
+
+	ScoreType maxScore = read_length * globalAlignmentSettings.get_match_score();
+	ScoreType minCycleScore = maxScore - ( ceil((cycle - globalAlignmentSettings.get_anchor_length()) / globalAlignmentSettings.get_error_rate()) * getMinSingleErrorPenalty() );
+	return std::max(minCycleScore, globalAlignmentSettings.get_min_as());
 }

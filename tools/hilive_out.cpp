@@ -45,6 +45,9 @@ int main(int argc, const char* argv[]) {
 //	index->get_header_information(globalAlignmentSettings.get_index_fname());
 //	index->store_kmer();
 
+    index->load_metadata( globalAlignmentSettings.get_index_fname() );
+    index->load_fmindex( globalAlignmentSettings.get_index_fname() );
+
 	std::cout << "Start writing ouput." << std::endl;
 
 	for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {

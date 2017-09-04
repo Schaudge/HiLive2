@@ -192,7 +192,6 @@ po::options_description HiLiveArgumentParser::io_options() {
 					("output-cycles,O", po::value<std::vector<CountType>>()->multitoken()->composing(), "Cycles for alignment output. The respective temporary files are kept. [Default: last cycle]")
 					("extended-cigar", po::bool_switch(), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
 					("keep-files,k", po::bool_switch(), "Keep intermediate alignment files [Default: false]")
-					("min-as-ratio", po::value<float>(), "Minimum alignment score (relative to the current read length) for alignments to be reported (0-1) [Default: 0 - Report all alignments]")
 					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
 					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
 					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]");
@@ -202,18 +201,31 @@ po::options_description HiLiveArgumentParser::io_options() {
 po::options_description HiLiveArgumentParser::alignment_options() {
 	po::options_description alignment("Alignment settings");
 	alignment.add_options()
-	        		("min-errors,e", po::value<CountType>(), "Number of errors tolerated in read alignment [Default: 2]")
 					("mode,m", po::value<std::string>(), "Alignment mode. [ALL|A]: Report all alignments; [BESTN#|N#]: Report alignments of the best # scores; "
 							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [ANYBEST|B]: Report one best alignment (default)")
-					("disable-ohw-filter", po::bool_switch(), "Disable the One-Hit Wonder filter [Default: false]")
-					("start-ohw", po::value<CountType>(), "First cycle to apply One-Hit Wonder filter [Default: 20]")
-					("window,w", po::value<DiffType>(), "Set the window size to search for alignment extension, i.e. maximum total insertion/deletion size [Default: 5]")
 					("min-quality", po::value<CountType>(), "Minimum allowed basecall quality [Default: 1]")
 					("anchor-length,a", po::value<CountType>(), "Set the anchor length manually [Default: 12]")
 					("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
 					("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
 					("keep-all-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]");
 	return alignment;
+}
+
+po::options_description HiLiveArgumentParser::scoring_options() {
+	po::options_description scoring("Scoring scheme");
+	scoring.add_options()
+					("min-as", po::value<ScoreType>(), "Minimum alignment score [Default: Depends on score model]")
+					("match-score", po::value<CountType>(), "Score for a match [Default: 0]")
+					("mismatch-penalty", po::value<CountType>(), "Penalty for a mismatch [Default: 1]")
+					("insertion-opening-penalty", po::value<CountType>(), "Penalty for insertion opening [Default: 1]")
+					("insertion-extension-penalty", po::value<CountType>(), "Penalty for insertion extension [Default: 1]")
+					("deletion-opening-penalty", po::value<CountType>(), "Penalty for deletion opening [Default: 1]")
+					("deletion-extension-penalty", po::value<CountType>(), "Penalty for deletion extension [Default: 1]")
+					("max-gap-length", po::value<CountType>(), "Maximal gap length. High influence on runtime depending on the scoring scheme [Default: 3]")
+					("softclip-opening-penalty", po::value<float>(), "Penalty for softclip opening (only relevant during output!) [Default: mismatch-penalty]")
+					("softclip-extension-penalty", po::value<float>(), "Penalty for softclip extension (only relevant during output!) [Default: mismatch-penalty/error-rate]");
+	return scoring;
+
 }
 
 po::options_description HiLiveArgumentParser::technical_options() {
@@ -310,7 +322,7 @@ void HiLiveArgumentParser::report() {
     	std::cout << barcode_suffix << " ";
     }
     std::cout << std::endl;
-    std::cout << "Mapping error:            " << globalAlignmentSettings.get_min_errors() << std::endl;
+    std::cout << "Min. alignment score:     " << globalAlignmentSettings.get_min_as() << std::endl;
     if (globalAlignmentSettings.get_any_best_hit_mode())
         std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
     else if (globalAlignmentSettings.get_all_best_hit_mode())
@@ -320,7 +332,6 @@ void HiLiveArgumentParser::report() {
     else
         std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
     std::cout << "Anchor length:            " << globalAlignmentSettings.get_anchor_length() << std::endl;
-    std::cout << "Increase error rate:      " << globalAlignmentSettings.get_error_rate() << std::endl;
     std::cout << std::endl;
 }
 
@@ -395,15 +406,16 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
 	po::options_description pos_opt = positional_options();
 	po::options_description io_opt = io_options();
 	po::options_description align_opt = alignment_options();
+	po::options_description score_opt = scoring_options();
 	po::options_description tech_opt = technical_options();
 
 	// All command line options
     po::options_description cmdline_options;
-    cmdline_options.add(gen_opt).add(pos_opt).add(io_opt).add(align_opt).add(tech_opt);
+    cmdline_options.add(gen_opt).add(pos_opt).add(io_opt).add(align_opt).add(score_opt).add(tech_opt);
 
     // Options visible in the help
     po::options_description visible_options;
-    visible_options.add(gen_opt).add(io_opt).add(align_opt).add(tech_opt);
+    visible_options.add(gen_opt).add(io_opt).add(align_opt).add(score_opt).add(tech_opt);
 
     init_help(visible_options);
 
@@ -492,6 +504,9 @@ bool HiLiveArgumentParser::set_options() {
 
 	try {
 
+		// Set arguments that are required for setting other arguments
+		set_option<CountType>("anchor-length", "settings.align.anchor", 12, &AlignmentSettings::set_anchor_length);
+
 		// Set positional arguments
 		set_option<std::string>("BC_DIR", "settings.paths.root", "", &AlignmentSettings::set_root);
 		set_option<std::string>("INDEX", "settings.paths.index", "", &AlignmentSettings::set_index_fname);
@@ -502,26 +517,33 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<std::string>("temp", "settings.paths.temp_dir", "", &AlignmentSettings::set_temp_dir);
 		set_option<bool>("bam", "settings.out.bam", false, &AlignmentSettings::set_write_bam);
 
-		std::vector<CountType> output_cycles = {globalAlignmentSettings.get_cycles()};
-		set_option<std::vector<CountType>>("output-cycles", "settings.out.cycles", output_cycles, &AlignmentSettings::set_output_cycles);
-		set_option<bool>("extended-cigar", "settings.out.extended_cigar", false, &AlignmentSettings::set_extended_cigar);
-		set_option<bool>("keep-files", "settings.technical.keep_aln_files", false, &AlignmentSettings::set_keep_aln_files);
-		set_option<float>("min-as-ratio", "settings.out.min_as_ratio", 0.0f, &AlignmentSettings::set_min_as_ratio);
-		set_option<std::vector<uint16_t>>("lanes", "settings.lanes", all_lanes(), &AlignmentSettings::set_lanes);
-		set_option<std::vector<uint16_t>>("tiles", "settings.tiles", all_tiles(), &AlignmentSettings::set_tiles);
-
-		// Set alignment options
+		// Set read structure
 		std::vector<std::string> default_read_structure;
 		default_read_structure.push_back(std::to_string(globalAlignmentSettings.get_cycles()) + "R");
 		set_option<std::vector<std::string>>("reads", "settings.sequences", default_read_structure, &AlignmentSettings::set_read_structure);
 
-		set_option<CountType>("min-errors", "settings.min_errors", 2, &AlignmentSettings::set_min_errors);
+		// Scoring scheme
+		set_option<CountType>("match-score", "settings.scores.match_score", 0, &AlignmentSettings::set_match_score);
+		set_option<CountType>("mismatch-penalty", "settings.scores.mismatch_penalty", 1, &AlignmentSettings::set_mismatch_penalty);
+		set_option<CountType>("insertion-opening-penalty", "settings.scores.insertion_opening_penalty", 1, &AlignmentSettings::set_insertion_opening_penalty);
+		set_option<CountType>("deletion-opening-penalty", "settings.scores.deletion_opening_penalty", 1, &AlignmentSettings::set_deletion_opening_penalty);
+		set_option<CountType>("insertion-extension-penalty", "settings.scores.insertion_extension_penalty", 1, &AlignmentSettings::set_insertion_extension_penalty);
+		set_option<CountType>("deletion-extension-penalty", "settings.scores.deletion_extension_penalty", 1, &AlignmentSettings::set_deletion_extension_penalty);
+		set_option<CountType>("max-gap-length", "settings.scores.max_gap_length", 3, &AlignmentSettings::set_max_gap_length);
+		set_option<float>("softclip-opening-penalty", "settings.scores.softclip_opening_penalty", float(globalAlignmentSettings.get_mismatch_penalty()), &AlignmentSettings::set_softclip_opening_penalty);
+		set_option<float>("softclip-extension-penalty", "settings.scores.softclip_extension_penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_error_rate(), &AlignmentSettings::set_softclip_extension_penalty);
+
+		// Alignment options
+		std::vector<CountType> output_cycles = {globalAlignmentSettings.get_cycles()};
+		set_option<std::vector<CountType>>("output-cycles", "settings.out.cycles", output_cycles, &AlignmentSettings::set_output_cycles);
+		set_option<bool>("extended-cigar", "settings.out.extended_cigar", false, &AlignmentSettings::set_extended_cigar);
+		set_option<bool>("keep-files", "settings.technical.keep_aln_files", false, &AlignmentSettings::set_keep_aln_files);
+		set_option<ScoreType>("min-as", "settings.out.min_as", ScoreType(getMaxPossibleScore(globalAlignmentSettings.getSeqByMate(1).length) - 3*globalAlignmentSettings.get_mismatch_penalty()), &AlignmentSettings::set_min_as); // TODO: change default
+		set_option<std::vector<uint16_t>>("lanes", "settings.lanes", all_lanes(), &AlignmentSettings::set_lanes);
+		set_option<std::vector<uint16_t>>("tiles", "settings.tiles", all_tiles(), &AlignmentSettings::set_tiles);
+
 		set_option<std::string>("mode", "settings.mode", "ANYBEST", &AlignmentSettings::set_mode);
-		set_option<bool>("disable-ohw-filter", "settings.align.discard_ohw", false, &AlignmentSettings::disable_ohw);
-		set_option<CountType>("start-ohw", "settings.align.start_ohw", 20, &AlignmentSettings::set_start_ohw);
-		set_option<DiffType>("window", "settings.align.window", 5, &AlignmentSettings::set_window);
 		set_option<CountType>("min-quality", "settings.align.min_qual", 1, &AlignmentSettings::set_min_qual);
-		set_option<CountType>("anchor-length", "settings.align.anchor", 12, &AlignmentSettings::set_anchor_length);
 
 		std::vector<std::string> barcode_sequences_default;
 		set_option<std::vector<std::string>>("barcodes", "settings.barcodes.sequences", barcode_sequences_default, &AlignmentSettings::set_barcodes);
@@ -593,7 +615,7 @@ void HiLiveOutArgumentParser::report() {
 		std::cout << barcode_suffix << " ";
 	}
 	std::cout << std::endl;
-	std::cout << "Mapping error:            " << globalAlignmentSettings.get_min_errors() << std::endl;
+	std::cout << "Min. Alignment Score:     " << globalAlignmentSettings.get_min_as() << std::endl;
 	if (globalAlignmentSettings.get_any_best_hit_mode())
 		std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
 	else if (globalAlignmentSettings.get_all_best_hit_mode())
