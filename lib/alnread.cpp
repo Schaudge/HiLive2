@@ -458,6 +458,16 @@ bool seed_compare_pos (const USeed & i, const USeed & j) {
 	return (i->start_pos < j->start_pos);
 }
 
+// helper function for alignment output
+bool seed_compare_errors (const USeed & i, const USeed & j) {
+	if (  min_errors(i) == min_errors(j) )
+		return i->num_matches >= j->num_matches;
+	return (min_errors(i) < min_errors(j));
+}
+
+void ReadAlignment::sort_seeds_by_errors() {
+	seeds.sort(seed_compare_errors);
+}
 
 // Create new seeds from a list of kmer positions and add to current seeds
 void ReadAlignment::add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension) {
@@ -551,7 +561,7 @@ void ReadAlignment::create_placeholder_seed() {
 
 }
 
-CountType ReadAlignment::minErrors_in_region(CountType region_length, CountType border, CountType offset_change) {
+CountType minErrors_in_region(CountType region_length, CountType border, CountType offset_change) {
 
 	// Border must not be larger than 2
 	if ( border > 2 )
@@ -574,7 +584,7 @@ CountType ReadAlignment::minErrors_in_region(CountType region_length, CountType 
 }
 
 
-CountType ReadAlignment::min_errors(USeed & s) {
+CountType min_errors(const USeed & s) {
 
         CigarVector* c = &(s->cigar_data);
 
@@ -717,11 +727,12 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
             continue;
         }
 
+    	// Don't do that any longer since we re-filter during output.
     	// Filter suboptimal alignments in the last cycle for any_best mode
-        else if (cycle == total_cycles && globalAlignmentSettings.get_any_best_hit_mode() && ( (*it)->num_matches < max_num_matches || foundHit ) ) {
-            it = seeds.erase(it);
-            continue;
-        }
+//        else if (cycle == total_cycles && globalAlignmentSettings.get_any_best_hit_mode() && ( (*it)->num_matches < max_num_matches || foundHit ) ) {
+//            it = seeds.erase(it);
+//            continue;
+//        }
 
         else
             ++it;

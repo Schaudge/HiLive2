@@ -796,9 +796,39 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				unsigned printedMates = 0;
 				for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
 
+					// Sort seeds by error
+					mateAlignments[mateAlignmentIndex]->sort_seeds_by_errors();
+
+					// Variables for output modes
+					CountType first_seed_errors = 0;
+					CountType last_seed_errors = 0;
+					CountType num_diff_errors = 0;
+
 					// for all seeds
 					/////////////////////////////////////////////////////////////////////////////
 					for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ) {
+
+						CountType curr_seed_errors = min_errors(*it);
+
+						// No seed printed yet -> current seed is the best one.
+						if ( num_diff_errors == 0 )
+							first_seed_errors = curr_seed_errors;
+
+						// Any best mode iterruption
+						if ( num_diff_errors > 0 && globalAlignmentSettings.get_any_best_hit_mode() )
+							break;
+
+						// All best mode interruption
+						if ( first_seed_errors < curr_seed_errors && globalAlignmentSettings.get_all_best_hit_mode() )
+							break;
+
+						// All best n mode interruption
+						if ( globalAlignmentSettings.get_all_best_n_scores_mode() && globalAlignmentSettings.get_best_n() == 0 )
+							break;
+						if ( curr_seed_errors > last_seed_errors && globalAlignmentSettings.get_all_best_n_scores_mode() &&
+								globalAlignmentSettings.get_best_n() <= num_diff_errors )
+							break;
+
 						if ( (*it)->gid == TRIMMED ) {
 							//TODO: count trimmed reads for output stats
 							++it;
@@ -897,6 +927,11 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 
 						// write record to disk
 						seqan::writeRecord(*bfos[barcodeIndex], record);
+
+						// set variables for mode selection
+						if ( last_seed_errors != curr_seed_errors || num_diff_errors == 0 )
+							++num_diff_errors;
+						last_seed_errors = curr_seed_errors;
 
 						++num_alignments;
 						++printedMates;

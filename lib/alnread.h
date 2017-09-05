@@ -48,11 +48,37 @@ struct Seed {
 typedef std::unique_ptr<Seed> USeed;
 // compare function to sort Seed objects by position
 bool seed_compare_pos (const USeed & i, const USeed & j);
+
 // std::list of Seed pointers is much faster
 typedef std::list<USeed> SeedVec;
 // a SeedVec Iterator
 typedef SeedVec::iterator SeedVecIt;
 
+/**
+ * This function is the modified pigeonhole principle holding for both spaced and unspaced kmers.
+ * It computes the minimum number of errors in an error region of a given CIGAR vector.
+ * An error region is a region that is surrounded by MATCH elements of length >= ( kmer_span - 1 ).
+ * The error region cannot contain MATCH elements of length >= ( kmer_span - 1 ).
+ *
+ * @param region_length Sum of all (!) elements within the error region, including involved MATCH elements.
+ * @param border Number of included borders of the CIGAR vector (begin and/or end). Must be in [0,2].
+ * @param Absolute number (positive) of the offset change during a region
+ * @return Minimum number of errors that caused a region of the given length.
+ * @author Tobias Loka, Jakob Schulze
+ */
+CountType minErrors_in_region(CountType region_length, CountType border, CountType offset_change=0 );
+
+/**
+ * Compute the minimum number of errors for a seed by using the modified pigeonhole principle implemented in ReadAlignment::minErrors_in_region.
+ *
+ * @param s The seed.
+ * @return The minimum number of errors for the given seed.
+ * @author Tobias Loka, Jakob Schulze
+ */
+CountType min_errors(const USeed & s);
+
+// compare function to sort Seed objects by errors
+bool seed_compare_errors (const USeed & i, const USeed & j);
 
 
 //-------------------------------------------------------------------//
@@ -80,20 +106,6 @@ class ReadAlignment {
 
   // Create new seeds from a list of kmer positions and add to current seeds
   void add_new_seeds(GenomePosListType& pos, std::vector<bool> & posWasUsedForExtension);
-
-  /**
-   * This function is the modified pigeonhole principle holding for both spaced and unspaced kmers.
-   * It computes the minimum number of errors in an error region of a given CIGAR vector.
-   * An error region is a region that is surrounded by MATCH elements of length >= ( kmer_span - 1 ).
-   * The error region cannot contain MATCH elements of length >= ( kmer_span - 1 ).
-   *
-   * @param region_length Sum of all (!) elements within the error region, including involved MATCH elements.
-   * @param border Number of included borders of the CIGAR vector (begin and/or end). Must be in [0,2].
-   * @param Absolute number (positive) of the offset change during a region
-   * @return Minimum number of errors that caused a region of the given length.
-   * @author Tobias Loka, Jakob Schulze
-   */
-  CountType minErrors_in_region(CountType region_length, CountType border, CountType offset_change=0 );
 
   // filter seeds based on filtering mode and q gram lemma. Also calls add_new_seeds.
   void filterAndCreateNewSeeds(GenomePosListType & pos, std::vector<bool> & posWasUsedForExtension);
@@ -172,13 +184,11 @@ class ReadAlignment {
   PositionType get_SAM_start_pos(USeed & sd);
 
   /**
-   * Compute the minimum number of errors for a seed by using the modified pigeonhole principle implemented in ReadAlignment::minErrors_in_region.
-   *
-   * @param s The seed.
-   * @return The minimum number of errors for the given seed.
-   * @author Tobias Loka, Jakob Schulze
+   * Sort the seeds by num_errors instead by position.
+   * Attention: In-place sorting. Only use for output, not during alignment!
+   * @author Tobias Loka
    */
-  CountType min_errors(USeed & s);
+  void sort_seeds_by_errors();
 
 }; // END class ReadAlignment 
 
