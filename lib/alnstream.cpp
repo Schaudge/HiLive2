@@ -679,7 +679,6 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 	std::ofstream logfile;
 	logfile.open( get_out_log_name(), std::ofstream::app );
 	logfile << "Start to write output for cycle " << std::to_string(cycle) << "." << std::endl;
-	logfile << "Only alignments with an alignment score of >= " << std::to_string(globalAlignmentSettings.get_min_as()) << " are considered." << std::endl;
 
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;

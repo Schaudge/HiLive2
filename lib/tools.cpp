@@ -207,7 +207,7 @@ uint16_t getMaxPossibleScore( CountType cycles ) {
 }
 
 CountType getMinSoftclipPenalty( CountType softclip_length ) {
-	return ceil( softclip_length / globalAlignmentSettings.get_anchor_length() ) * getMinSingleErrorPenalty();
+	return ceil( float(softclip_length) / globalAlignmentSettings.get_anchor_length() ) * getMinSingleErrorPenalty();
 }
 
 ScoreType getMinCycleScore( CountType cycle, CountType read_length ) {

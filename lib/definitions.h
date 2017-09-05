@@ -389,6 +389,31 @@ public:
 
 };
 
+template<typename T>
+bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
+	  try {
+		  unmodifiable.set(value);
+	  }
+	  catch (unmodifiable_error& e) {
+//		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
+		  variable_name.length(); // TODO: just to remove warnings. Remove variable_name string when finished.
+		 return false ;
+	  }
+	  return true;
+}
+
+template<typename T>
+T get_unmodifiable(Unmodifiable<T> unmodifiable, std::string variable_name, bool allow_unset = false) {
+	  try {
+		  return unmodifiable.get(allow_unset);
+	  }
+	  catch (unmodifiable_error& e) {
+		  std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
+		  return T();
+	  }
+}
+
+
 ///////////////////////////////////////
 ////////// Other definitions //////////
 ///////////////////////////////////////
