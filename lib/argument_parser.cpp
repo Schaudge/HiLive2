@@ -201,8 +201,9 @@ po::options_description HiLiveArgumentParser::io_options() {
 po::options_description HiLiveArgumentParser::alignment_options() {
 	po::options_description alignment("Alignment settings");
 	alignment.add_options()
-					("mode,m", po::value<std::string>(), "Alignment mode. [ALL|A]: Report all alignments; [BESTN#|N#]: Report alignments of the best # scores; "
+					("mode,m", po::value<std::string>(), "Output mode. [ALL|A]: Report all alignments; [BESTN#|N#]: Report alignments of the best # scores; "
 							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [ANYBEST|B]: Report one best alignment (default)")
+					("alignment-mode,M", po::value<std::string>(), "Alignment mode to balance speed and accuracy automatically. [fast|balanced|accurate] [Default: balanced]")
 					("min-quality", po::value<CountType>(), "Minimum allowed basecall quality [Default: 1]")
 					("anchor-length,a", po::value<CountType>(), "Set the anchor length manually [Default: 12]")
 					("error-interval", po::value<CountType>(), "Set the interval to allow more errors (low=accurate; great=fast) [Default: anchor-length/2]")
@@ -506,15 +507,18 @@ bool HiLiveArgumentParser::set_options() {
 
 	try {
 
-		// Set arguments that are required for setting other arguments
-		set_option<CountType>("anchor-length", "settings.align.anchor", 12, &AlignmentSettings::set_anchor_length);
-		set_option<CountType>("error-interval", "settings.align.error_interval", globalAlignmentSettings.get_anchor_length()/2, &AlignmentSettings::set_error_rate);
-
 		// Set positional arguments
 		set_option<std::string>("BC_DIR", "settings.paths.root", "", &AlignmentSettings::set_root);
 		set_option<std::string>("INDEX", "settings.paths.index", "", &AlignmentSettings::set_index_fname);
 		set_option<CountType>("CYCLES", "settings.cycles", 0, &AlignmentSettings::set_cycles);
 		set_option<std::string>("OUTDIR", "settings.paths.out_dir", "", &AlignmentSettings::set_out_dir);
+
+		CountType default_anchor_length = set_mode();
+
+		// Set arguments that are required for setting other arguments
+		set_option<CountType>("anchor-length", "settings.align.anchor", default_anchor_length, &AlignmentSettings::set_anchor_length);
+		set_option<CountType>("error-interval", "settings.align.error_interval", globalAlignmentSettings.get_anchor_length()/2, &AlignmentSettings::set_error_rate);
+
 
 		// Set I/O options
 		set_option<std::string>("temp", "settings.paths.temp_dir", "", &AlignmentSettings::set_temp_dir);
@@ -537,6 +541,7 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<float>("softclip-extension-penalty", "settings.scores.softclip_extension_penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_error_rate(), &AlignmentSettings::set_softclip_extension_penalty);
 
 		// Alignment options
+
 		std::vector<CountType> output_cycles = {globalAlignmentSettings.get_cycles()};
 		set_option<std::vector<CountType>>("output-cycles", "settings.out.cycles", output_cycles, &AlignmentSettings::set_output_cycles);
 		set_option<bool>("extended-cigar", "settings.out.extended_cigar", false, &AlignmentSettings::set_extended_cigar);
@@ -544,7 +549,7 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<ScoreType>("min-as", "settings.out.min_as", ScoreType(getMaxPossibleScore(globalAlignmentSettings.getSeqByMate(1).length) - 3*globalAlignmentSettings.get_mismatch_penalty()), &AlignmentSettings::set_min_as); // TODO: change default
 		set_option<std::vector<uint16_t>>("lanes", "settings.lanes", all_lanes(), &AlignmentSettings::set_lanes);
 		set_option<std::vector<uint16_t>>("tiles", "settings.tiles", all_tiles(), &AlignmentSettings::set_tiles);
-		set_option<CountType>("seeding-interval", "settings.align.seeding_interval", globalAlignmentSettings.get_error_rate(), &AlignmentSettings::set_seeding_interval);
+		set_option<CountType>("seeding-interval", "settings.align.seeding_interval", globalAlignmentSettings.get_anchor_length()/2, &AlignmentSettings::set_seeding_interval);
 
 		set_option<std::string>("mode", "settings.mode", "ANYBEST", &AlignmentSettings::set_mode);
 		set_option<CountType>("min-quality", "settings.align.min_qual", 1, &AlignmentSettings::set_min_qual);
@@ -572,6 +577,59 @@ bool HiLiveArgumentParser::set_options() {
 		return false;
 	}
 	return true;
+}
+
+CountType HiLiveArgumentParser::set_mode() {
+
+	CountType default_anchor_length = 15;
+	uint64_t genome_size = 0;
+
+	KixRun* tempIdx = new KixRun();
+	tempIdx->load_seqlengths(globalAlignmentSettings.get_index_fname());
+	for (CountType i=0; i<tempIdx->getNumSequences(); i++ ) {
+		genome_size += 2*tempIdx->getSeqLengths()[i];
+	}
+
+	// relative number of reads matching a reference of given length randomly (in theory, not in biology)
+	float expectation_value = .0025f;
+
+	CountType balanced_anchor_length = ( std::log(float(genome_size) / expectation_value ) / std::log(4) );
+
+	// Only return default value if no mode is set.
+	if ( !cmd_settings.count("alignment-mode") )
+		return balanced_anchor_length;
+
+	char mode = std::toupper(cmd_settings["alignment-mode"].as<std::string>()[0]);
+
+	// Accurate
+	if( mode=='A' ) {
+		default_anchor_length = std::floor(0.833f * balanced_anchor_length);
+
+	// Balanced
+	} else if ( mode == 'B' ) {
+		default_anchor_length = balanced_anchor_length;
+
+	// Fast
+	} else if ( mode == 'F' ) {
+		default_anchor_length = std::ceil(1.166f * balanced_anchor_length);
+	}
+
+	else {
+		throw po::invalid_option_value ("--alignment-mode " + cmd_settings["alignment-mode"].as<std::string>());
+	}
+
+	// Insert default values to variables map if not already set.
+	if ( !cmd_settings.count("anchor-length") )
+		cmd_settings.insert(std::make_pair("anchor-length", po::variable_value(default_anchor_length, true)));
+
+	if ( !cmd_settings.count("error-interval") )
+		cmd_settings.insert(std::make_pair("error-interval", po::variable_value(CountType(default_anchor_length/2), true)));
+
+	if ( !cmd_settings.count("seeding-interval") )
+		cmd_settings.insert(std::make_pair("seeding-interval", po::variable_value(CountType(default_anchor_length/2), true)));
+
+
+	return default_anchor_length;
 }
 
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||

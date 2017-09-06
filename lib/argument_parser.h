@@ -3,6 +3,7 @@
 #include "definitions.h"
 #include "global_variables.h"
 #include "parallel.h"
+#include "kindex.h"
 
 namespace po = boost::program_options;
 
@@ -410,6 +411,14 @@ protected:
 	bool set_options();
 
 	virtual void set_required_parameters() override { required_options = {"BC_DIR", "INDEX", "CYCLES"}; }
+
+	/**
+	 * Add mode defaults to the commandline parameters if not exist.
+	 * The index name must already be set in the globalAlignmentSettings.
+	 * @return default anchor length for this mode
+	 * @author Tobias Loka
+	 */
+	CountType set_mode();
 
 public:
 
