@@ -838,7 +838,12 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, KixRun* 
 
 void ReadAlignment::createSeeds(KixRun* index, SeedVec & newSeeds) {
 
+	// Stop if not enough cycles to create anchor
 	if ( cycle < globalAlignmentSettings.get_anchor_length() )
+		return;
+
+	// Stop if not a seeding cycle
+	if ( cycle != globalAlignmentSettings.get_anchor_length() && ( cycle - globalAlignmentSettings.get_anchor_length() ) % globalAlignmentSettings.get_seeding_interval() != 0 )
 		return;
 
 	CountType softclip_cycles = cycle - globalAlignmentSettings.get_anchor_length();

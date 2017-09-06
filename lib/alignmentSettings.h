@@ -95,6 +95,9 @@ private:
     /** Interval to increase the number of tolerated errors. */
     Unmodifiable<CountType> errorRate;
 
+    /** Interval to create new seeds. */
+    Unmodifiable<CountType> seeding_interval;
+
 	/** Minimal quality for a base call to be valid. */
 	Unmodifiable<CountType> min_qual;
 
@@ -299,6 +302,8 @@ public:
     	// Alignment algorithm settings
     	xml_out.add_child("settings.align.min_qual", getXMLnode (get_min_qual() ));
     	xml_out.add_child("settings.align.anchor", getXMLnode ( get_anchor_length() ));
+    	xml_out.add_child("settings.align.error_interval", getXMLnode ( get_error_rate() ));
+    	xml_out.add_child("settings.align.seeding_interval", getXMLnode ( get_seeding_interval() ));
 
     	return xml_out;
     }
@@ -1050,7 +1055,6 @@ public:
      */
     void set_anchor_length( CountType value ) {
   	  set_unmodifiable(anchorLength, value, "anchorLength");
-  	  set_unmodifiable(errorRate, CountType(value/2), "errorRate");
     }
 
     /**
@@ -1062,6 +1066,36 @@ public:
   	  return get_unmodifiable(errorRate, "errorRate");
     }
 
+    /**
+     * Set the frequency to increase the tolerated number of errors during the alingment algorithm.
+     * @param value Frequency to tolerate more errors during the alignment algorithm.
+     * @author Tobias Loka
+     */
+    void set_error_rate(CountType value) {
+    	set_unmodifiable(errorRate, value, "errorRate");
+    }
+
+    /**
+     * Get the interval to create new seeds.
+     * @return The interval to create new seeds.
+     * @author Tobias Loka
+     */
+    CountType get_seeding_interval() {
+    	return get_unmodifiable(seeding_interval, "seeding_interval");
+    }
+
+    /**
+     * Get the interval to create new seeds.
+     * @param value The interval to create new seeds.
+     * @author Tobias Loka
+     */
+    void set_seeding_interval(CountType value) {
+
+    	// interval must be at least 1
+    	value = value == 0 ? 1 : value;
+
+    	set_unmodifiable(seeding_interval, value, "seeding_interval");
+    }
 
 ////////// Demultiplexing options  //////////
 

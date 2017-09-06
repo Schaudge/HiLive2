@@ -205,6 +205,8 @@ po::options_description HiLiveArgumentParser::alignment_options() {
 							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [ANYBEST|B]: Report one best alignment (default)")
 					("min-quality", po::value<CountType>(), "Minimum allowed basecall quality [Default: 1]")
 					("anchor-length,a", po::value<CountType>(), "Set the anchor length manually [Default: 12]")
+					("error-interval", po::value<CountType>(), "Set the interval to allow more errors (low=accurate; great=fast) [Default: anchor-length/2]")
+					("seeding-interval", po::value<CountType>(), "Set the interval to create new seeds (low=accurate; great=fast) [Default: error-interval]")
 					("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
 					("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
 					("keep-all-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]");
@@ -506,6 +508,7 @@ bool HiLiveArgumentParser::set_options() {
 
 		// Set arguments that are required for setting other arguments
 		set_option<CountType>("anchor-length", "settings.align.anchor", 12, &AlignmentSettings::set_anchor_length);
+		set_option<CountType>("error-interval", "settings.align.error_interval", globalAlignmentSettings.get_anchor_length()/2, &AlignmentSettings::set_error_rate);
 
 		// Set positional arguments
 		set_option<std::string>("BC_DIR", "settings.paths.root", "", &AlignmentSettings::set_root);
@@ -541,6 +544,7 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<ScoreType>("min-as", "settings.out.min_as", ScoreType(getMaxPossibleScore(globalAlignmentSettings.getSeqByMate(1).length) - 3*globalAlignmentSettings.get_mismatch_penalty()), &AlignmentSettings::set_min_as); // TODO: change default
 		set_option<std::vector<uint16_t>>("lanes", "settings.lanes", all_lanes(), &AlignmentSettings::set_lanes);
 		set_option<std::vector<uint16_t>>("tiles", "settings.tiles", all_tiles(), &AlignmentSettings::set_tiles);
+		set_option<CountType>("seeding-interval", "settings.align.seeding_interval", globalAlignmentSettings.get_error_rate(), &AlignmentSettings::set_seeding_interval);
 
 		set_option<std::string>("mode", "settings.mode", "ANYBEST", &AlignmentSettings::set_mode);
 		set_option<CountType>("min-quality", "settings.align.min_qual", 1, &AlignmentSettings::set_min_qual);
