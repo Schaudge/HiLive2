@@ -160,8 +160,6 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 //-----HiLiveArgumentParser------------------------------
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
-// TODO: Introduce fast, balanced, accurate modi.
-
 po::options_description HiLiveArgumentParser::general_options() {
 	po::options_description general("General");
 	general.add_options()
@@ -226,7 +224,8 @@ po::options_description HiLiveArgumentParser::scoring_options() {
 					("deletion-extension-penalty", po::value<CountType>(), "Penalty for deletion extension [Default: 1]")
 					("max-gap-length", po::value<CountType>(), "Maximal gap length. High influence on runtime depending on the scoring scheme [Default: 3]")
 					("softclip-opening-penalty", po::value<float>(), "Penalty for softclip opening (only relevant during output!) [Default: mismatch-penalty]")
-					("softclip-extension-penalty", po::value<float>(), "Penalty for softclip extension (only relevant during output!) [Default: mismatch-penalty/error-rate]");
+					("softclip-extension-penalty", po::value<float>(), "Penalty for softclip extension (only relevant during output!) [Default: mismatch-penalty/error-rate]")
+					("max-softclip-ratio", po::value<float>(), "Maximal relative length of the front softclip (only relevant during output!) [Default: 0.2]");
 	return scoring;
 
 }
@@ -538,10 +537,10 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<CountType>("deletion-extension-penalty", "settings.scores.deletion_extension_penalty", 1, &AlignmentSettings::set_deletion_extension_penalty);
 		set_option<CountType>("max-gap-length", "settings.scores.max_gap_length", 3, &AlignmentSettings::set_max_gap_length);
 		set_option<float>("softclip-opening-penalty", "settings.scores.softclip_opening_penalty", float(globalAlignmentSettings.get_mismatch_penalty()), &AlignmentSettings::set_softclip_opening_penalty);
-		set_option<float>("softclip-extension-penalty", "settings.scores.softclip_extension_penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_error_rate(), &AlignmentSettings::set_softclip_extension_penalty);
+		set_option<float>("softclip-extension-penalty", "settings.scores.softclip_extension_penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_anchor_length(), &AlignmentSettings::set_softclip_extension_penalty);
+		set_option<float>("max-softclip-ratio", "settings.scores.max_softclip_ratio", .2f, &AlignmentSettings::set_max_softclip_ratio);
 
 		// Alignment options
-
 		std::vector<CountType> output_cycles = {globalAlignmentSettings.get_cycles()};
 		set_option<std::vector<CountType>>("output-cycles", "settings.out.cycles", output_cycles, &AlignmentSettings::set_output_cycles);
 		set_option<bool>("extended-cigar", "settings.out.extended_cigar", false, &AlignmentSettings::set_extended_cigar);

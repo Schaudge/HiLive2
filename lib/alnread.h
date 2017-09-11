@@ -62,6 +62,9 @@ struct Seed {
 	 */
 	CountType get_nm();
 
+	/** Get length of the front softclip. */
+	CountType get_softclip_length();
+
 	void add_mdz_nucleotide(char nucl);
 
 	std::string getMDZString();
@@ -114,8 +117,6 @@ template <typename T> bool PComp(const T & a, const T & b)
  * @author Tobias Loka
  */
 inline bool seed_comparison_by_as(const USeed a, const USeed b) {
-
-	// TODO: think about whether it makes sense to count complete softclip as mismatch or not (currently not)
 
 	// if equal number of matches
 	if (a->get_as() == b->get_as()) {

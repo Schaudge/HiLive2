@@ -245,7 +245,9 @@ uint16_t Seed::deserialize(char* d) {
 ScoreType Seed::get_as() {
 
 	ScoreType as = 0;
+
 	auto cigar_it = cigar_data.begin();
+
 
 	for ( ;cigar_it != cigar_data.end(); ++cigar_it ) {
 
@@ -259,7 +261,6 @@ ScoreType Seed::get_as() {
 			// Softclip
 			if ( cigar_it == cigar_data.begin() || std::next(cigar_it) == cigar_data.end() )
 				as -= ( globalAlignmentSettings.get_softclip_opening_penalty() + ( ( cigar_it->length - 1 ) * globalAlignmentSettings.get_softclip_extension_penalty() ) );
-//				as -= cigar_it->length * globalAlignmentSettings.get_mismatch_penalty();
 
 			// Regular mismatch
 			else
@@ -310,6 +311,13 @@ CountType Seed::get_nm() {
 	return nm;
 }
 
+CountType Seed::get_softclip_length() {
+	if ( cigar_data.size() == 0 )
+		return 0;
+
+	CountType sc_length = cigar_data.front().offset == NO_MATCH ? cigar_data.front().length : 0;
+	return sc_length;
+}
 void Seed::add_mdz_nucleotide(char nucl) {
 
 	uint8_t n = twobit_repr(nucl) << (6 - ( 2 * (mdz_length % 4) ) );

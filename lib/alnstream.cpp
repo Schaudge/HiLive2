@@ -850,13 +850,14 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 							  firstSeedAS = (*it)->get_as();
 
 						  // Stop in all best mode when AS:i score is lower than the first
-						  if( globalAlignmentSettings.get_all_best_hit_mode() && firstSeedAS > (*it)->get_as())
+						  if( globalAlignmentSettings.get_all_best_hit_mode() && firstSeedAS > (*it)->get_as() )
 							  goto nextmate;
 
 
-						  // Don't write this seed if the user-specified score is not fulfilled
+						  // Don't write this seed if the user-specified score or softclip ratio is not fulfilled
 						  ScoreType as = (*it)->get_as();
-						  if ( as < globalAlignmentSettings.get_min_as() ) {
+						  CountType softclip_length = (*it)->get_softclip_length();
+						  if ( as < globalAlignmentSettings.get_min_as() || softclip_length > globalAlignmentSettings.get_max_softclip_ratio()*mateCycles[mate_index]) {
 							  continue;
 						  }
 

@@ -84,6 +84,9 @@ private:
     /** Maximal consecutive number of insertions or deletions. */
     Unmodifiable<CountType> max_gap_length;
 
+    /** Maximal relative length of softclip region. */
+    Unmodifiable<float> max_softclip_ratio;
+
 
 ///////////////////////////////////////
 ////////// Alignment options //////////
@@ -298,6 +301,7 @@ public:
     	xml_out.add_child("settings.scores.max_gap_length", getXMLnode ( get_max_gap_length() ));
     	xml_out.add_child("settings.scores.softclip_opening_penalty", getXMLnode ( get_softclip_opening_penalty() ));
     	xml_out.add_child("settings.scores.softclip_extension_penalty", getXMLnode ( get_softclip_extension_penalty() ));
+    	xml_out.add_child("settings.scores.max_softclip_ratio", getXMLnode ( get_max_softclip_ratio() ));
 
     	// Alignment algorithm settings
     	xml_out.add_child("settings.align.min_qual", getXMLnode (get_min_qual() ));
@@ -940,6 +944,24 @@ public:
      */
     void set_softclip_opening_penalty(float value) {
   	  set_unmodifiable(softclip_opening_penalty, value, "softclip_opening_penalty");
+    }
+
+    /**
+     * Get the maximal relative length of the front softclip.
+     * @return Maximal softclip ratio.
+     * @author Tobias Loka
+     */
+    float get_max_softclip_ratio() {
+    	return get_unmodifiable(max_softclip_ratio, "max_softclip_ratio");
+    }
+
+    /**
+     * Set the maximal relative length of the front softclip.
+     * @param value The maximal length of the front softclip.
+     * @author Tobias Loka
+     */
+    void set_max_softclip_ratio(float value) {
+    	set_unmodifiable(max_softclip_ratio, value, "max_softclip_ratio");
     }
 
 
