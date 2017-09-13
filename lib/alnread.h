@@ -349,6 +349,9 @@ class ReadAlignment {
 	 */
 	void disable();
 
+	/** Check if this read is disabled. */
+	bool is_disabled();
+
 	/**
 	 * Obtain the start position of the alignment with SAM specifications (most left position)
 	 * @param index The FM index

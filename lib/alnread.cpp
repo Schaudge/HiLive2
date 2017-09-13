@@ -1032,8 +1032,14 @@ CountType ReadAlignment::getBarcodeIndex() {
 void ReadAlignment::disable() {
   seeds.clear();
   flags = 0;
-  sequenceLen=0;
-  sequenceStoreVector.clear();
+  if ( ! globalAlignmentSettings.get_keep_all_sequences() ) {
+	  sequenceLen=0;
+	  sequenceStoreVector.clear();
+  }
+}
+
+bool ReadAlignment::is_disabled() {
+	return flags == 0;
 }
 
 PositionType ReadAlignment::get_SAM_start_pos(KixRun* index, PositionPairType p, USeed & sd) {

@@ -49,6 +49,9 @@ private:
     /** Output mode. */
     Unmodifiable<AlignmentMode> mode;
 
+    /** Switch: store all sequences. */
+    Unmodifiable<bool> keep_all_sequences;
+
 
 ////////////////////////////////////
 ////////// Scoring scheme //////////
@@ -284,6 +287,7 @@ public:
     	xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
     	xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
     	xml_out.add_child("settings.out.min_as", getXMLnode ( get_min_as()) );
+    	xml_out.add_child("settings.out.keep_all_sequences", getXMLnode ( get_keep_all_sequences() ));
 
     	// Technical settings
     	xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
@@ -762,6 +766,15 @@ public:
     void set_extended_cigar(bool value) {
   	  set_unmodifiable(extended_cigar, value, "extended_cigar");
     }
+
+    bool get_keep_all_sequences() {
+    	return get_unmodifiable(keep_all_sequences, "keep-all-sequences");
+    }
+
+    void set_keep_all_sequences(bool value) {
+    	set_unmodifiable(keep_all_sequences, value, "kepp-all-sequences");
+    }
+
 
 
 ////////// Scoring scheme  //////////

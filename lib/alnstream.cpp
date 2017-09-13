@@ -520,7 +520,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   // 1. Open the input file
   //-----------------------
   std::string in_fname = get_alignment_file(cycle-1, mate, globalAlignmentSettings.get_temp_dir());
-  std::string bcl_fname = get_bcl_file(cycle, read_no); // TODO: correct cycle
+  std::string bcl_fname = get_bcl_file(cycle, read_no);
   std::string filter_fname = get_filter_file();
 
   iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
@@ -826,13 +826,14 @@ uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls,
 				unsigned printedMates = 0;
 				for ( unsigned mate_index = 0; mate_index < alignments_by_mate.size(); ++mate_index ) {
 
-					// Set the minimum alignment score to write an alignment
-//					CountType min_as_score = mateCycles[mate_index] * globalAlignmentSettings.get_min_as_ratio();
+					// Alignment disabled
+					if ( alignments_by_mate[mate_index]->is_disabled() )
+						continue;
 
-					// Sort seeds for the current mate by their "score"
 					SeedVec mateSeeds;
 					alignments_by_mate[mate_index]->getSeeds_scoresorted(mateSeeds);
 
+					// No seeds
 					if ( mateSeeds.size() == 0 )
 						continue;
 

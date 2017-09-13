@@ -192,7 +192,8 @@ po::options_description HiLiveArgumentParser::io_options() {
 					("keep-files,k", po::bool_switch(), "Keep intermediate alignment files [Default: false]")
 					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
 					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
-					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]");
+					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]")
+					("keep-all-sequences", po::bool_switch(), "Keep sequences of all reads (needed for fastq streaming of unmapped reads) [Default: false]");
 	return io_settings;
 }
 
@@ -522,6 +523,7 @@ bool HiLiveArgumentParser::set_options() {
 		// Set I/O options
 		set_option<std::string>("temp", "settings.paths.temp_dir", "", &AlignmentSettings::set_temp_dir);
 		set_option<bool>("bam", "settings.out.bam", false, &AlignmentSettings::set_write_bam);
+		set_option<bool>("keep-all-sequences", "settings.out.keep_all_sequences", false, &AlignmentSettings::set_keep_all_sequences);
 
 		// Set read structure
 		std::vector<std::string> default_read_structure;
