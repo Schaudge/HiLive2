@@ -39,11 +39,15 @@ struct Task {
  Task(uint16_t ln, uint16_t tl, SequenceElement seq, uint16_t cl):
 	 lane(ln), tile(tl), seqEl(seq), cycle(cl) {};
 
+ /** Constructor for a task without seqEl information. */
+ Task(uint16_t ln, uint16_t tl, uint16_t cl) : lane(ln), tile(tl), seqEl(NULLSEQ), cycle(cl) {};
+
   /**
    * Overload of the << operator. Defines the cout form of a task.
    * @author Martin Lindner
    */
   friend std::ostream& operator<<(std::ostream& os, const Task& t);
+
 };
 
 /**
@@ -59,6 +63,22 @@ inline bool operator==(const Task& l, const Task& r){ return (r.lane==l.lane)&&(
  * @author Martin Lindner
  */
 inline bool operator!=(const Task& l, const Task& r){ return !(l==r); }
+
+inline bool operator<(const Task& l, const Task& r){
+	if ( l.cycle == r.cycle) {
+		if ( l.lane == r.lane ) {
+			if ( l.tile == r.tile ) {
+				return l.seqEl.mate < r.seqEl.mate;
+			} else {
+				return l.tile < r.tile;
+			}
+		} else {
+			return l.lane < r.lane;
+		}
+	} else {
+		return l.cycle < r.cycle;
+	}
+}
 
 /**
  * Definition of a NULL task.

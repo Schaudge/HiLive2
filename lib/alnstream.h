@@ -8,6 +8,7 @@
 #include "tools.h"
 #include "alnread.h"
 #include "illumina_parsers.h"
+#include "parallel.h"
 
 // Output alignment stream: write alignments to file one by one
 class oAlnStream {
@@ -181,6 +182,254 @@ class StreamedAlignment {
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle);
+/**
+ * Extension of SeqAn's BamFileOut data type supporting multithreading via an atomic flag.
+ * @author Tobias Loka
+ */
+struct Atomic_bfo {
+
+private:
+
+	/** The BamFileOut stream.*/
+	seqan::BamFileOut bfo;
+
+	/** The atomic flag to perform a spinlock while writing.*/
+	std::atomic_flag flag = ATOMIC_FLAG_INIT;
+
+	/**
+	 * Lock the atomic flag.
+	 */
+	void lock() {
+		while ( flag.test_and_set(std::memory_order_acquire))
+			; // spin
+	}
+
+	/**
+	 * Unlock the atomic flag.
+	 */
+	void unlock() {
+		flag.clear(std::memory_order_release);
+	}
+
+public:
+
+	/**
+	 * Default constructor that also initializes the BamFileOut stream.
+	 * @param f_name Output file name.
+	 * */
+	Atomic_bfo( std::string f_name) : bfo(f_name.c_str()) { }
+
+	/** Destructor. */
+	~Atomic_bfo ( ) {  }
+
+	/**
+	 * Set the context of the BamFileOut stream.
+	 * @param context The new context.
+	 */
+	void setContext ( seqan::BamIOContext<seqan::StringSet<seqan::CharString> > & context ) {
+		bfo.context = context;
+	}
+
+	/**
+	 * Write the header to the output file.
+	 * @param header The header for the output file.
+	 */
+	void writeHeader ( seqan::BamHeader & header ) {
+		seqan::writeHeader( bfo, header );
+	}
+
+	/**
+	 * Write records to the output file in a "thread-safe" manner.
+	 * @param records Reference to a vector containing a set of records.
+	 */
+	void writeRecords ( std::vector<seqan::BamAlignmentRecord> & records ) {
+
+		if ( records.size() == 0 )
+			return;
+
+		lock();
+		seqan::writeRecords(bfo, records);
+		unlock();
+
+	}
+
+};
+
+/**
+ * Extends a deque of atomic BamFileOut streams.
+ * Store the context, refNames and refNamesCache such that it exist only once and will not be destructed as long as it is needed.
+ * @author Tobias Loka
+ */
+class BamFileOutDeque {
+
+	/** Deque of bfos. */
+	std::deque<Atomic_bfo> bfos;
+
+	/** All fields needed for the context of the BamFileOut streams. */
+	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > context;
+	seqan::StringSet<seqan::CharString> refNames;
+	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > refNamesCache;
+
+public:
+
+	void set_context(StringListType & seq_names, std::vector<uint32_t> seq_lengths) {
+		seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > rnc(refNames);
+		refNamesCache = rnc;
+		seqan::BamIOContext<seqan::StringSet<seqan::CharString> > cxt(refNames, refNamesCache);
+		context = cxt;
+		seqan::contigNames(context) = seq_names;
+		seqan::contigLengths(context) = seq_lengths;
+	}
+
+	void emplace_back ( std::string f_name ) {
+		bfos.emplace_back ( f_name.c_str() );
+		bfos.back().setContext(context);
+	}
+
+	Atomic_bfo & back() { return bfos.back(); }
+
+	Atomic_bfo & operator [](int i) { return bfos[i]; }
+
+};
+
+
+class AlnOut {
+
+// private:
+public:
+
+	std::map<Task, ItemStatus> tasks;
+	std::mutex tasks_mutex;
+	CountType cycle;
+
+	std::deque<std::thread> threads;
+
+	BamFileOutDeque bfos;
+
+//	std::deque<seqan::BamFileOut> bfos;
+//	std::deque<std::mutex> bfo_mutexes;
+//	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext;
+//	seqan::StringSet<seqan::CharString> referenceNames;
+//	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache;
+
+
+	std::vector<std::string> barcodes;
+	std::vector<CountType> mateCycles;
+	std::vector<CountType> min_as_scores;
+
+	std::vector<std::vector<seqan::BamAlignmentRecord>> records_buffer;
+
+
+	KixRun* index;
+
+	Task get_next( ItemStatus getStatus, ItemStatus setToStatus ) {
+		std::lock_guard<std::mutex> lock(tasks_mutex);
+		for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
+			if ( it->second == getStatus ) {
+				tasks[it->first] = setToStatus;
+				return it->first;
+			}
+		}
+		return NO_TASK;
+	}
+
+	CountType get_task_status_num ( ItemStatus getStatus ) {
+		CountType num = 0;
+		std::lock_guard<std::mutex> lock(tasks_mutex);
+		for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
+			if ( it->second == getStatus ) {
+				num += 1;
+			}
+		}
+		return num;
+	}
+
+	bool set_task_status( Task t, ItemStatus status ) {
+		std::lock_guard<std::mutex> lock(tasks_mutex);
+		if ( tasks.find(t) == tasks.end() )
+			return false;
+		tasks[t] = status;
+		return true;
+	}
+
+	bool set_task_status_from_to( Task t, ItemStatus oldStatus, ItemStatus newStatus ) {
+		std::lock_guard<std::mutex> lock(tasks_mutex);
+		if ( tasks.find(t) == tasks.end() )
+			return false;
+		if ( tasks[t] == oldStatus ) {
+			tasks[t] = newStatus;
+			return true;
+		}
+		return false;
+	}
+
+	bool add_task( Task t, ItemStatus status ) {
+		std::lock_guard<std::mutex> lock(tasks_mutex);
+		if ( tasks.find(t) != tasks.end() )
+			return false;
+		tasks[t] = status;
+		return true;
+	}
+
+	std::string getOutFileName( CountType barcodeIndex, CountType cycle );
+	std::string getTempOutFileName( CountType barcodeIndex, CountType cycle );
+	std::string getTileOutFileName ( CountType ln, CountType tl, CountType mate, CountType cycle );
+	std::string getTempTileOutFileName ( CountType ln, CountType tl, CountType mate, CountType cycle );
+
+	void write_tile_to_bam ( Task t ) {
+		try {
+			__write_tile_to_bam__ (t);
+			set_task_status( t, FINISHED );
+		} catch ( const std::exception& e) {
+			set_task_status( t, FAILED );
+			std::cerr << "Writing of task " << t << " failed: " << e.what() << std::endl;
+		}
+	}
+
+	void __write_tile_to_bam__ ( Task t );
+
+
+public:
+
+	AlnOut (std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl, KixRun* idx);
+	~AlnOut ();
+	bool is_finished() {
+		return ( get_task_status_num( FINISHED ) + get_task_status_num( FAILED ) ) == tasks.size();
+	};
+	bool sort_tile ( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite = false );
+
+	bool task_available ( Task t ) {
+		return set_task_status_from_to( t, WAITING, BCL_AVAILABLE );
+	}
+
+	Task write_next ( ) {
+
+		Task t = get_next ( BCL_AVAILABLE, RUNNING );
+		if ( t != NO_TASK )
+			threads.emplace_back(&AlnOut::write_tile_to_bam, this, t);
+
+		return t;
+	};
+
+	CountType get_num_threads() { return threads.size(); }
+
+//	void write_records(CountType min_num_records = 1) {
+//		for ( CountType i = 0; i < records_buffer.size(); i++ ) {
+//			std::vector<seqan::BamAlignmentRecord> buffer;
+//			if ( records_buffer[i].size() >= min_num_records ) {
+//				buffer.swap(records_buffer[i]);
+//				bfos[i].writeRecords(buffer);
+//			}
+//		}
+//	}
+
+	void join() {
+		for ( auto& t : threads )
+			t.join();
+	}
+
+};
+
+//uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle);
 
 #endif /* ALNSTREAM_H */

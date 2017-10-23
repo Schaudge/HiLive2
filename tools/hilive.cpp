@@ -99,11 +99,14 @@ void output_worker( Agenda & agenda, KixRun* idx, bool & surrender ) {
 		if ( agenda.finished(next_cycle) ) {
 
 			try {
-				if ( !alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), idx, next_cycle) )
-					std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed." << std::endl;
-				else {
-					std::cout << "Wrote output for cycle " << std::to_string(next_cycle) << "." << std::endl;
-				}
+//				AlnOut alnout;
+//				alnout.write_tile_out(1, 1101, 1, idx, next_cycle, false);
+//				alnout.write_tile_bam(1, 1101, {1}, next_cycle, idx);
+//				if ( !alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), idx, next_cycle) )
+//					std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed." << std::endl;
+//				else {
+//					std::cout << "Wrote output for cycle " << std::to_string(next_cycle) << "." << std::endl;
+//				}
 			}
 			catch ( std::exception & e ) {
 				std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed: " << e.what() << std::endl;

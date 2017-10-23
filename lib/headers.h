@@ -20,6 +20,7 @@
 #include <memory>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <chrono>
 #include <stdexcept>
 #include <utility>

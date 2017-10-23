@@ -130,7 +130,6 @@ uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 	return 0;
 }
 
-
 std::string filter_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
   path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".filter";
@@ -192,6 +191,19 @@ seqan::BamHeader getBamHeader() {
 	return header;
 }
 
+std::string getTileBamTempFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << ".temp" << file_suffix;
+	return fname.str();
+}
+
+std::string getTileBamFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << file_suffix;
+	return fname.str();
+}
 
 std::string getBamTempFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
@@ -199,7 +211,6 @@ std::string getBamTempFileName(std::string barcode, CountType cycle) {
 	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << ".temp" << file_suffix;
 	return fname.str();
 }
-
 
 std::string getBamFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;

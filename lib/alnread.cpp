@@ -1,7 +1,7 @@
 #include "alnread.h"
 
 
-seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_i) {
+seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_i, unsigned* as_i) {
 	typedef seqan::String<seqan::CigarElement<> > TSeqanCigarString;
 	TSeqanCigarString seqanCigarString;
 	seqan::CigarElement<> cigarElem;
@@ -49,6 +49,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
                 cigarElem.operation = globalAlignmentSettings.get_extended_cigar() ? '=' : 'M';
                 cigarElem.count=(*it).length;
                 seqan::appendValue(seqanCigarString, cigarElem);
+                (*as_i) += (*it).length;
                 last_offset = (*it).offset;
                 continue;
 			}
@@ -62,6 +63,8 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
                 cigarElem.operation = globalAlignmentSettings.get_extended_cigar() ? '=' : 'M';
 				cigarElem.count=(*it).length;
 				seqan::appendValue(seqanCigarString, cigarElem);
+				(*as_i) += (*it).length;
+				(*as_i) -= ( (*it).offset - last_offset );
                 last_offset = (*it).offset;
 				continue;
 			}
@@ -75,6 +78,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
                 cigarElem.operation = globalAlignmentSettings.get_extended_cigar() ? '=' : 'M';
 				cigarElem.count=(*it).length;
 				seqan::appendValue(seqanCigarString, cigarElem);
+				(*as_i) += (*it).length;
                 last_offset = (*it).offset;
 				continue;
 			}
@@ -460,9 +464,14 @@ bool seed_compare_pos (const USeed & i, const USeed & j) {
 
 // helper function for alignment output
 bool seed_compare_errors (const USeed & i, const USeed & j) {
-	if (  min_errors(i) == min_errors(j) )
-		return i->num_matches >= j->num_matches;
-	return (min_errors(i) < min_errors(j));
+//	CountType i_err = min_errors(i);
+//	CountType j_err = min_errors(j);
+//	if (  i_err == j_err )
+//		return i->num_matches >= j->num_matches;
+//	return ( i_err < j_err );
+	if ( i->num_matches == j->num_matches )
+		return min_errors(i) <= min_errors(j);
+	return i->num_matches > j->num_matches;
 }
 
 void ReadAlignment::sort_seeds_by_errors() {

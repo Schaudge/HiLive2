@@ -49,10 +49,32 @@ int main(int argc, const char* argv[]) {
 
 	for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
 		try {
-			if ( alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, cycle) )
-				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "success." << std::endl;
-			else
-				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "failed." << std::endl;
+			AlnOut alnout(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
+			for ( auto& lane : globalAlignmentSettings.get_lanes() ) {
+				for ( auto& tile : globalAlignmentSettings.get_tiles() ) {
+					alnout.task_available( Task(lane, tile, cycle) );
+				}
+			}
+
+			while ( !alnout.is_finished() ) {
+				for ( auto i=0; i < alnout.get_task_status_num( BCL_AVAILABLE ); i++ ) {
+					alnout.write_next();
+				}
+//				alnout.write_records();
+		        std::this_thread::sleep_for (std::chrono::milliseconds(10000));
+			}
+
+			std::cout << "Num_tasks: " << std::to_string( alnout.tasks.size() ) << std::endl;
+			std::cout << "Finished: " << std::to_string( alnout.get_task_status_num( FINISHED ) ) << std::endl;
+			std::cout << "Failed: " << std::to_string( alnout.get_task_status_num( FAILED ) ) << std::endl;
+
+
+			alnout.join();
+
+//			if ( alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, cycle) )
+//				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "success." << std::endl;
+//			else
+//				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "failed." << std::endl;
 		} catch ( std::exception & ex ) {
 			std::cout << "Cycle " << std::to_string(cycle) << " ... " << "failed: " << std::endl << ex.what() << std::endl << std::endl;
 		}
