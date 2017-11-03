@@ -318,6 +318,29 @@ public:
 
 };
 
+////////////////////////////////
+////////// Exceptions //////////
+////////////////////////////////
+class io_error : public std::runtime_error {
+public:
+	using std::runtime_error::runtime_error;
+};
+
+class file_open_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
+class file_not_exist_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
+class file_format_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
 ///////////////////////////////////////
 ////////// Other definitions //////////
 ///////////////////////////////////////
@@ -338,6 +361,7 @@ enum AlignmentMode:char {
 	BESTN='N',
 	UNKNOWN='U'
 };
+
 
 
 #endif /* DEFINITIONS_H */

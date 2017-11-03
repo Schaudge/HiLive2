@@ -33,73 +33,74 @@ uint64_t oAlnStream::lz4write(const char* source, uint64_t size) {
 
 
 uint64_t oAlnStream::open(std::string fname) {
-  // open the new Alignment file
-  switch (format) {
-  case 0: case 2: 
-    ofile = fopen(fname.c_str(), "wb");
-    if (!ofile) {
-      std::cerr << "Could not open file " << fname << " for writing." << std::endl;
-      return 0;
-    }
-    break;
-  case 1:
-    ozfile = gzopen(fname.c_str(), "wb1"); //Don't compress too much, not enough bang for the buck
-    if (ozfile == Z_NULL) {
-      std::cerr << "Could not open file " << fname << " for writing." << std::endl;
-      return 0;
-    }
-    break;
-  default:
-    throw std::invalid_argument("Output file format not recognized");
-  }
 
-  // write the header:
+	// open the new Alignment file
+	switch (format) {
+	case 0: case 2:
+		ofile = fopen(fname.c_str(), "wb");
+		if (!ofile) {
+			throw file_open_error( "Error opening file " + fname + " for writing.");
+			return 0;
+		}
+		break;
+	case 1:
+		ozfile = gzopen(fname.c_str(), "wb1"); //Don't compress too much, not enough bang for the buck
+		if (ozfile == Z_NULL) {
+			throw file_open_error( "Error opening file " + fname + " for writing.");
+			return 0;
+		}
+		break;
+	default:
+		throw file_format_error("Output file format not recognized.");
+	}
 
-  // calculate total size first
-  unsigned long int total_size = 0;
+	// write the header:
 
-  total_size += sizeof(uint16_t); // lane
-  total_size += sizeof(uint16_t); // tile
-  total_size += sizeof(CountType); // cycle
+	// calculate total size first
+	unsigned long int total_size = 0;
 
-  // read length
-  total_size += sizeof(CountType);
+	total_size += sizeof(uint16_t); // lane
+	total_size += sizeof(uint16_t); // tile
+	total_size += sizeof(CountType); // cycle
 
-  // number of reads
-  total_size += sizeof(uint32_t);
+	// read length
+	total_size += sizeof(CountType);
 
-  // create the vector to store the data
-  std::vector<char> data (total_size);
-  char* d = data.data();
+	// number of reads
+	total_size += sizeof(uint32_t);
 
-  // write the lane
-  memcpy(d,&lane,sizeof(uint16_t));
-  d += sizeof(uint16_t);
+	// create the vector to store the data
+	std::vector<char> data (total_size);
+	char* d = data.data();
 
-  // write the tile
-  memcpy(d,&tile,sizeof(uint16_t));
-  d += sizeof(uint16_t);
+	// write the lane
+	memcpy(d,&lane,sizeof(uint16_t));
+	d += sizeof(uint16_t);
 
-  // write the cycle
-  memcpy(d,&cycle,sizeof(CountType));
-  d += sizeof(CountType);
+	// write the tile
+	memcpy(d,&tile,sizeof(uint16_t));
+	d += sizeof(uint16_t);
 
-  // write the read length
-  memcpy(d,&rlen,sizeof(CountType));
-  d += sizeof(CountType);
+	// write the cycle
+	memcpy(d,&cycle,sizeof(CountType));
+	d += sizeof(CountType);
 
-  // write the number of reads
-  memcpy(d,&num_reads,sizeof(uint32_t));
-  d += sizeof(int32_t);
+	// write the read length
+	memcpy(d,&rlen,sizeof(CountType));
+	d += sizeof(CountType);
 
-  // write all data
-  uint64_t written = 0;
-  switch (format) {
-  case 0: case 2:  written = fwrite(data.data(), 1, data.size(), ofile); break;
-  case 1: written = gzwrite(ozfile, data.data(), data.size()); break;
-  }
+	// write the number of reads
+	memcpy(d,&num_reads,sizeof(uint32_t));
+	d += sizeof(int32_t);
+
+	// write all data
+	uint64_t written = 0;
+	switch (format) {
+	case 0: case 2:  written = fwrite(data.data(), 1, data.size(), ofile); break;
+	case 1: written = gzwrite(ozfile, data.data(), data.size()); break;
+	}
   
-  return written;
+	return written;
 }
 
 
@@ -241,63 +242,67 @@ uint64_t iAlnStream::lz4read_block() {
 
 
 uint64_t iAlnStream::open(std::string fname) {
-  // open the new Alignment file
-  switch (format) {
-  case 0: case 2:
-    ifile = fopen(fname.c_str(), "rb");
-    if (!ifile) {
-      std::cerr << "Error opening file " << fname << " for reading." << std::endl;
-      return 0;
-    }
-    break;
-  case 1:
-    izfile = gzopen(fname.c_str(), "rb");
-    if (izfile == Z_NULL) {
-      std::cerr << "Error opening file " << fname << " for reading." << std::endl;
-      return 0;
-    }
-    break;
-  default:
-    throw std::invalid_argument("Input file format not recognized.");
-  }
 
-  // load the header:
+	if ( !file_exists(fname) ) {
+		throw file_not_exist_error( " File " + fname + " does not exist.");
+	}
 
-  uint64_t bytes = 0;
-  switch (format) {
-  case 0: case 2:
-    {
-      // read the lane
-      bytes += fread(&lane,sizeof(uint16_t),1,ifile);
-      // read the tile
-      bytes += fread(&tile,sizeof(uint16_t),1,ifile);
-      // read the cycle
-      bytes += fread(&cycle,sizeof(CountType),1,ifile);
-      // read the read length
-      bytes += fread(&rlen,sizeof(CountType),1,ifile);
-      // read the number of reads
-      bytes += fread(&num_reads,sizeof(uint32_t),1,ifile);
-      break;
-    }
-  case 1:
-    {
-      // read the lane
-      bytes += gzread(izfile,&lane,sizeof(uint16_t));
-      // read the tile
-      bytes += gzread(izfile,&tile,sizeof(uint16_t));
-      // read the cycle
-      bytes += gzread(izfile,&cycle,sizeof(CountType));
-      // read the read length
-      bytes += gzread(izfile,&rlen,sizeof(CountType));
-      // read the number of reads
-      bytes += gzread(izfile,&num_reads,sizeof(uint32_t));
-      break;
-    }
-  }
+	// open the new Alignment file
+	switch (format) {
+	case 0: case 2:
+		ifile = fopen(fname.c_str(), "rb");
+		if (!ifile) {
+			throw file_open_error( "Error opening file " + fname + " for reading.");
+			return 0;
+		}
+		break;
+	case 1:
+		izfile = gzopen(fname.c_str(), "rb");
+		if (izfile == Z_NULL) {
+			throw file_open_error( "Error opening file " + fname + " for reading.");
+			return 0;
+		}
+		break;
+	default:
+		throw file_format_error("Input file format not recognized.");
+	}
 
-  return bytes;
+	// load the header:
+
+	uint64_t bytes = 0;
+	switch (format) {
+	case 0: case 2:
+	{
+		// read the lane
+		bytes += fread(&lane,sizeof(uint16_t),1,ifile);
+		// read the tile
+		bytes += fread(&tile,sizeof(uint16_t),1,ifile);
+		// read the cycle
+		bytes += fread(&cycle,sizeof(CountType),1,ifile);
+		// read the read length
+		bytes += fread(&rlen,sizeof(CountType),1,ifile);
+		// read the number of reads
+		bytes += fread(&num_reads,sizeof(uint32_t),1,ifile);
+		break;
+	}
+	case 1:
+	{
+		// read the lane
+		bytes += gzread(izfile,&lane,sizeof(uint16_t));
+		// read the tile
+		bytes += gzread(izfile,&tile,sizeof(uint16_t));
+		// read the cycle
+		bytes += gzread(izfile,&cycle,sizeof(CountType));
+		// read the read length
+		bytes += gzread(izfile,&rlen,sizeof(CountType));
+		// read the number of reads
+		bytes += gzread(izfile,&num_reads,sizeof(uint32_t));
+		break;
+	}
+	}
+
+	return bytes;
 }
-
 
 ReadAlignment* iAlnStream::get_alignment() {
 
@@ -382,7 +387,9 @@ bool iAlnStream::close() {
   if ( ((format==0 || format==2) && ifile) || (format==1 && izfile != Z_NULL)) {
     if (num_loaded == num_reads) {
       switch (format) {
-      case 0: case 2: fclose(ifile); break;
+      case 0: case 2:
+    	  fclose(ifile);
+    	  break;
       case 1: gzclose(izfile); break;
       }
       return true;
@@ -493,11 +500,13 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   // 1. Open the input file
   //-----------------------
   std::string in_fname = get_alignment_file(cycle-1, mate, globalAlignmentSettings.get_temp_dir());
-  std::string bcl_fname = get_bcl_file(cycle, read_no); // TODO: correct cycle
+  std::string bcl_fname = get_bcl_file(cycle, read_no);
   std::string filter_fname = get_filter_file();
 
   iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
+
   input.open(in_fname);
+
   assert(input.get_cycle() == cycle-1);
   assert(input.get_lane() == lane);
   assert(input.get_tile() == tile);
@@ -568,10 +577,10 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   if (!(input.close() && output.close())) {
     std::cerr << "Could not finish alignment!" << std::endl;
   }
-  
+
   // 7. Delete old alignment file, if requested
   //-------------------------------------------
-  if ( ! ( globalAlignmentSettings.get_keep_aln_files() || globalAlignmentSettings.is_output_cycle(cycle-1)) ) {
+  if ( ! ( globalAlignmentSettings.get_keep_aln_files() || globalAlignmentSettings.is_output_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1)) ) {
     std::remove(in_fname.c_str());
   }
 
@@ -584,8 +593,8 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	//-----------------------
 
 	std::string in_fname = get_alignment_file(read_cycle, mate, globalAlignmentSettings.get_temp_dir());
-	  std::string bcl_fname = get_bcl_file(bc_cycle, read_no);
-	  std::string filter_fname = get_filter_file();
+	std::string bcl_fname = get_bcl_file(bc_cycle, read_no);
+	std::string filter_fname = get_filter_file();
 
 	  iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 	  input.open(in_fname);
@@ -724,6 +733,7 @@ Task AlnOut::get_next( ItemStatus getStatus, ItemStatus setToStatus ) {
 
 bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite ) {
 
+
 	std::string in_fname = alignment_name(ln, tl, cycle, mate);
 	std::string out_fname = alignment_name(ln, tl, cycle, mate) + ".sorted";
 
@@ -731,12 +741,14 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 	if ( file_exists( out_fname ) && !overwrite )
 		return true;
 
-	// Stop if respective alignment file does not exist
-	if ( !file_exists( in_fname ) )
-		return false;
+//	// Stop if respective alignment file does not exist
+//	if ( !file_exists( in_fname ) )
+//		return false;
 
 	iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
+
 	input.open(in_fname);
+
 	assert(input.get_cycle() == cycle);
 	assert(input.get_lane() == ln);
 	assert(input.get_tile() == tl);
@@ -749,19 +761,18 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 	for ( uint32_t i = 0; i < num_reads; i++ ) {
 
 		try {
-		ReadAlignment * ra = input.get_alignment();
-		ra->sort_seeds_by_errors();
-		output.write_alignment(ra);
-		delete ra;
+			ReadAlignment * ra = input.get_alignment();
+			ra->sort_seeds_by_errors();
+			output.write_alignment(ra);
+			delete ra;
 		} catch (const std::exception & ex) {
-			// TODO
 			return false;
 		}
 
 	}
 
 	if (!(input.close() && output.close()))
-		return false; // TODO: error handling
+		return false;
 
 	return true;
 
@@ -805,11 +816,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		CountType mateCycle = mateCycles[mateIndex-1];
 
 		if ( !sort_tile( lane, tile, mateIndex, mateCycle, false) ) {
+			std::cout << "Couldn't sort" << std::endl;
 			continue;
 		}
 
-		// Open alignment file
-		std::string alignment_fname = alignment_name(lane, tile, mateCycle, mateIndex); // + ".sorted";
+		// Open sorted alignment file
+		std::string alignment_fname = alignment_name(lane, tile, mateCycle, mateIndex) + ".sorted";
 		if ( !file_exists(alignment_fname) ) {
 			continue;
 		}
@@ -829,6 +841,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 
 		numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
 		alignmentFiles.push_back(input);
+		std::this_thread::sleep_for (std::chrono::milliseconds(1000));
 	}
 
 	// for all reads in a tile

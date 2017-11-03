@@ -102,6 +102,9 @@ class iAlnStream {
   // open Alignment stream file and load header
   uint64_t open(std::string fname);
 
+  // Try to open Alignment stream file. If not successful, create a copy of the file and work on the copy.
+  uint64_t open_c(std::string fname, std::string c_ext_name);
+
   // loads a read alignment from the input Alignment file. 
   // Buffering is handled internally
   ReadAlignment* get_alignment();
@@ -516,6 +519,15 @@ public:
 	 */
 	CountType get_cycle() {
 		return cycle;
+	}
+
+	/**
+	 * Get the cycle for a certain mate.
+	 * @param Mate number.
+	 * @return Mate cycle.
+	 */
+	CountType get_mate_cycle( CountType mate ) {
+		return mateCycles[mate-1];
 	}
 
 };

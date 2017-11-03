@@ -623,5 +623,10 @@ void HiLiveOutArgumentParser::report() {
 		std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
 	else
 		std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
+	std::cout << "Output Cycles:            ";
+	for ( auto cycle : globalAlignmentSettings.get_output_cycles() ) {
+		std::cout << cycle << " ";
+	}
+	std::cout << std::endl;
 	std::cout << std::endl;
 }

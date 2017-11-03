@@ -106,10 +106,15 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
 
             // Push the task in the correct Task Queue (Finished or Failed)
             if (success) {
-            	if ( globalAlignmentSettings.is_output_cycle(getSeqCycle(t.cycle, t.seqEl.id)) ) {
+
+            	// Make previous cycle available for output. If current cycle is the last one, make current cycle available.
+            	CountType seqCycle = getSeqCycle(t.cycle, t.seqEl.id);
+            	CountType output_cycle = seqCycle == globalAlignmentSettings.get_cycles() ? seqCycle : seqCycle - 1;
+
+            	if ( globalAlignmentSettings.is_output_cycle( output_cycle ) ) {
             		for ( auto& alnout : alnouts ) {
-            			if ( getSeqCycle(t.cycle, t.seqEl.id) == alnout.get_cycle() ) {
-            				alnout.set_task_available( Task(t.lane, t.tile, getSeqCycle(t.cycle, t.seqEl.id)));
+            			if ( output_cycle == alnout.get_cycle() ) {
+            				alnout.set_task_available( Task(t.lane, t.tile, output_cycle));
             				break;
             			}
             		}
