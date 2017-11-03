@@ -243,7 +243,8 @@ po::options_description HiLiveArgumentParser::technical_options() {
 	 technical.add_options()
 	        		("block-size", po::value<std::string>(), "Block size for the alignment input/output stream in Bytes. Append 'K' or 'M' to specify in Kilobytes or Megabytes, respectively (e.g. '--block-size 64M' for 64 Megabytes)")
 					("compression,c", po::value<uint16_t>(), "Compress alignment files. 0: no compression 1: Deflate (smaller) 2: LZ4 (faster; default)")
-					("num-threads,n", po::value<CountType>(), "Number of threads to spawn [Default: all available]");
+					("num-threads,n", po::value<CountType>(), "Number of threads to spawn [Default: all available]")
+					("num-out-threads,N", po::value<CountType>(), "Maximum number of threads to use for output if threads are not idle [Default: all available]");
 	 return technical;
 }
 
@@ -559,6 +560,7 @@ bool HiLiveArgumentParser::set_options() {
 		if (n_cpu > 1)
 			n_threads_default = std::min( n_cpu, CountType( globalAlignmentSettings.get_lanes().size() * globalAlignmentSettings.get_tiles().size() ) ) ;
 		set_option<CountType>("num-threads", "settings.technical.num_threads", n_threads_default, &AlignmentSettings::set_num_threads);
+		set_option<CountType>("num-out-threads", "settings.technical.num_out_threads", globalAlignmentSettings.get_num_threads()/2, &AlignmentSettings::set_num_out_threads);
 
 	} catch ( std::exception & ex ) {
 		std::cerr << "Error while parsing options: " << std::endl << ex.what() << std::endl;

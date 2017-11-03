@@ -220,7 +220,7 @@ public:
 	Atomic_bfo( std::string f_name) : bfo(f_name.c_str()) { }
 
 	/** Destructor. */
-	~Atomic_bfo ( ) {  }
+	~Atomic_bfo ( ) {	}
 
 	/**
 	 * Set the context of the BamFileOut stream.
@@ -248,7 +248,9 @@ public:
 			return;
 
 		lock();
+
 		seqan::writeRecords(bfo, records);
+
 		unlock();
 
 	}
@@ -272,6 +274,11 @@ class BamFileOutDeque {
 
 public:
 
+	/**
+	 * Set the context of the list.
+	 * @param seq_names Names of all sequences in the database
+	 * @param seq_length Lengths of all sequences in the database
+	 */
 	void set_context(StringListType & seq_names, std::vector<uint32_t> seq_lengths) {
 		seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > rnc(refNames);
 		refNamesCache = rnc;
@@ -281,88 +288,98 @@ public:
 		seqan::contigLengths(context) = seq_lengths;
 	}
 
+	/**
+	 * Add a Bam Output stream for the given file name.
+	 * The stream will be created in-place.
+	 * @param f_name File name for the Bam output stream.
+	 */
 	void emplace_back ( std::string f_name ) {
 		bfos.emplace_back ( f_name.c_str() );
 		bfos.back().setContext(context);
 	}
 
+	/**
+	 * Get a reference to the last atomic bfo of the deque.
+	 * @return Reference to the last atomic bfo of the deque.
+	 */
 	Atomic_bfo & back() { return bfos.back(); }
 
+	/**
+	 * Get the Atomic_bfo at a certain position of the deque.
+	 * @param i Index of the Atomic_bfo in the deque.
+	 * @return reference to the Atomic_bfo at a certain position of the deque.
+	 */
 	Atomic_bfo & operator [](int i) { return bfos[i]; }
 
 };
 
+/**
+ * Class to organize the output for a specific cycle.
+ * @author Tobias Loka
+ */
+
 
 class AlnOut {
 
-// private:
-public:
+private:
 
+	/** Map of tasks and the status. */
 	std::map<Task, ItemStatus> tasks;
+
+	/** Mutex to lock tasks when their status is getting modified. */
 	std::mutex tasks_mutex;
+
+	/** Cycle for the output. */
 	CountType cycle;
 
-	std::deque<std::thread> threads;
-
+	/** Deque of output streams. */
 	BamFileOutDeque bfos;
 
-//	std::deque<seqan::BamFileOut> bfos;
-//	std::deque<std::mutex> bfo_mutexes;
-//	seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext;
-//	seqan::StringSet<seqan::CharString> referenceNames;
-//	seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache;
-
-
+	/** Vector of barcodes. */
 	std::vector<std::string> barcodes;
+
+	/** Vector containing the current cycle of all mates. */
 	std::vector<CountType> mateCycles;
+
+	/** Minimal alignment score for a certain cycle to print an alignment. */
 	std::vector<CountType> min_as_scores;
 
-	std::vector<std::vector<seqan::BamAlignmentRecord>> records_buffer;
-
-
+	/** The underlying index for the output. */
 	KixRun* index;
 
-	Task get_next( ItemStatus getStatus, ItemStatus setToStatus ) {
-		std::lock_guard<std::mutex> lock(tasks_mutex);
-		for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
-			if ( it->second == getStatus ) {
-				tasks[it->first] = setToStatus;
-				return it->first;
-			}
-		}
-		return NO_TASK;
-	}
+	bool finalized = false;
 
-	CountType get_task_status_num ( ItemStatus getStatus ) {
-		CountType num = 0;
-		std::lock_guard<std::mutex> lock(tasks_mutex);
-		for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
-			if ( it->second == getStatus ) {
-				num += 1;
-			}
-		}
-		return num;
-	}
+	/**
+	 * Set the status of a task (only if the task exists).
+	 * @param t The task.
+	 * @param status The new status.
+	 * @return true, if the task exists and the status was successfully changed. false otherwise.
+	 */
+	bool set_task_status( Task t, ItemStatus status );
 
-	bool set_task_status( Task t, ItemStatus status ) {
-		std::lock_guard<std::mutex> lock(tasks_mutex);
-		if ( tasks.find(t) == tasks.end() )
-			return false;
-		tasks[t] = status;
-		return true;
-	}
+	/**
+	 * Change the status of a task if it had a specified status before.
+	 * @param t The task.
+	 * @param oldStatus The previous status of the task.
+	 * @param newStatus The new status of the task.
+	 * @return true, if the task exists, has the correct previous status and the status was successfully changed. false otherwise.
+	 */
+	bool set_task_status_from_to( Task t, ItemStatus oldStatus, ItemStatus newStatus );
 
-	bool set_task_status_from_to( Task t, ItemStatus oldStatus, ItemStatus newStatus ) {
-		std::lock_guard<std::mutex> lock(tasks_mutex);
-		if ( tasks.find(t) == tasks.end() )
-			return false;
-		if ( tasks[t] == oldStatus ) {
-			tasks[t] = newStatus;
-			return true;
-		}
-		return false;
-	}
+	/**
+	 * Change the status of the next task with a given status.
+	 * @param getStatus Status to be changed.
+	 * @param setToStatus Status the task is set to.
+	 * @return The task for that the status was changed.
+	 */
+	Task get_next( ItemStatus getStatus, ItemStatus setToStatus );
 
+	/**
+	 * Add a new task with a certain status. If the task already exists, the status will not be changed.
+	 * @param t The new task.
+	 * @param status The status.
+	 * @return true, if the task didn't exist before and was successfully created.  false otherwise.
+	 */
 	bool add_task( Task t, ItemStatus status ) {
 		std::lock_guard<std::mutex> lock(tasks_mutex);
 		if ( tasks.find(t) != tasks.end() )
@@ -371,65 +388,136 @@ public:
 		return true;
 	}
 
-	std::string getOutFileName( CountType barcodeIndex, CountType cycle );
-	std::string getTempOutFileName( CountType barcodeIndex, CountType cycle );
-	std::string getTileOutFileName ( CountType ln, CountType tl, CountType mate, CountType cycle );
-	std::string getTempTileOutFileName ( CountType ln, CountType tl, CountType mate, CountType cycle );
+	/**
+	 * Create a temporary align file that is sorted by score.
+	 * @param ln The lane.
+	 * @param tl The tile.
+	 * @param mate The mate.
+	 * @param cycle The mate cycle (not the sequencing cycle).
+	 * @param overwrite If true and a sorted file already exists, it will be sorted again and the old file will be overridden (default: false)
+	 * @return true, if sorting was successful.
+	 */
+	bool sort_tile ( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite = false );
 
-	void write_tile_to_bam ( Task t ) {
-		try {
-			__write_tile_to_bam__ (t);
-			set_task_status( t, FINISHED );
-		} catch ( const std::exception& e) {
-			set_task_status( t, FAILED );
-			std::cerr << "Writing of task " << t << " failed: " << e.what() << std::endl;
-		}
-	}
+	/**
+	 * Calls __write_tile_to_bam__(Task t) to start the output of a task with handled exceptions.
+	 * @param t Task that contains the information about lane and tile.
+	 */
+	void write_tile_to_bam ( Task t );
 
+	/**
+	 * Start the output of a task. Should be called by write_tile_to_bam(Task t) to handle exceptions in an appropriate manner.
+	 * @param t Task that contains the information about lane and tile.
+	 */
 	void __write_tile_to_bam__ ( Task t );
-
 
 public:
 
+	/**
+	 * Constructor.
+	 * Includes opening all output streams and writing the header.
+	 * @param lns The lanes to consider.
+	 * @param tls The tiles to consider.
+	 * @param cycl The sequencing cycle.
+	 * @param idx The underlying index.
+	 */
 	AlnOut (std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl, KixRun* idx);
+
+	/**
+	 * Destructor.
+	 * The destructor will wait for all running threads to be finished.
+	 * The temporary output files are moved to their final locations.
+	 */
 	~AlnOut ();
+
+	/**
+	 * Check if the output writing is finished.
+	 * @return true, if all tasks are finished or failed. false otherwise.
+	 * TODO: maybe change the return value to the number of failed tasks!?
+	 */
 	bool is_finished() {
+		if ( is_finalized() )
+			return true;
 		return ( get_task_status_num( FINISHED ) + get_task_status_num( FAILED ) ) == tasks.size();
 	};
-	bool sort_tile ( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite = false );
 
-	bool task_available ( Task t ) {
+	/**
+	 * Set that the alignment file of a task is available.
+	 * @param t The task containing information about lane and tile.
+	 * @return true if the task was set to available status.
+	 */
+	bool set_task_available ( Task t ) {
 		return set_task_status_from_to( t, WAITING, BCL_AVAILABLE );
 	}
 
-	Task write_next ( ) {
+	/**
+	 * Check if a task is contained in the list of tasks.
+	 * @param t The task of interest.
+	 * @return true, if the task is in the list of tasks (the status is not considered). False if not.
+	 */
+	bool has_task ( Task t ) {
+		if ( tasks.find(t) != tasks.end() )
+			return true;
+		return false;
+	}
 
-		Task t = get_next ( BCL_AVAILABLE, RUNNING );
-		if ( t != NO_TASK )
-			threads.emplace_back(&AlnOut::write_tile_to_bam, this, t);
+	/**
+	 * Check if the status of a task is FINISHED.
+	 * @param t The task of interest.
+	 * @return true, if the task has status FINISHED. false, if the task has a status other than FINISHED or does not exist.
+	 */
+	bool is_task_finished ( Task t ) {
+		if ( !has_task(t) )
+			return false;
+		return tasks[t] == FINISHED;
+	}
 
-		return t;
-	};
+	/**
+	 * Check if the status of a task is FAILED.
+	 * @param t The task of interest.
+	 * @return true, if the task has status FAILED. false, if the task has a status other than FAILED or does not exist.
+	 */
+	bool is_task_failed ( Task t ) {
+		if ( !has_task(t) )
+			return false;
+		return tasks[t] == FAILED;
+	}
 
-	CountType get_num_threads() { return threads.size(); }
+	/**
+	 * Write the next available task. This function is implemented in a thread-safe manner.
+	 * @return The task that was written. NO_TASK if no task was written.
+	 */
+	Task write_next ( );
 
-//	void write_records(CountType min_num_records = 1) {
-//		for ( CountType i = 0; i < records_buffer.size(); i++ ) {
-//			std::vector<seqan::BamAlignmentRecord> buffer;
-//			if ( records_buffer[i].size() >= min_num_records ) {
-//				buffer.swap(records_buffer[i]);
-//				bfos[i].writeRecords(buffer);
-//			}
-//		}
-//	}
+	/**
+	 * Get the number of tasks with a given status.
+	 * @param getStatus Requested status.
+	 * @return Number of tasks with the requested status.
+	 */
+	CountType get_task_status_num ( ItemStatus getStatus );
 
-	void join() {
-		for ( auto& t : threads )
-			t.join();
+	/**
+	 * Renames the temporary sam files if all tasks are finished.
+	 * @return true, if finished with success.
+	 */
+	bool finalize();
+
+	/**
+	 * Check if this output controller was already finalized.
+	 * @return true, if output controller was already finalized.
+	 */
+	bool is_finalized () {
+		return finalized;
+	}
+
+	/**
+	 * Get the cycle number for this output controller.
+	 * @return The sequencing cycle.
+	 */
+	CountType get_cycle() {
+		return cycle;
 	}
 
 };
-
-//uint64_t alignments_to_sam(std::vector<uint16_t> lns, std::vector<uint16_t> tls, KixRun* index, CountType cycle);
 
 #endif /* ALNSTREAM_H */

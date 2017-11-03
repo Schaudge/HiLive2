@@ -651,8 +651,6 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 		barcodes.push_back(globalAlignmentSettings.get_barcodeString(i));
 	}
 
-	records_buffer.resize(barcodes.size()+1);
-
 	// Get the finished cycles and minimal as:i score for each mate
 	for ( CountType mate = 1; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
 		CountType mateCycle = getMateCycle( mate, cycle );
@@ -676,48 +674,62 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 			bfos.emplace_back( getBamTempFileName(barcode_string, cycle).c_str() );
 			bfos[barcode].writeHeader(header);
 
-//			records_buffer.reserve(globalAlignmentSettings.get_num_threads() * 10000);
 		}
 	}
 
+	// Add a waiting task for all lanes and tiles.
 	for ( auto ln : lns ) {
 		for ( auto tl : tls ) {
 			add_task(Task(ln,tl,cycle), WAITING);
 		}
 	}
 
-//	std::cout << *(bfos[0].context._contigLengths->data_begin) << std::endl;
-//	std::cout << foo[0].bar << std::endl;
-//	sleep(5);
-//	std::cout << *(bfos[0].context._contigLengths->data_begin) << std::endl;
-//	std::cout << foo[0].bar << std::endl;
-
-
 };
 
 AlnOut::~AlnOut() {
+	if ( !is_finalized() && !finalize() ) {
+		std::cerr << "Could not finish output for cycle " << cycle << "." << std::endl;
+	}
+}
 
-//	write_records(1);
+bool AlnOut::set_task_status( Task t, ItemStatus status ) {
+	std::lock_guard<std::mutex> lock(tasks_mutex);
+	if ( tasks.find(t) == tasks.end() )
+		return false;
+	tasks[t] = status;
+	return true;
+}
 
-	// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
-	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
-		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
+bool AlnOut::set_task_status_from_to( Task t, ItemStatus oldStatus, ItemStatus newStatus ) {
+	std::lock_guard<std::mutex> lock(tasks_mutex);
+	if ( tasks.find(t) == tasks.end() )
+		return false;
+	if ( tasks[t] == oldStatus ) {
+		tasks[t] = newStatus;
+		return true;
+	}
+	return false;
+}
 
-			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
-
-			std::rename(getBamTempFileName(barcode_string, cycle).c_str(), getBamFileName(barcode_string, cycle).c_str());
+Task AlnOut::get_next( ItemStatus getStatus, ItemStatus setToStatus ) {
+	std::lock_guard<std::mutex> lock(tasks_mutex);
+	for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
+		if ( it->second == getStatus ) {
+			tasks[it->first] = setToStatus;
+			return it->first;
 		}
 	}
+	return NO_TASK;
 }
 
 bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite ) {
 
-	  std::string in_fname = alignment_name(ln, tl, cycle, mate);
-	  std::string out_fname = alignment_name(ln, tl, cycle, mate) + ".sorted";
+	std::string in_fname = alignment_name(ln, tl, cycle, mate);
+	std::string out_fname = alignment_name(ln, tl, cycle, mate) + ".sorted";
 
-	  // Stop if sorted file already exist
-	  if ( file_exists( out_fname ) && !overwrite )
-		  return true;
+	// Stop if sorted file already exist
+	if ( file_exists( out_fname ) && !overwrite )
+		return true;
 
 	// Stop if respective alignment file does not exist
 	if ( !file_exists( in_fname ) )
@@ -734,10 +746,18 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 	oAlnStream output(ln, tl, cycle, input.get_rlen(), num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
 	output.open(out_fname);
 
-	for ( auto i = 0; i < num_reads; i++ ) {
+	for ( uint32_t i = 0; i < num_reads; i++ ) {
+
+		try {
 		ReadAlignment * ra = input.get_alignment();
 		ra->sort_seeds_by_errors();
 		output.write_alignment(ra);
+		delete ra;
+		} catch (const std::exception & ex) {
+			// TODO
+			return false;
+		}
+
 	}
 
 	if (!(input.close() && output.close()))
@@ -745,6 +765,16 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 
 	return true;
 
+}
+
+void AlnOut::write_tile_to_bam ( Task t ) {
+	try {
+		__write_tile_to_bam__ (t);
+		set_task_status( t, FINISHED );
+	} catch ( const std::exception& e) {
+		set_task_status( t, FAILED );
+		std::cerr << "Writing of task " << t << " failed: " << e.what() << std::endl;
+	}
 }
 
 void AlnOut::__write_tile_to_bam__ ( Task t) {
@@ -779,7 +809,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		}
 
 		// Open alignment file
-		std::string alignment_fname = alignment_name(lane, tile, mateCycle, mateIndex) + ".sorted";
+		std::string alignment_fname = alignment_name(lane, tile, mateCycle, mateIndex); // + ".sorted";
 		if ( !file_exists(alignment_fname) ) {
 			continue;
 		}
@@ -800,9 +830,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
 		alignmentFiles.push_back(input);
 	}
-
-//	std::vector<std::vector<seqan::BamAlignmentRecord>> records;
-//	records.resize(barcodes.size()+1);
 
 	// for all reads in a tile
 	/////////////////////////////////////////////////////////////////////////////
@@ -950,8 +977,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 				record.tags = seqan::host(dict);
 
 
-				// write record to disk
-//				records[barcodeIndex].push_back(record);
+				// fill records list
 				records.push_back(record);
 
 				// set variables for mode selection
@@ -965,10 +991,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		}
 
 		// Write all records as a group to keep suboptimal alignments and paired reads together.
-//		if ( records[barcodeIndex].size() > 1000 ) {
-//			bfos[barcodeIndex].writeRecords(records[barcodeIndex]);
-//			records[barcodeIndex].clear();
-//		}
 		bfos[barcodeIndex].writeRecords(records);
 
 		for (auto e:mateAlignments)
@@ -977,71 +999,57 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 	for (auto e:alignmentFiles)
 		delete e;
 
-	//	Add all remaining records to the record buffer
-//	for ( unsigned barcodeIndex=0; barcodeIndex < barcodes.size() + 1; barcodeIndex ++) {
-//		bfos[barcodeIndex].writeRecords(records[barcodeIndex]);
-//	}
-
 	return;
 }
 
-//void AlnOut::write_bam ( std::vector<CountType> lns, std::vector<CountType> tls, CountType cycle, KixRun* index) {
-//
-//	// Fill list of specified barcodes
-//		std::vector<std::string> barcodes;
-//		for ( unsigned i = 0; i < globalAlignmentSettings.get_barcodeVector().size(); i++ ) {
-//			barcodes.push_back(globalAlignmentSettings.get_barcodeString(i));
-//		}
-//
-//		// Init the bamIOContext (the same object can be used for all output streams)
-//		seqan::StringSet<seqan::CharString> referenceNames;
-//		seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > referenceNamesCache(referenceNames);
-//		seqan::BamIOContext<seqan::StringSet<seqan::CharString> > bamIOContext(referenceNames, referenceNamesCache);
-//
-//		seqan::contigNames(bamIOContext) = index->seq_names;
-//		seqan::contigLengths(bamIOContext) = index->seq_lengths;
-//
-//		// Init the header (the same object can be used for all output streams)
-//		seqan::BamHeader header = getBamHeader();
-//
-//		// Vector that contains the output streams (USE POINTERS !)
-//		std::vector<std::unique_ptr<seqan::BamFileOut>> bfos;
-//
-//		// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
-//		for ( unsigned barcode=0; barcode < (barcodes.size() + 1); barcode ++) {
-//			if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
-//
-//				std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
-//
-//				// Open file in Bam output stream and write the header
-//				std::unique_ptr<seqan::BamFileOut> bfo( new seqan::BamFileOut(getBamFileName(barcode_string, cycle).c_str()));
-//				bfo->context = bamIOContext;
-//				seqan::writeHeader(*bfo, header);
-//
-//
-//				for ( auto lane : lns ) {
-//					for ( auto tile : tls ) {
-//
-//						std::string in_fname = getTileBamFileName(lane, tile, barcode_string, cycle);
-//						seqan::BamFileIn bfi;
-//						if ( !open(bfi, in_fname.c_str())) {
-//							continue;
-//						}
-//
-//						seqan::BamHeader header;
-//						readHeader(header, bfi);
-//
-//						std::cout << "behind read header" << std::endl;
-//
-//						seqan::BamAlignmentRecord record;
-//						while(!atEnd(bfi)) {
-//							seqan::readRecord(record, bfi);
-//							seqan::writeRecord(*bfo, record);
-//						}
-//					}
-//				}
-//
-//
-//			}
-//		}
-//}
+Task AlnOut::write_next ( ) {
+	Task t = get_next ( BCL_AVAILABLE, RUNNING );
+	if ( t != NO_TASK ) {
+		write_tile_to_bam ( t );
+		return t;
+	} else {
+		return NO_TASK;
+	}
+}
+
+CountType AlnOut::get_task_status_num ( ItemStatus getStatus ) {
+	CountType num = 0;
+	std::lock_guard<std::mutex> lock(tasks_mutex);
+	for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
+		if ( it->second == getStatus ) {
+			num += 1;
+		}
+	}
+	return num;
+}
+
+bool AlnOut::finalize() {
+
+	if ( finalized )
+		return true;
+
+	// Don't finish if there are unfinished tasks.
+	if ( !is_finished() )
+		return false;
+
+	bool success = true;
+
+	// Move all output files to their final location.
+	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
+		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
+
+			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
+
+			int rename = std::rename(getBamTempFileName(barcode_string, cycle).c_str(), getBamFileName(barcode_string, cycle).c_str());
+			if ( rename == -1 ) {
+				std::cerr << "Renaming temporary output file " << getBamTempFileName(barcode_string, cycle).c_str() << " to " << getBamFileName(barcode_string, cycle).c_str() << " failed." << std::endl;
+				success = false;
+			}
+		}
+	}
+
+	// If it comes here, it counts as finalized independently from the success state (otherwise, contradictory error messages may occur).
+	finalized = true;
+
+	return success;
+}

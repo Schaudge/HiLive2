@@ -47,38 +47,67 @@ int main(int argc, const char* argv[]) {
 
 	std::cout << "Start writing ouput." << std::endl;
 
+	// Maximum number of output threads.
+	CountType max_output_threads = globalAlignmentSettings.get_num_out_threads();
+
+	std::cout << "Using " << max_output_threads << " threads." << std::endl;
+
+	std::deque<AlnOut> alnouts;
+	std::deque<std::thread> threads;
+
+	bool all_finished = false;
+
 	for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
-		try {
-			AlnOut alnout(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
+		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
+	}
+
+	while ( !all_finished ) {
+
+		all_finished = true;
+		CountType num_active_threads = 0;
+
+		for ( auto& alnout : alnouts ) {
+			num_active_threads += alnout.get_task_status_num( RUNNING );
+		}
+
+		for ( auto& alnout : alnouts ) {
 			for ( auto& lane : globalAlignmentSettings.get_lanes() ) {
 				for ( auto& tile : globalAlignmentSettings.get_tiles() ) {
-					alnout.task_available( Task(lane, tile, cycle) );
+
+					bool available = true;
+					for ( int mate=1; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
+						if ( !file_exists(alignment_name(lane, tile, alnout.get_cycle(), mate)) ) {
+							available = false;
+						}
+					}
+					if ( available ) {
+						alnout.set_task_available( Task(lane, tile, alnout.get_cycle()) );
+					}
+
 				}
 			}
 
-			while ( !alnout.is_finished() ) {
-				for ( auto i=0; i < alnout.get_task_status_num( BCL_AVAILABLE ); i++ ) {
-					alnout.write_next();
+			if ( !alnout.is_finished() ) {
+				all_finished = false;
+
+				if ( num_active_threads < max_output_threads ) {
+					CountType newThreads = max_output_threads - num_active_threads;
+					for ( auto i=0; i < newThreads; i++) {
+							threads.emplace_back(&AlnOut::write_next, &alnout);
+							++num_active_threads;
+					}
 				}
-//				alnout.write_records();
-		        std::this_thread::sleep_for (std::chrono::milliseconds(10000));
+			} else if ( !alnout.is_finalized() ) {
+				alnout.finalize();
+				std::cout << "Finished output of cycle " << alnout.get_cycle() << " (" << alnout.get_task_status_num( FINISHED ) << " finished, " << alnout.get_task_status_num( FAILED ) << " failed)." << std::endl;
 			}
-
-			std::cout << "Num_tasks: " << std::to_string( alnout.tasks.size() ) << std::endl;
-			std::cout << "Finished: " << std::to_string( alnout.get_task_status_num( FINISHED ) ) << std::endl;
-			std::cout << "Failed: " << std::to_string( alnout.get_task_status_num( FAILED ) ) << std::endl;
-
-
-			alnout.join();
-
-//			if ( alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), index, cycle) )
-//				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "success." << std::endl;
-//			else
-//				std::cout << "Cycle " << std::to_string(cycle) << " ... " << "failed." << std::endl;
-		} catch ( std::exception & ex ) {
-			std::cout << "Cycle " << std::to_string(cycle) << " ... " << "failed: " << std::endl << ex.what() << std::endl << std::endl;
 		}
+		std::this_thread::sleep_for (std::chrono::milliseconds(1000));
 	}
+
+	// Ensure that all threads are finished.
+	for ( auto& thread : threads )
+		thread.join();
 
 	std::cout << "Finished." << std::endl;
 

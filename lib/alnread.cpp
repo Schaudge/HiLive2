@@ -704,7 +704,7 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
 
     // delete all seeds which do not reach threshold
     SeedVecIt it=seeds.begin();
-    bool foundHit = false;
+//    bool foundHit = false;
 
     while ( it!=seeds.end()) {
 
@@ -747,7 +747,7 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
             ++it;
 
     	// If not filtered, a hit was found
-        foundHit = true;
+//        foundHit = true;
     }
 
     // Create new seeds if they have a chance to stay below the error threshold (Consider the number of matches given by a PLACEHOLDER seed)

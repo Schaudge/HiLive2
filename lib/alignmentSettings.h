@@ -85,6 +85,9 @@ private:
   // PARAMETER: number of threads to use
   Unmodifiable<CountType> num_threads;
 
+  // PARAMETER: max. amount of threads used for output
+  Unmodifiable<CountType> num_out_threads;
+
   // SWITCH: activate extended CIGAR annotation
   Unmodifiable<bool> extended_cigar;
 
@@ -219,6 +222,7 @@ public:
 
 	  // Technical settings
 	  xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
+	  xml_out.add_child("settings.technical.num_out_threads", getXMLnode ( get_num_out_threads() ));
 	  xml_out.add_child("settings.technical.keep_aln_files", getXMLnode ( get_keep_aln_files() ));
 	  xml_out.add_child("settings.technical.block_size", getXMLnode ( get_block_size() ));
 	  xml_out.add_child("settings.technical.compression_format", getXMLnode ( get_compression_format() ));
@@ -718,6 +722,14 @@ public:
 
   CountType get_num_threads() {
       return get_unmodifiable(num_threads, "num_threads");
+  }
+
+  void set_num_out_threads(CountType value) {
+	  set_unmodifiable(num_out_threads, value, "num_out_threads");
+  }
+
+  CountType get_num_out_threads() {
+      return get_unmodifiable(num_out_threads, "num_out_threads");
   }
 
   std::vector<SequenceElement> get_seqs() {
