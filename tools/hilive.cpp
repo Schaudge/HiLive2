@@ -195,11 +195,11 @@ int main(int argc, const char* argv[]) {
   		exit(EXIT_FAILURE);
 
     // Create the overall agenda
-    Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
+    Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), globalAlignmentSettings.get_start_cycle());
 
     // Wait for the first cycle to be written
     std::cout << "Waiting for the first cycle to finish..." << std::endl;
-    while ( ! agenda.cycle_available(1) ) {
+    while ( ! agenda.cycle_available(globalAlignmentSettings.get_start_cycle()) ) {
         agenda.update_status();
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
@@ -210,6 +210,12 @@ int main(int argc, const char* argv[]) {
         for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
             CountType mate = 1;
             for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
+
+            	// Don't init files if "--continue" was used to start in a later cycle.
+            	if (getMateCycle(mate, globalAlignmentSettings.get_start_cycle() > 1 ) )
+            			continue;
+
+
                 StreamedAlignment s (ln, tl, globalAlignmentSettings.getSeqByMate(mate).length);
                 s.create_directories();
                 s.init_alignment(mate);
@@ -292,7 +298,7 @@ int main(int argc, const char* argv[]) {
     std::cout << "Waiting for output tasks..." << std::endl;
 
     for ( auto& alnout : alnouts ) {
-    	while ( !alnout.is_finished() )
+    	while ( !alnout.is_finalized() )
     		; // wait
     	alnout.finalize();
     }

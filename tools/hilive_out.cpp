@@ -71,19 +71,11 @@ int main(int argc, const char* argv[]) {
 		}
 
 		for ( auto& alnout : alnouts ) {
+
+			// Assume that all tasks are available.
 			for ( auto& lane : globalAlignmentSettings.get_lanes() ) {
 				for ( auto& tile : globalAlignmentSettings.get_tiles() ) {
-
-					bool available = true;
-//					for ( int mate=1; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
-//						if ( !file_exists(alignment_name(lane, tile, alnout.get_mate_cycle(mate), mate)) ) {
-//							available = false;
-//						}
-//					}
-					if ( available ) {
-						alnout.set_task_available( Task(lane, tile, alnout.get_cycle()) );
-					}
-
+					alnout.set_task_available( Task(lane, tile, alnout.get_cycle()) );
 				}
 			}
 

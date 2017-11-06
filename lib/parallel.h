@@ -139,6 +139,9 @@ class Agenda {
   // initialize agenda with read length, lanes and tiles
   Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl);
 
+  Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, CountType start_cycle);
+
+
   // check for BCL files and update item status
   void update_status();
 

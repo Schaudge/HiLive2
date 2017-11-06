@@ -332,6 +332,9 @@ private:
 	/** Mutex to lock tasks when their status is getting modified. */
 	std::mutex tasks_mutex;
 
+	/** Mutex to lock the finalization. */
+	std::mutex finalizing;
+
 	/** Cycle for the output. */
 	CountType cycle;
 

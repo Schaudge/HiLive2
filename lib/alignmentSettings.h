@@ -53,7 +53,7 @@ private:
   Unmodifiable<std::vector<uint16_t>> output_cycles;
 
   // SWITCH: Keep the old alignment files of previous cycles
-  Unmodifiable<bool> keep_aln_files;
+  Unmodifiable<std::vector<uint16_t>> keep_aln_files;
 
   // PARAMETER: Memory block size for the input and output buffer in the streamed alignment
   Unmodifiable<uint64_t> block_size;
@@ -72,6 +72,9 @@ private:
 
   // PARAMETER: path to the index file
   Unmodifiable<std::string> index_fname;
+
+  // PARAMETER: the first cycle to handle. Should be 1 by default.
+  Unmodifiable<CountType> start_cycle;
 
   // PARAMETER: read length of all reads (including barcodes)
   Unmodifiable<CountType> cycles;
@@ -223,7 +226,7 @@ public:
 	  // Technical settings
 	  xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
 	  xml_out.add_child("settings.technical.num_out_threads", getXMLnode ( get_num_out_threads() ));
-	  xml_out.add_child("settings.technical.keep_aln_files", getXMLnode ( get_keep_aln_files() ));
+	  xml_out.add_child("settings.technical.keep_aln_files", getXMLnode_vector ( get_keep_aln_files() ));
 	  xml_out.add_child("settings.technical.block_size", getXMLnode ( get_block_size() ));
 	  xml_out.add_child("settings.technical.compression_format", getXMLnode ( get_compression_format() ));
 
@@ -569,12 +572,19 @@ public:
 	  return true;
   }
 
-  void set_keep_aln_files(bool value) {
+  void set_keep_aln_files(std::vector<uint16_t> value) {
 	  set_unmodifiable(keep_aln_files, value, "keep_aln_files");
   }
 
-  bool get_keep_aln_files() {
+  std::vector<uint16_t> get_keep_aln_files() {
       return get_unmodifiable(keep_aln_files, "keep_aln_files");
+  }
+
+  bool is_keep_aln_files_cycle(CountType cycle) {
+	  auto aln_files_cycles = get_keep_aln_files();
+	  if ( std::find(aln_files_cycles.begin(), aln_files_cycles.end(), cycle) == aln_files_cycles.end() )
+		  return false;
+	  return true;
   }
 
   void set_block_size(std::string value) {
@@ -706,6 +716,20 @@ public:
 
   CountType get_cycles() {
       return get_unmodifiable(cycles, "cycles");
+  }
+
+  void set_start_cycle(CountType value) {
+	  set_unmodifiable(start_cycle, value, "start_cycle");
+  }
+
+  CountType get_start_cycle() {
+      CountType ret = get_unmodifiable(start_cycle, "start_cycle", true);
+
+      // Value if not set.
+      if ( ret == 0 )
+    	  return 1;
+
+      return ret;
   }
 
   void set_out_dir(std::string value) {

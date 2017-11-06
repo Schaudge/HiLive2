@@ -580,7 +580,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
   // 7. Delete old alignment file, if requested
   //-------------------------------------------
-  if ( ! ( globalAlignmentSettings.get_keep_aln_files() || globalAlignmentSettings.is_output_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1)) ) {
+  if ( ! ( globalAlignmentSettings.is_keep_aln_files_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1) || globalAlignmentSettings.is_output_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1)) ) {
     std::remove(in_fname.c_str());
   }
 
@@ -1037,6 +1037,8 @@ CountType AlnOut::get_task_status_num ( ItemStatus getStatus ) {
 }
 
 bool AlnOut::finalize() {
+
+	std::lock_guard<std::mutex> lock(finalizing);
 
 	if ( finalized )
 		return true;
