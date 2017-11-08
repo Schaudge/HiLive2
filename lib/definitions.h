@@ -359,7 +359,8 @@ enum AlignmentMode:char {
 	ALLBEST='H',
 	ANYBEST='B',
 	BESTN='N',
-	UNKNOWN='U'
+	UNIQUE='U',
+	UNKNOWN='Z'
 };
 
 /**

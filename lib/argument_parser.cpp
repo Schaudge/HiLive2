@@ -229,7 +229,7 @@ po::options_description HiLiveArgumentParser::alignment_options() {
 	alignment.add_options()
 	        		("min-errors,e", po::value<CountType>(), "Number of errors tolerated in read alignment [Default: 2]")
 					("mode,m", po::value<std::string>(), "Alignment mode. [ALL|A]: Report all alignments; [BESTN#|N#]: Report alignments of the best # scores; "
-							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [ANYBEST|B]: Report one best alignment (default)")
+							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [UNIQUE|U]: Report only unique alignments; [ANYBEST|B]: Report one best alignment (default)")
 					("disable-ohw-filter", po::bool_switch(), "Disable the One-Hit Wonder filter [Default: false]")
 					("start-ohw", po::value<CountType>(), "First cycle to apply One-Hit Wonder filter [Default: 20]")
 					("window,w", po::value<DiffType>(), "Set the window size to search for alignment extension, i.e. maximum total insertion/deletion size [Default: 5]")
@@ -342,6 +342,8 @@ void HiLiveArgumentParser::report() {
         std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
     else if (globalAlignmentSettings.get_all_best_n_scores_mode())
         std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
+    else if (globalAlignmentSettings.get_unique_hit_mode())
+        std::cout << "Mapping mode:             Unique-Hits-Mode" << std::endl;
     else
         std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
 	if ( globalAlignmentSettings.get_start_cycle() > 1 ) {
@@ -641,6 +643,8 @@ void HiLiveOutArgumentParser::report() {
 		std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
 	else if (globalAlignmentSettings.get_all_best_n_scores_mode())
 		std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
+    else if (globalAlignmentSettings.get_unique_hit_mode())
+        std::cout << "Mapping mode:             Unique-Hits-Mode" << std::endl;
 	else
 		std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
 	std::cout << "Output Cycles:            ";

@@ -526,6 +526,10 @@ public:
       return (get_mode()==AlignmentMode::BESTN);
   }
 
+  bool get_unique_hit_mode() {
+      return (get_mode()==AlignmentMode::UNIQUE);
+  }
+
   CountType get_best_n() {
       return get_unmodifiable(best_n, "best_n", true);
   }
@@ -650,6 +654,11 @@ public:
 	  // All hit mode
 	  if ( value == "ALL" || value == "A" ) {
 		  set_mode(AlignmentMode::ALL);
+	  }
+
+	  // Unique mode
+	  if ( value == "UNIQUE" || value == "U" ) {
+		  set_mode(AlignmentMode::UNIQUE);
 	  }
 
 	  // Best N scores mode

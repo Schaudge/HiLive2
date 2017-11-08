@@ -947,6 +947,10 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 			// Number of printed alignments for the current mate.
 			unsigned printedMateAlignments = 0;
 
+			// Unique mode interruption
+			if ( mateAlignments[mateAlignmentIndex]->seeds.size() > 1 && globalAlignmentSettings.get_unique_hit_mode() )
+				continue;
+
 			// for all seeds
 			/////////////////////////////////////////////////////////////////////////////
 			for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ++it) {
@@ -956,7 +960,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					continue;
 				}
 
-				// Any best mode iterruption
+				// Any best mode interruption
 				if ( printedMateAlignments > 0 && globalAlignmentSettings.get_any_best_hit_mode() )
 					break;
 
