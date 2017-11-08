@@ -1130,6 +1130,9 @@ CountType ReadAlignment::getBarcodeIndex() {
 	// Get the barcodes of the read
 	std::string read_bc = getBarcodeString();
 
+	if ( read_bc.length() == 0 )
+		return NO_MATCH;
+
 	uint16_t fragment_errors = 0;
 	uint16_t fragment_pos = 0;
 	uint16_t fragment_num = 0;

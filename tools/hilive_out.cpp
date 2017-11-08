@@ -98,6 +98,9 @@ int main(int argc, const char* argv[]) {
 		std::this_thread::sleep_for (std::chrono::milliseconds(1000));
 	}
 
+    // Clear the vector will destruct all elements.
+	alnouts.clear();
+
 	// Ensure that all threads are finished.
 	for ( auto& thread : threads )
 		thread.join();

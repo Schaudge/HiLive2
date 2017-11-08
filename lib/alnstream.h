@@ -115,7 +115,10 @@ public:
 
 
 
-// Input alignment stream: loads read alignments from a file one by one
+
+/**
+ * Input stream to read temporary .align files.
+ */
 class iAlnStream {
 
 	/** Lane for the output. */
@@ -217,50 +220,72 @@ public:
 
 
 
-
-
-
-//-------------------------------------------------------------------//
-//------  The StreamedAlignment class  ------------------------------//
-//-------------------------------------------------------------------//
-
+/**
+ * Streamer for new base calls to the alignment algorithm.
+ */
 class StreamedAlignment {
   
-  // dataset information
+  /** The lane to be handled. */
   uint16_t lane;
+
+  /** The tile to be handled. */
   uint16_t tile;
+
+  /** Total read length. */
   CountType rlen;
 
-  // fetch the next read from the input stream
-  ReadAlignment get_next_read();
-  
-  // write an alignment to the output stream
-  uint64_t write_alignment(ReadAlignment& ral);
+  /**
+   * Get the path to the bcl file of a given cycle.
+   * @param cycle The current read cycle.
+   * @param mate Number of the current mate.
+   * @return Path to the bcl file.
+   */
+  std::string get_bcl_file(uint16_t cycle, uint16_t mate);
 
-  // get the path to the bcl file of a given cycle
-  std::string get_bcl_file(uint16_t cycle, uint16_t read_number);
-
-  // get the path to the alignment file. The alignment file is located in
-  // <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
-  // if base == "": base = globalAlignmentSettings.get_root()
+  /**
+   * Get the path to the align file.
+   * @param cycle The current read cycle.
+   * @param mate Number of the current mate.
+   * @param base Base of the path to the align files.
+   * @return Path to the align file.
+   */
   std::string get_alignment_file(uint16_t cycle, uint16_t mate, std::string base = "");
 
-  // get the path to the filter file. The illumina filter information is located in
-  // <root>/L00<lane>/s_<lane>_<tile>.filter
+  /**
+   * Get the path to the filter file.
+   * @return Path to the filter file.
+   */
   std::string get_filter_file();
 
  public:
+
+  /**
+   * Constructor.
+   * @param ln The lane to be handled.
+   * @param tl The tile to be handled.
+   * @param rl Total read length.
+   */
   StreamedAlignment(uint16_t ln, uint16_t tl, CountType rl): lane(ln), tile(tl), rlen(rl) {};  
 
-  StreamedAlignment& operator=(const StreamedAlignment& other);
-  
-  // create directories required to store the alignment files (only if not stored in root)
+  /**
+   * Create the underlying directories of the align files.
+   */
   void create_directories();
 
-  // initialize empty alignment. Creates files for a virtual Cycle 0
+  /**
+   * Initialize empty alignments for the current mate (stored as output of a virtual cycle 0).
+   * @param mate Number of the current mate.
+   */
   void init_alignment(uint16_t mate);
   
-  // extend an existing alignment from cycle <cycle-1> to <cycle>
+  /**
+   * Extend the alignments for all reads of the specified lane and tile by one cycle.
+   * @param cycle Current cycle, i.e. the cycle that will be extended.
+   * @param read_no Total number of reads.
+   * @param mate Number of the current mate.
+   * @param index Pointer to the reference index.
+   * @return Total number of seeds (for all reads).
+   */
   uint64_t extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index);
 
   /**
@@ -269,19 +294,15 @@ class StreamedAlignment {
    * @param read_cycle The last handled cycle for the respective mate (should always be 0 or the full length)
    * @param read_no The number of the sequence read for which the barcode will be extended (:= index in globalAlignmentSettings.seqs).
    * @param mate The read mate to extend the barcode.
-   * @return
-   * @author Tobias Loka
    */
   void extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, uint16_t read_no, uint16_t mate);
 
-}; /* END class StreamedAlignment */
+  StreamedAlignment& operator=(const StreamedAlignment& other);
+
+};
 
 
 
-
-//-------------------------------------------------------------------//
-//------  Streamed SAM generation -----------------------------------//
-//-------------------------------------------------------------------//
 
 /**
  * Extension of SeqAn's BamFileOut data type supporting multithreading via an atomic flag.
@@ -412,14 +433,21 @@ public:
 	 */
 	Atomic_bfo & operator [](int i) { return bfos[i]; }
 
+	/**
+	 * Clear the deque of Atomic bfos.
+	 */
+	void clear () {
+		bfos.clear();
+	}
 };
+
+
+
 
 /**
  * Class to organize the output for a specific cycle.
  * @author Tobias Loka
  */
-
-
 class AlnOut {
 
 private:

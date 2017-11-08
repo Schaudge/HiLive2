@@ -120,11 +120,12 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
             	CountType output_cycle = seqCycle - 1;
             	bool is_last_cycle = seqCycle == globalAlignmentSettings.get_cycles();
 
-            	if ( globalAlignmentSettings.is_output_cycle( output_cycle ) ) {
+            	if ( globalAlignmentSettings.is_output_cycle( output_cycle ) || is_last_cycle ) {
             		for ( auto& alnout : alnouts ) {
             			if ( output_cycle == alnout.get_cycle() ) {
             				alnout.set_task_available( Task(t.lane, t.tile, output_cycle));
-            			} else if ( is_last_cycle && alnout.get_cycle() == globalAlignmentSettings.get_cycles() ) {
+            			}
+            			if ( is_last_cycle && alnout.get_cycle() == globalAlignmentSettings.get_cycles() ) {
             				alnout.set_task_available( Task(t.lane, t.tile, globalAlignmentSettings.get_cycles()));
             			}
             		}
@@ -245,7 +246,8 @@ int main(int argc, const char* argv[]) {
     // Init output controller for each output cycle. TODO: check if it is possible to replace the deque by a map (cycle, alnout).
     std::deque<AlnOut> alnouts;
     for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
-    	alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
+    	if ( cycle >= globalAlignmentSettings.get_start_cycle() )
+    		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
     }
 
     // Number of threads currently used for writing output.
@@ -311,9 +313,10 @@ int main(int argc, const char* argv[]) {
     	while ( !alnout.is_finalized() ) {
     		; // wait
     	}
-    	alnout.finalize();
     }
 
+    // Clear the vector will destruct all elements.
+    alnouts.clear();
 
     std::cout << "Finished output tasks." << std::endl;
 

@@ -226,6 +226,8 @@ void oAlnStream::funlock() {
 }
 
 
+
+
 //-------------------------------------------------------------------//
 //------  The input Alignment Stream class  -------------------------//
 //-------------------------------------------------------------------//
@@ -456,27 +458,13 @@ void iAlnStream::funlock() {
 //------  The StreamedAlignment class  ------------------------------//
 //-------------------------------------------------------------------//
 
-StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) {
-  if(&other == this)
-    return *this;
-  
-  lane = other.lane;
-  tile = other.tile;
-  rlen = other.rlen;
-  
-  return *this;
-}
-
-std::string StreamedAlignment::get_bcl_file(uint16_t cycle, uint16_t read_number) {
+std::string StreamedAlignment::get_bcl_file(uint16_t cycle, uint16_t mate) {
   std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/C" << getSeqCycle(cycle, read_number) << ".1/s_"<< lane <<"_" << tile << ".bcl";
+  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/C" << getSeqCycle(cycle, mate) << ".1/s_"<< lane <<"_" << tile << ".bcl";
   return path_stream.str();
 }
 
 
-// get the path to the alignment file. The alignment file is located in
-// <base>/L00<lane>/s_<lane>_<tile>.<cycle>.align
-// if base == "": base = globalAlignmentSettings.get_root()
 std::string StreamedAlignment::get_alignment_file(uint16_t cycle, uint16_t mate, std::string base){
   if (base == "") {
     base = globalAlignmentSettings.get_root();
@@ -494,7 +482,6 @@ std::string StreamedAlignment::get_filter_file() {
 }
 
 
-// create directories required to store the alignment files (only if not stored in globalAlignmentSettings.get_root())
 void StreamedAlignment::create_directories() {
   std::ostringstream path_stream;
   if (globalAlignmentSettings.get_temp_dir() == "") {
@@ -510,7 +497,6 @@ void StreamedAlignment::create_directories() {
 }
 
 
-// initialize empty alignment. Creates alignment files for a virtual Cycle 0
 void StreamedAlignment::init_alignment(uint16_t mate) {
 	std::string out_fname = get_alignment_file(0, mate, globalAlignmentSettings.get_temp_dir());
 
@@ -538,8 +524,6 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
 } 
 
 
-
-// extend an existing alignment from cycle <cycle-1> to <cycle>. returns the number of seeds
 uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index) {
 
   // 1. Open the input file
@@ -644,6 +628,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   return num_seeds;
 }
 
+
 void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, uint16_t read_no, uint16_t mate) {
 
 	// 1. Open the input file
@@ -702,6 +687,18 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	  //-------------------------------------------
 	  atomic_rename(out_fname.c_str(), in_fname.c_str());
 
+}
+
+
+StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) {
+  if(&other == this)
+    return *this;
+
+  lane = other.lane;
+  tile = other.tile;
+  rlen = other.rlen;
+
+  return *this;
 }
 
 
@@ -1106,6 +1103,8 @@ bool AlnOut::finalize() {
 		return false;
 
 	bool success = true;
+
+	bfos.clear();
 
 	// Move all output files to their final location.
 	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
