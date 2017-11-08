@@ -5,8 +5,10 @@
 #include "../lib/alnstream.h"
 #include "../lib/parallel.h"
 #include "../lib/argument_parser.h"
+#include "../lib/tools_static.h"
 
 AlignmentSettings globalAlignmentSettings;
+mutex_map<std::string> fileLocks;
 
 Task writeNextTaskToBam ( std::deque<AlnOut> & alnouts ) {
 
@@ -29,7 +31,7 @@ Task writeNextTaskToBam ( std::deque<AlnOut> & alnouts ) {
 			// Return the written task
 			else {
 
-				// TODO: this is not thread safe!
+				// Finalize the output for this cycle if this was the last task.
 				if ( alnout.is_finished() ) {
 
 					alnout.finalize();
@@ -76,6 +78,8 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
 
             // Execute the task
             bool success = true;
+            std::stringstream ss;
+
             try {
 
                 StreamedAlignment s (t.lane, t.tile, t.seqEl.length);
@@ -84,7 +88,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
                 // Seed extension if current read is sequence fragment.
                 if ( !t.seqEl.isBarcode() ) {
                 	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate,idx);
-                	std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+                	ss << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
 
                 }
 
@@ -96,11 +100,15 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
                 		CountType current_mate_cycle = t.seqEl.id < seqEl.id ? 0 : seqEl.length;
                 		s.extend_barcode(t.cycle, current_mate_cycle, t.seqEl.id, mate);
                 	}
-                	std::cout << "Task [" << t << "]: Extended barcode of " << --mate << " mates." << std::endl;
+                	ss << "Task [" << t << "]: Extended barcode of " << --mate << " mates." << std::endl;
                 }
+
+            	std::cout << ss.str();
+
             }
             catch (const std::exception &e) {
-                std::cerr << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
+                ss << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
+                std::cerr << ss.str();
                 success = false;
             }
 
@@ -109,13 +117,15 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
 
             	// Make previous cycle available for output. If current cycle is the last one, make current cycle available.
             	CountType seqCycle = getSeqCycle(t.cycle, t.seqEl.id);
-            	CountType output_cycle = seqCycle == globalAlignmentSettings.get_cycles() ? seqCycle : seqCycle - 1;
+            	CountType output_cycle = seqCycle - 1;
+            	bool is_last_cycle = seqCycle == globalAlignmentSettings.get_cycles();
 
             	if ( globalAlignmentSettings.is_output_cycle( output_cycle ) ) {
             		for ( auto& alnout : alnouts ) {
             			if ( output_cycle == alnout.get_cycle() ) {
             				alnout.set_task_available( Task(t.lane, t.tile, output_cycle));
-            				break;
+            			} else if ( is_last_cycle && alnout.get_cycle() == globalAlignmentSettings.get_cycles() ) {
+            				alnout.set_task_available( Task(t.lane, t.tile, globalAlignmentSettings.get_cycles()));
             			}
             		}
             	}
@@ -212,7 +222,7 @@ int main(int argc, const char* argv[]) {
             for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
 
             	// Don't init files if "--continue" was used to start in a later cycle.
-            	if (getMateCycle(mate, globalAlignmentSettings.get_start_cycle() > 1 ) )
+            	if ( getMateCycle(mate, globalAlignmentSettings.get_start_cycle()) > 1 )
             			continue;
 
 
@@ -298,8 +308,9 @@ int main(int argc, const char* argv[]) {
     std::cout << "Waiting for output tasks..." << std::endl;
 
     for ( auto& alnout : alnouts ) {
-    	while ( !alnout.is_finalized() )
+    	while ( !alnout.is_finalized() ) {
     		; // wait
+    	}
     	alnout.finalize();
     }
 

@@ -10,116 +10,214 @@
 #include "illumina_parsers.h"
 #include "parallel.h"
 
-// Output alignment stream: write alignments to file one by one
+
+/**
+ * Output stream to write temporary .align files.
+ */
 class oAlnStream {
-  // dataset information for the header
-  uint16_t lane;
-  uint16_t tile;
-  uint16_t cycle;
-  CountType rlen;
-  uint32_t num_reads;
 
-  // number of reads written to file
-  uint32_t num_written;
+	/** Lane for the output. */
+	uint16_t lane;
 
-  // data buffer (don't write everything at once)
-  std::vector<char> buffer;
+	/** Tile for the output. */
+	uint16_t tile;
 
-  // size of the buffer
-  uint64_t buf_size;
+	/** Output cycle. */
+	uint16_t cycle;
 
-  // current position in the buffer
-  uint64_t buf_pos;
+	/** Total read length. */
+	CountType rlen;
 
-  // output file format
-  // 0: no compression
-  // 1: zlib compression (level 1)
-  // 11: lz4 compression (level 1)
-  uint8_t format;
+	/** Total number of reads for this lane/tile. */
+	uint32_t num_reads;
 
-  // file handles
-  FILE* ofile;
-  gzFile ozfile;
+	/** Number of reads written to file. */
+	uint32_t num_written;
 
-  // write function for lz4 compression
-  uint64_t lz4write(const char* buf, uint64_t size);
+	/** Data buffer. */
+	std::vector<char> buffer;
 
- public:
-  // constructor initializes all member variables
-  oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt);
+	/** Size of the data buffer. */
+	uint64_t buf_size;
 
-  // open Alignment stream file and write header
-  uint64_t open(std::string fname);
+	/** Current position in the buffer. */
+	uint64_t buf_pos;
 
-  // writes a read alignment to the output Alignment file. 
-  // Buffering is handled internally
-  uint64_t write_alignment(ReadAlignment * al);
-  
-  // checks if the correct number of alignments was written and closes the Alignment file
-  bool close();
+	/** Output file compression [0: None; 1: zlib (lvl1); 2: lz4 (lvl1)] */
+	uint8_t format;
+
+	/** Standard file handler. */
+	FILE* fstream;
+
+	/** zlib file handler. */
+	gzFile zfstream;
+
+	/** Name of the file that is currently streamed. */
+	std::string fname;
+
+	/** File lock flag. True, if the file was locked by this alignment stream. */
+	bool flocked;
+
+	/**
+	 * Write with lz4 compression.
+	 * @param buf Pointer to the buffer data.
+	 * @param size Size of the buffer data.
+	 * @return New size of the buffer data.
+	 */
+	uint64_t lz4write(const char* buf, uint64_t size);
+
+	/** Lock the file (globally in the program). */
+	void flock();
+
+	/** Unlock the file (globally in the program). */
+	void funlock();
+
+
+public:
+
+	/**
+	 * Constructor.
+	 * @param ln Lane for the output.
+	 * @param tl Tile for the output.
+	 * @param cl Output cycle.
+	 * @param rl Total read length.
+	 * @param nr Total number of reads.
+	 * @param bs Buffer size.
+	 * @param fmt Compression format (0: None, 1: zlib, 2: lz4)
+	 */
+	oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt);
+
+	/** Default destructor. Unlocks the global fileLock if it was locked by this stream. */
+	~oAlnStream();
+
+	/**
+	 * Open alignment stream for a file and write the header.
+	 * The file will be locked globally.
+	 * @param f_name Name of the file to be written (will be overridden if already exists).
+	 * @return Number of written bytes.
+	 */
+	uint64_t open(std::string f_name);
+
+	/**
+	 * Write a read alignment to the current output stream.
+	 * @param al Pointer to the read alignment object that is written to the output stream.
+	 * @return Number of written bytes.
+	 */
+	uint64_t write_alignment(ReadAlignment * al);
+
+	/**
+	 * Close the file stream if all alignments were written.
+	 * Unlocks the global file lock.
+	 * @return true, if file stream was closed successfully.
+	 */
+	bool close();
 };
 
 
 
 // Input alignment stream: loads read alignments from a file one by one
 class iAlnStream {
-  // dataset information for the header
-  uint16_t lane;
-  uint16_t tile;
-  uint16_t cycle;
-  CountType rlen;
-  uint32_t num_reads;
 
-  // number of reads loaded from file
-  uint32_t num_loaded;
+	/** Lane for the output. */
+	uint16_t lane;
 
-  // data buffer (read blocks of data)
-  std::vector<char> buffer;
+	/** Tile for the output. */
+	uint16_t tile;
 
-  // size of the buffer
-  uint64_t buf_size;
+	/** Output cycle. */
+	uint16_t cycle;
 
-  // current position in the buffer
-  uint64_t buf_pos;
+	/** Total read length. */
+	CountType rlen;
 
-  // output file format
-  // 0: no compression
-  // 1: zlib compression (level 1)
-  // 11: lz4 compression (level 1)
-  uint8_t format;
+	/** Total number of reads for this lane/tile. */
+	uint32_t num_reads;
 
-  // file pointer
-  FILE* ifile;
-  gzFile izfile;
+	/** Number of reads loaded from the file. */
+	uint32_t num_loaded;
 
-  // read function for LZ4 compression. Reads one block of data to buffer
-  uint64_t lz4read_block();
+	/** Data buffer. */
+	std::vector<char> buffer;
 
- public:
-  // constructor initializes only block size and file format
-  iAlnStream(uint64_t bs, uint8_t fmt);
+	/** Size of the data buffer. */
+	uint64_t buf_size;
 
-  // open Alignment stream file and load header
-  uint64_t open(std::string fname);
+	/** Current position in the buffer. */
+	uint64_t buf_pos;
 
-  // Try to open Alignment stream file. If not successful, create a copy of the file and work on the copy.
-  uint64_t open_c(std::string fname, std::string c_ext_name);
+	/** Output file compression [0: None; 1: zlib (lvl1); 2: lz4 (lvl1)] */
+	uint8_t format;
 
-  // loads a read alignment from the input Alignment file. 
-  // Buffering is handled internally
-  ReadAlignment* get_alignment();
-  
-  // checks if the correct number of alignments was loaded and closes the Alignment file
-  bool close();
+	/** Standard file handler. */
+	FILE* fstream;
 
-  // get dataset information
-  inline uint16_t get_lane() {return lane;};
-  inline uint16_t get_tile() {return tile;};
-  inline uint16_t get_cycle() {return cycle;};
-  inline CountType get_rlen() {return rlen;};
-  inline uint32_t get_num_reads() {return num_reads;};
-  inline uint32_t get_num_loaded() {return num_loaded;};
+	/** zlib file handler. */
+	gzFile zfstream;
+
+	/** Name of the file that is currently streamed. */
+	std::string fname;
+
+	/** File lock flag. True, if the file was locked by this alignment stream. */
+	bool flocked;
+
+	/**
+	 * Load a lz4-compressed block to the buffer.
+	 * @return The new buffer size.
+	 */
+	uint64_t lz4read_block();
+
+	/** Lock the file (globally in the program). */
+	void flock();
+
+	/** Unlock the file (globally in the program). */
+	void funlock();
+
+public:
+
+	/**
+	 * Constructor.
+	 * @param bs Buffer size.
+	 * @param fmt Compression format (0: None, 1: zlib, 2: lz4)
+	 */
+	iAlnStream(uint64_t bs, uint8_t fmt);
+
+	/** Default destructor. Unlocks the global fileLock if it was locked by this stream. */
+	~iAlnStream();
+
+	/**
+	 * Open alignment stream for a file and load the header.
+	 * The file will be locked globally.
+	 * @param f_name Name of the file to be loaded.
+	 * @return Number of loaded bytes.
+	 */
+	uint64_t open(std::string f_name);
+
+	/**
+	 * Loasd a read alignment from the current input stream.
+	 * @return The read alignment object that was loaded from the file.
+	 */
+	ReadAlignment* get_alignment();
+
+	/**
+	 * Close the file stream if all alignments were loaded.
+	 * Unlocks the global file lock.
+	 * @return true, if file stream was closed successfully.
+	 */
+	bool close();
+
+	// Getter
+	uint16_t get_lane() {return lane;};
+	uint16_t get_tile() {return tile;};
+	uint16_t get_cycle() {return cycle;};
+	CountType get_rlen() {return rlen;};
+	uint32_t get_num_reads() {return num_reads;};
+	uint32_t get_num_loaded() {return num_loaded;};
 };
+
+
+
+
+
 
 
 //-------------------------------------------------------------------//

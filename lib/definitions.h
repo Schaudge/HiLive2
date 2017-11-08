@@ -362,6 +362,46 @@ enum AlignmentMode:char {
 	UNKNOWN='U'
 };
 
+/**
+ * Template to store a map of mutexes.
+ * Ensure that a locked mutex gets always unlocked (on destruction, if necessary). If possible, use a combination of std::lock_guard and get_reference(T).
+ */
+template<typename T> class mutex_map : public std::map<T, std::mutex> {
 
+private:
+	std::mutex mut;
+
+	bool key_exist(T key) {
+		if ( !this->count(key) )
+			return false;
+		return true;
+	}
+
+	void try_emplace(T key) {
+		{
+			std::lock_guard<std::mutex> lock(mut);
+			if ( !key_exist(key) )
+				this->emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple());
+		}
+	}
+
+public:
+
+	void unlock(T key) {
+		if ( key_exist(key) )
+			this->at(key).unlock();
+	}
+
+	void lock(T key) {
+		try_emplace(key);
+		this->at(key).lock();
+	}
+
+	std::mutex& get_reference(T key){
+		try_emplace(key);
+		return this->at(key);
+	}
+
+};
 
 #endif /* DEFINITIONS_H */

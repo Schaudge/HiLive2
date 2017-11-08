@@ -147,4 +147,10 @@ std::string getBamTempFileName(std::string barcode, CountType cycle);
  */
 std::string getBamFileName(std::string barcode, CountType cycle);
 
+
+/**
+ * Copy a file while locking them in the global fileLocks.
+ */
+int atomic_rename( const char *oldname, const char *newname );
+
 #endif /* TOOLS_H */

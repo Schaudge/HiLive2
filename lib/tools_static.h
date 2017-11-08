@@ -168,4 +168,5 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
  */
 uint32_t num_reads_from_bcl(std::string bcl);
 
+
 #endif /* TOOLS_STATIC_H */

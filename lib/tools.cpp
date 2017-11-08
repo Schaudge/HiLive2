@@ -218,3 +218,15 @@ std::string getBamFileName(std::string barcode, CountType cycle) {
 	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << file_suffix;
 	return fname.str();
 }
+
+int atomic_rename( const char *oldname, const char *newname ) {
+
+	if ( !file_exists(oldname) )
+		throw file_not_exist_error("Can't rename file: " + std::string(oldname) + ". File does not exist.");
+
+	std::lock_guard<std::mutex> old_lock(fileLocks.get_reference(oldname));
+	std::lock_guard<std::mutex> new_lock(fileLocks.get_reference(newname));
+
+	return std::rename(oldname, newname);
+
+}

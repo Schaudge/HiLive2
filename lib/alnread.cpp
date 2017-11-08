@@ -305,6 +305,7 @@ std::vector<char> ReadAlignment::serialize() {
 
 
 uint64_t ReadAlignment::deserialize(char* d) {
+
   // the total number of bytes read
   uint64_t bytes = 0; 
   
@@ -352,6 +353,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
     barcodeStoreVector.push_back(elem);
   }
 
+
   // read the number of seeds
   uint32_t num_seeds = 0;
   memcpy(&num_seeds,d+bytes,sizeof(uint32_t));
@@ -375,6 +377,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
     // therefore I only push back
     seeds.push_back(std::move(s));
   }
+
 
   return bytes;  
 }

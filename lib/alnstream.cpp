@@ -5,12 +5,15 @@
 //------  The output Alignment Stream class  ------------------------//
 //-------------------------------------------------------------------//
 
-// new output Alignment Stream class
 oAlnStream::oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt):
-  lane(ln), tile(tl), cycle(cl), rlen(rl), num_reads(nr), num_written(0), buffer(bs,0), buf_size(bs), buf_pos(0), format(fmt), ofile(NULL), ozfile(Z_NULL) {}
+  lane(ln), tile(tl), cycle(cl), rlen(rl), num_reads(nr), num_written(0), buffer(bs,0), buf_size(bs), buf_pos(0), format(fmt), fstream(NULL), zfstream(Z_NULL), fname(""), flocked(false) {}
 
 
-// write function for lz4 compression
+oAlnStream::~oAlnStream() {
+	funlock();
+}
+
+
 uint64_t oAlnStream::lz4write(const char* source, uint64_t size) {
   // allocate buffer for the compressed data
   std::vector<char> buf (LZ4_COMPRESSBOUND(size),0);
@@ -21,36 +24,42 @@ uint64_t oAlnStream::lz4write(const char* source, uint64_t size) {
     throw std::runtime_error("Error compressing data with LZ4.");
   
   // write the block size
-  if ( !fwrite(&compressed_size, 1, sizeof(uint32_t), ofile) )
+  if ( !fwrite(&compressed_size, 1, sizeof(uint32_t), fstream) )
     throw std::runtime_error("Error writing block size to file while compressing data with LZ4.");
 
   // write the data chunk
-  if ( !fwrite(buf.data(), 1, compressed_size, ofile) )
+  if ( !fwrite(buf.data(), 1, compressed_size, fstream) )
     throw std::runtime_error("Error writing data to file while compressing with LZ4.");
   
   return size;
 }
 
 
-uint64_t oAlnStream::open(std::string fname) {
+uint64_t oAlnStream::open(std::string f_name) {
+
+	fname = f_name;
+	flock();
 
 	// open the new Alignment file
 	switch (format) {
 	case 0: case 2:
-		ofile = fopen(fname.c_str(), "wb");
-		if (!ofile) {
+		fstream = fopen(fname.c_str(), "wb");
+		if (!fstream) {
+			funlock();
 			throw file_open_error( "Error opening file " + fname + " for writing.");
 			return 0;
 		}
 		break;
 	case 1:
-		ozfile = gzopen(fname.c_str(), "wb1"); //Don't compress too much, not enough bang for the buck
-		if (ozfile == Z_NULL) {
+		zfstream = gzopen(fname.c_str(), "wb1"); //Don't compress too much, not enough bang for the buck
+		if (zfstream == Z_NULL) {
+			funlock();
 			throw file_open_error( "Error opening file " + fname + " for writing.");
 			return 0;
 		}
 		break;
 	default:
+		funlock();
 		throw file_format_error("Output file format not recognized.");
 	}
 
@@ -96,18 +105,16 @@ uint64_t oAlnStream::open(std::string fname) {
 	// write all data
 	uint64_t written = 0;
 	switch (format) {
-	case 0: case 2:  written = fwrite(data.data(), 1, data.size(), ofile); break;
-	case 1: written = gzwrite(ozfile, data.data(), data.size()); break;
+	case 0: case 2:  written = fwrite(data.data(), 1, data.size(), fstream); break;
+	case 1: written = gzwrite(zfstream, data.data(), data.size()); break;
 	}
   
 	return written;
 }
 
 
-// writes a read alignment to the output Alignment file. 
-// Buffering is handled internally
 uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
-  if ( (!ofile && (format == 0 || format == 2)) || (ozfile == Z_NULL && format == 1) ){
+  if ( (!fstream && (format == 0 || format == 2)) || (zfstream == Z_NULL && format == 1) ){
     throw std::runtime_error("Could not write alignment to file. File handle not valid.");
   }
   if (num_written >= num_reads) {
@@ -134,8 +141,8 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
     // write out buffer
     uint64_t written = 0;
     switch (format) {
-    case 0: written = fwrite(buffer.data(), 1, buffer.size(), ofile); break;
-    case 1: written = gzwrite(ozfile, buffer.data(), buffer.size()); break;
+    case 0: written = fwrite(buffer.data(), 1, buffer.size(), fstream); break;
+    case 1: written = gzwrite(zfstream, buffer.data(), buffer.size()); break;
     case 2: written = lz4write(buffer.data(), buffer.size()); break;
     }
     if(written != buf_size)
@@ -158,8 +165,8 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
     if(buf_pos >= buf_size){
       uint64_t written = 0;
       switch (format) {
-      case 0: written = fwrite(buffer.data(), 1, buffer.size(), ofile); break;
-      case 1: written = gzwrite(ozfile, buffer.data(), buffer.size()); break;
+      case 0: written = fwrite(buffer.data(), 1, buffer.size(), fstream); break;
+      case 1: written = gzwrite(zfstream, buffer.data(), buffer.size()); break;
       case 2: written = lz4write(buffer.data(), buffer.size()); break;
       }
       if(written != buf_size)
@@ -175,12 +182,12 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
 
 
 bool oAlnStream::close() {
-  if ( ((format == 0 || format == 2) && ofile) || (format == 1 && ozfile != Z_NULL) ) {
+  if ( ((format == 0 || format == 2) && fstream) || (format == 1 && zfstream != Z_NULL) ) {
     // write remaining buffer content to file
     uint64_t written = 0;
     switch (format) {
-    case 0: written = fwrite(buffer.data(), 1, buf_pos, ofile); break;
-    case 1: written = gzwrite(ozfile, buffer.data(), buf_pos); break;
+    case 0: written = fwrite(buffer.data(), 1, buf_pos, fstream); break;
+    case 1: written = gzwrite(zfstream, buffer.data(), buf_pos); break;
     case 2: written = lz4write(buffer.data(), buf_pos); break;
     }
     if(written != buf_pos)
@@ -188,9 +195,10 @@ bool oAlnStream::close() {
     buf_pos = 0;
     if (num_written == num_reads) {
       switch (format) {
-      case 0: case 2: fclose(ofile); break;
-      case 1: gzclose(ozfile); break;
+      case 0: case 2: fclose(fstream); break;
+      case 1: gzclose(zfstream); break;
       }
+      funlock();
       return true;
     }
     else {
@@ -205,28 +213,44 @@ bool oAlnStream::close() {
 }
 
 
+void oAlnStream::flock() {
+	fileLocks.lock(fname);
+	flocked = true;
+}
+
+
+void oAlnStream::funlock() {
+	if ( flocked ) {
+		fileLocks.unlock(fname);
+	}
+}
+
 
 //-------------------------------------------------------------------//
 //------  The input Alignment Stream class  -------------------------//
 //-------------------------------------------------------------------//
 
-// new Alignment Stream class
 iAlnStream::iAlnStream(uint64_t bs, uint8_t fmt):
-  lane(0), tile(0), cycle(0), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), ifile(NULL), izfile(Z_NULL) {}
+  lane(0), tile(0), cycle(0), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), fstream(NULL), zfstream(Z_NULL), fname(""), flocked(false) {}
+
+
+iAlnStream::~iAlnStream() {
+	funlock();
+}
 
 
 // read function for lz4 decompression, reads one block of data
 uint64_t iAlnStream::lz4read_block() {
   // get the size of the next block
   uint32_t compressed_size = 0;
-  if ( !fread(&compressed_size,sizeof(uint32_t),1,ifile) )
+  if ( !fread(&compressed_size,sizeof(uint32_t),1,fstream) )
     return 0;
   
   // allocate buffer for the compressed data
   std::vector<char> cbuf (compressed_size,0);
 
   // read the data
-  if ( !fread(cbuf.data(),compressed_size,1,ifile) )
+  if ( !fread(cbuf.data(),compressed_size,1,fstream) )
     throw std::runtime_error("Malformed input file. Could not read next block.");
   
   // decompress the data
@@ -241,29 +265,35 @@ uint64_t iAlnStream::lz4read_block() {
 }
 
 
-uint64_t iAlnStream::open(std::string fname) {
+uint64_t iAlnStream::open(std::string f_name) {
 
-	if ( !file_exists(fname) ) {
+	if ( !file_exists(f_name) ) {
 		throw file_not_exist_error( " File " + fname + " does not exist.");
 	}
+
+	fname = f_name;
+	flock();
 
 	// open the new Alignment file
 	switch (format) {
 	case 0: case 2:
-		ifile = fopen(fname.c_str(), "rb");
-		if (!ifile) {
+		fstream = fopen(fname.c_str(), "rb");
+		if (!fstream) {
+			funlock();
 			throw file_open_error( "Error opening file " + fname + " for reading.");
 			return 0;
 		}
 		break;
 	case 1:
-		izfile = gzopen(fname.c_str(), "rb");
-		if (izfile == Z_NULL) {
+		zfstream = gzopen(fname.c_str(), "rb");
+		if (zfstream == Z_NULL) {
+			funlock();
 			throw file_open_error( "Error opening file " + fname + " for reading.");
 			return 0;
 		}
 		break;
 	default:
+		funlock();
 		throw file_format_error("Input file format not recognized.");
 	}
 
@@ -274,29 +304,29 @@ uint64_t iAlnStream::open(std::string fname) {
 	case 0: case 2:
 	{
 		// read the lane
-		bytes += fread(&lane,sizeof(uint16_t),1,ifile);
+		bytes += fread(&lane,sizeof(uint16_t),1,fstream);
 		// read the tile
-		bytes += fread(&tile,sizeof(uint16_t),1,ifile);
+		bytes += fread(&tile,sizeof(uint16_t),1,fstream);
 		// read the cycle
-		bytes += fread(&cycle,sizeof(CountType),1,ifile);
+		bytes += fread(&cycle,sizeof(CountType),1,fstream);
 		// read the read length
-		bytes += fread(&rlen,sizeof(CountType),1,ifile);
+		bytes += fread(&rlen,sizeof(CountType),1,fstream);
 		// read the number of reads
-		bytes += fread(&num_reads,sizeof(uint32_t),1,ifile);
+		bytes += fread(&num_reads,sizeof(uint32_t),1,fstream);
 		break;
 	}
 	case 1:
 	{
 		// read the lane
-		bytes += gzread(izfile,&lane,sizeof(uint16_t));
+		bytes += gzread(zfstream,&lane,sizeof(uint16_t));
 		// read the tile
-		bytes += gzread(izfile,&tile,sizeof(uint16_t));
+		bytes += gzread(zfstream,&tile,sizeof(uint16_t));
 		// read the cycle
-		bytes += gzread(izfile,&cycle,sizeof(CountType));
+		bytes += gzread(zfstream,&cycle,sizeof(CountType));
 		// read the read length
-		bytes += gzread(izfile,&rlen,sizeof(CountType));
+		bytes += gzread(zfstream,&rlen,sizeof(CountType));
 		// read the number of reads
-		bytes += gzread(izfile,&num_reads,sizeof(uint32_t));
+		bytes += gzread(zfstream,&num_reads,sizeof(uint32_t));
 		break;
 	}
 	}
@@ -304,9 +334,10 @@ uint64_t iAlnStream::open(std::string fname) {
 	return bytes;
 }
 
+
 ReadAlignment* iAlnStream::get_alignment() {
 
-  if ( (format==0 && !ifile) || (format==1 && izfile == Z_NULL) ){
+  if ( (format==0 && !fstream) || (format==1 && zfstream == Z_NULL) ){
     throw std::runtime_error("Could not load alignment from file. File handle not valid.");
   }
   if (num_loaded >= num_reads) {
@@ -329,10 +360,10 @@ ReadAlignment* iAlnStream::get_alignment() {
     // load new buffer
     switch (format) {
     case 0:
-      fread(buffer.data(),1,buf_size,ifile);
+      fread(buffer.data(),1,buf_size,fstream);
       break;
     case 1:
-      gzread(izfile,buffer.data(),buf_size);    
+      gzread(zfstream,buffer.data(),buf_size);
       break;
     case 2:
       lz4read_block();    
@@ -344,7 +375,7 @@ ReadAlignment* iAlnStream::get_alignment() {
     buf_pos = sizeof(uint32_t)-first_part;
     memcpy(&al_size,temp.data(),sizeof(uint32_t));
   }
-  
+
   // then, copy the content to the data vector
   std::vector<char> data(al_size,0);
   uint64_t copied = 0;
@@ -358,10 +389,10 @@ ReadAlignment* iAlnStream::get_alignment() {
     if(buf_pos >= buf_size){
       switch (format) {
       case 0:
-        fread(buffer.data(),1,buf_size,ifile);
+        fread(buffer.data(),1,buf_size,fstream);
         break;
       case 1:
-        gzread(izfile,buffer.data(),buf_size);    
+        gzread(zfstream,buffer.data(),buf_size);
         break;
       case 2:
         lz4read_block();    
@@ -375,7 +406,7 @@ ReadAlignment* iAlnStream::get_alignment() {
   ReadAlignment* ra = new ReadAlignment();
   ra->set_total_cycles(rlen);
   ra->deserialize(data.data());
-  
+
   num_loaded++;
 
   return ra;
@@ -383,15 +414,16 @@ ReadAlignment* iAlnStream::get_alignment() {
 
 
 bool iAlnStream::close() {
-  //if (ifile) {
-  if ( ((format==0 || format==2) && ifile) || (format==1 && izfile != Z_NULL)) {
+
+  if ( ((format==0 || format==2) && fstream) || (format==1 && zfstream != Z_NULL)) {
     if (num_loaded == num_reads) {
       switch (format) {
       case 0: case 2:
-    	  fclose(ifile);
+    	  fclose(fstream);
     	  break;
-      case 1: gzclose(izfile); break;
+      case 1: gzclose(zfstream); break;
       }
+      funlock();
       return true;
     }
     else {
@@ -402,6 +434,19 @@ bool iAlnStream::close() {
   else {
     throw std::runtime_error("Could not close alignment file. File handle not valid.");
   }
+}
+
+
+void iAlnStream::flock() {
+	fileLocks.lock(fname);
+	flocked = true;
+}
+
+
+void iAlnStream::funlock() {
+	if ( flocked ) {
+		fileLocks.unlock(fname);
+	}
 }
 
 
@@ -499,6 +544,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
   // 1. Open the input file
   //-----------------------
+
   std::string in_fname = get_alignment_file(cycle-1, mate, globalAlignmentSettings.get_temp_dir());
   std::string bcl_fname = get_bcl_file(cycle, read_no);
   std::string filter_fname = get_filter_file();
@@ -517,6 +563,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
   // 2. Open output stream
   //----------------------------------------------------------
+
   std::string out_fname = get_alignment_file(cycle, mate, globalAlignmentSettings.get_temp_dir());
   oAlnStream output (lane, tile, cycle, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
@@ -524,12 +571,14 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
   // 3. Read the full BCL file (this is not too much)
   //-------------------------------------------------
+
   BclParser basecalls;
   basecalls.open(bcl_fname);
 
 
   // 4. Load the filter flags if filter file is available
   // ----------------------------------------------------
+
   FilterParser filters;
   if (file_exists(filter_fname)) {
     filters.open(filter_fname);
@@ -544,12 +593,17 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
   // 5. Extend alignments 1 by 1
   //-------------------------------------------------
+
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
+
+//	  iAlnStream input2( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
+//	  input2.open(in_fname);
 
 	  bool testRead = false;
 
     ReadAlignment* ra = input.get_alignment();
+
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
       if(filters.next()) {
@@ -568,18 +622,21 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
     }
 
     output.write_alignment(ra);
+
     delete ra;
   }
 
 
   // 6. Close files
   //-------------------------------------------------
+
   if (!(input.close() && output.close())) {
     std::cerr << "Could not finish alignment!" << std::endl;
   }
 
   // 7. Delete old alignment file, if requested
   //-------------------------------------------
+
   if ( ! ( globalAlignmentSettings.is_keep_aln_files_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1) || globalAlignmentSettings.is_output_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1)) ) {
     std::remove(in_fname.c_str());
   }
@@ -643,7 +700,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 
 	  // 6. Move temp out file to the original file.
 	  //-------------------------------------------
-	  std::rename(out_fname.c_str(), in_fname.c_str());
+	  atomic_rename(out_fname.c_str(), in_fname.c_str());
 
 }
 
@@ -790,6 +847,8 @@ void AlnOut::write_tile_to_bam ( Task t ) {
 
 void AlnOut::__write_tile_to_bam__ ( Task t) {
 
+	std::vector<std::lock_guard<std::mutex>> locks;
+
 	CountType lane = t.lane;
 	CountType tile = t.tile;
 
@@ -841,7 +900,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 
 		numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
 		alignmentFiles.push_back(input);
-		std::this_thread::sleep_for (std::chrono::milliseconds(1000));
 	}
 
 	// for all reads in a tile
@@ -1055,7 +1113,7 @@ bool AlnOut::finalize() {
 
 			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
 
-			int rename = std::rename(getBamTempFileName(barcode_string, cycle).c_str(), getBamFileName(barcode_string, cycle).c_str());
+			int rename = atomic_rename(getBamTempFileName(barcode_string, cycle).c_str(), getBamFileName(barcode_string, cycle).c_str());
 			if ( rename == -1 ) {
 				std::cerr << "Renaming temporary output file " << getBamTempFileName(barcode_string, cycle).c_str() << " to " << getBamFileName(barcode_string, cycle).c_str() << " failed." << std::endl;
 				success = false;

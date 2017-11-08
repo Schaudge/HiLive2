@@ -10,6 +10,7 @@
 namespace po = boost::program_options;
 
 AlignmentSettings globalAlignmentSettings;
+mutex_map<std::string> fileLocks;
 
 /**
  * Main function that organizes the overall structure of the program.
