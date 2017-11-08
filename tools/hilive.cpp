@@ -68,6 +68,8 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
     		--writing_threads;
     		if ( written_task != NO_TASK )
     			continue;
+    	} else {
+    		--writing_threads;
     	}
 
         // Try to obtain a new task
