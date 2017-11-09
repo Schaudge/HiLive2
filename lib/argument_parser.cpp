@@ -218,6 +218,7 @@ po::options_description HiLiveArgumentParser::io_options() {
 					("keep-files,k", po::value<std::vector<CountType>>()->multitoken()->composing(), "Keep intermediate alignment files for these cycles. The last cycle is always kept. [Default: None]")
 					("keep-all-files,K", po::bool_switch(), "Keep all intermediate alignment files [Default: false]")
 					("min-as-ratio", po::value<float>(), "Minimum alignment score (relative to the current read length) for alignments to be reported (0-1) [Default: 0 - Report all alignments]")
+					("force-resort", po::bool_switch(), "If set, the align files are always sorted before output. Existing sorted align files are overwritten [Default: false]")
 					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
 					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
 					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]");
@@ -552,6 +553,8 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<float>("min-as-ratio", "settings.out.min_as_ratio", 0.0f, &AlignmentSettings::set_min_as_ratio);
 		set_option<std::vector<uint16_t>>("lanes", "settings.lanes", all_lanes(), &AlignmentSettings::set_lanes);
 		set_option<std::vector<uint16_t>>("tiles", "settings.tiles", all_tiles(), &AlignmentSettings::set_tiles);
+
+		set_option<bool>("force-resort", "settings.out.force-resort", false, &AlignmentSettings::set_force_resort);
 
 		// Set alignment options
 		std::vector<std::string> default_read_structure;

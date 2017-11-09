@@ -363,46 +363,48 @@ enum AlignmentMode:char {
 	UNKNOWN='Z'
 };
 
+
 /**
  * Template to store a map of mutexes.
  * Ensure that a locked mutex gets always unlocked (on destruction, if necessary). If possible, use a combination of std::lock_guard and get_reference(T).
  */
-template<typename T> class mutex_map : public std::map<T, std::mutex> {
+template<typename K> class mutex_map {
 
 private:
+	std::map<K, std::mutex> map;
 	std::mutex mut;
 
-	bool key_exist(T key) {
-		if ( !this->count(key) )
-			return false;
-		return true;
+	typename std::map<K, std::mutex>::size_type count(K k) {
+		return map.count(k);
 	}
 
-	void try_emplace(T key) {
+	std::mutex& try_emplace(K k) {
 		{
 			std::lock_guard<std::mutex> lock(mut);
-			if ( !key_exist(key) )
-				this->emplace(std::piecewise_construct, std::forward_as_tuple(key), std::forward_as_tuple());
+			if ( !count(k) )
+				map.emplace(std::piecewise_construct, std::forward_as_tuple(k), std::forward_as_tuple());
+			return map.at(k);
 		}
 	}
 
 public:
 
-	void unlock(T key) {
-		if ( key_exist(key) )
-			this->at(key).unlock();
+	void unlock(K k) {
+		if ( count(k) )
+			map.at(k).unlock();
 	}
 
-	void lock(T key) {
-		try_emplace(key);
-		this->at(key).lock();
+	void lock(K k) {
+		try_emplace(k);
+		map.at(k).lock();
 	}
 
-	std::mutex& get_reference(T key){
-		try_emplace(key);
-		return this->at(key);
+	std::mutex& at(K k){
+
+		return try_emplace(k);
 	}
 
 };
+
 
 #endif /* DEFINITIONS_H */

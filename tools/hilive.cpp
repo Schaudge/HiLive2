@@ -210,6 +210,7 @@ int main(int argc, const char* argv[]) {
     // Create the overall agenda
     Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), globalAlignmentSettings.get_start_cycle());
 
+
     // Wait for the first cycle to be written
     std::cout << "Waiting for the first cycle to finish..." << std::endl;
     while ( ! agenda.cycle_available(globalAlignmentSettings.get_start_cycle()) ) {

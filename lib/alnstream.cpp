@@ -702,10 +702,11 @@ StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) 
 }
 
 
+
+
 //-------------------------------------------------------------------//
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
-
 
 AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl, KixRun* idx ) : cycle(cycl),index(idx) {
 
@@ -720,6 +721,30 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 		mateCycles.push_back( mateCycle );
 		min_as_scores.push_back( mateCycle * globalAlignmentSettings.get_min_as_ratio() );
 	}
+
+	// Add a waiting task for all lanes and tiles.
+	for ( auto ln : lns ) {
+		for ( auto tl : tls ) {
+			add_task(Task(ln,tl,cycle), WAITING);
+		}
+	}
+
+};
+
+
+AlnOut::~AlnOut() {
+	if ( !is_finalized() && !finalize() ) {
+		std::cerr << "Could not finish output for cycle " << cycle << "." << std::endl;
+	}
+}
+
+
+void AlnOut::init() {
+
+	std::lock_guard<std::mutex> lock(if_lock);
+
+	if ( initialized )
+		return;
 
 	// Init the bamIOContext (the same object can be used for all output streams)
 	bfos.set_context(index->seq_names, index->seq_lengths);
@@ -740,31 +765,21 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 		}
 	}
 
-	// Add a waiting task for all lanes and tiles.
-	for ( auto ln : lns ) {
-		for ( auto tl : tls ) {
-			add_task(Task(ln,tl,cycle), WAITING);
-		}
-	}
-
-};
-
-AlnOut::~AlnOut() {
-	if ( !is_finalized() && !finalize() ) {
-		std::cerr << "Could not finish output for cycle " << cycle << "." << std::endl;
-	}
+	initialized = true;
 }
 
+
 bool AlnOut::set_task_status( Task t, ItemStatus status ) {
-	std::lock_guard<std::mutex> lock(tasks_mutex);
+	std::lock_guard<std::mutex> lock(tasks_lock);
 	if ( tasks.find(t) == tasks.end() )
 		return false;
 	tasks[t] = status;
 	return true;
 }
 
+
 bool AlnOut::set_task_status_from_to( Task t, ItemStatus oldStatus, ItemStatus newStatus ) {
-	std::lock_guard<std::mutex> lock(tasks_mutex);
+	std::lock_guard<std::mutex> lock(tasks_lock);
 	if ( tasks.find(t) == tasks.end() )
 		return false;
 	if ( tasks[t] == oldStatus ) {
@@ -774,8 +789,9 @@ bool AlnOut::set_task_status_from_to( Task t, ItemStatus oldStatus, ItemStatus n
 	return false;
 }
 
+
 Task AlnOut::get_next( ItemStatus getStatus, ItemStatus setToStatus ) {
-	std::lock_guard<std::mutex> lock(tasks_mutex);
+	std::lock_guard<std::mutex> lock(tasks_lock);
 	for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
 		if ( it->second == getStatus ) {
 			tasks[it->first] = setToStatus;
@@ -784,6 +800,16 @@ Task AlnOut::get_next( ItemStatus getStatus, ItemStatus setToStatus ) {
 	}
 	return NO_TASK;
 }
+
+
+bool AlnOut::add_task( Task t, ItemStatus status ) {
+	std::lock_guard<std::mutex> lock(tasks_lock);
+	if ( tasks.find(t) != tasks.end() )
+		return false;
+	tasks[t] = status;
+	return true;
+}
+
 
 bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite ) {
 
@@ -794,10 +820,6 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 	// Stop if sorted file already exist
 	if ( file_exists( out_fname ) && !overwrite )
 		return true;
-
-//	// Stop if respective alignment file does not exist
-//	if ( !file_exists( in_fname ) )
-//		return false;
 
 	iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 
@@ -832,7 +854,12 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 
 }
 
+
 void AlnOut::write_tile_to_bam ( Task t ) {
+
+	if ( !is_initialized() )
+		init();
+
 	try {
 		__write_tile_to_bam__ (t);
 		set_task_status( t, FINISHED );
@@ -841,6 +868,7 @@ void AlnOut::write_tile_to_bam ( Task t ) {
 		std::cerr << "Writing of task " << t << " failed: " << e.what() << std::endl;
 	}
 }
+
 
 void AlnOut::__write_tile_to_bam__ ( Task t) {
 
@@ -871,7 +899,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 
 		CountType mateCycle = mateCycles[mateIndex-1];
 
-		if ( !sort_tile( lane, tile, mateIndex, mateCycle, false) ) {
+		if ( !sort_tile( lane, tile, mateIndex, mateCycle, globalAlignmentSettings.get_force_resort()) ) {
 			std::cout << "Couldn't sort" << std::endl;
 			continue;
 		}
@@ -1074,6 +1102,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 	return;
 }
 
+
 Task AlnOut::write_next ( ) {
 	Task t = get_next ( BCL_AVAILABLE, RUNNING );
 	if ( t != NO_TASK ) {
@@ -1084,9 +1113,10 @@ Task AlnOut::write_next ( ) {
 	}
 }
 
+
 CountType AlnOut::get_task_status_num ( ItemStatus getStatus ) {
 	CountType num = 0;
-	std::lock_guard<std::mutex> lock(tasks_mutex);
+	std::lock_guard<std::mutex> lock(tasks_lock);
 	for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
 		if ( it->second == getStatus ) {
 			num += 1;
@@ -1095,9 +1125,10 @@ CountType AlnOut::get_task_status_num ( ItemStatus getStatus ) {
 	return num;
 }
 
+
 bool AlnOut::finalize() {
 
-	std::lock_guard<std::mutex> lock(finalizing);
+	std::lock_guard<std::mutex> lock(if_lock);
 
 	if ( finalized )
 		return true;

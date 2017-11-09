@@ -341,6 +341,7 @@ public:
 	 * */
 	Atomic_bfo( std::string f_name) : bfo(f_name.c_str()) { }
 
+
 	/** Destructor. */
 	~Atomic_bfo ( ) {	}
 
@@ -456,10 +457,16 @@ private:
 	std::map<Task, ItemStatus> tasks;
 
 	/** Mutex to lock tasks when their status is getting modified. */
-	std::mutex tasks_mutex;
+	std::mutex tasks_lock;
 
-	/** Mutex to lock the finalization. */
-	std::mutex finalizing;
+	/** True if the output was finalized. */
+	bool finalized = false;
+
+	/** True if the output was initialized. */
+	bool initialized = false;
+
+	/** Mutex to lock the initialization and finalization. */
+	std::mutex if_lock;
 
 	/** Cycle for the output. */
 	CountType cycle;
@@ -478,8 +485,6 @@ private:
 
 	/** The underlying index for the output. */
 	KixRun* index;
-
-	bool finalized = false;
 
 	/**
 	 * Set the status of a task (only if the task exists).
@@ -512,13 +517,7 @@ private:
 	 * @param status The status.
 	 * @return true, if the task didn't exist before and was successfully created.  false otherwise.
 	 */
-	bool add_task( Task t, ItemStatus status ) {
-		std::lock_guard<std::mutex> lock(tasks_mutex);
-		if ( tasks.find(t) != tasks.end() )
-			return false;
-		tasks[t] = status;
-		return true;
-	}
+	bool add_task( Task t, ItemStatus status );
 
 	/**
 	 * Create a temporary align file that is sorted by score.
@@ -542,6 +541,11 @@ private:
 	 * @param t Task that contains the information about lane and tile.
 	 */
 	void __write_tile_to_bam__ ( Task t );
+
+	/**
+	 * Initalize the output streams.
+	 */
+	void init();
 
 public:
 
@@ -640,6 +644,14 @@ public:
 	 */
 	bool is_finalized () {
 		return finalized;
+	}
+
+	/**
+	 * Check if the output controller was already initialized (i.e., the output streams are created).
+	 * @return true, if the output controller was already initialized.
+	 */
+	bool is_initialized(){
+		return initialized;
 	}
 
 	/**

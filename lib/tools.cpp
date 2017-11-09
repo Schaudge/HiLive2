@@ -224,8 +224,8 @@ int atomic_rename( const char *oldname, const char *newname ) {
 	if ( !file_exists(oldname) )
 		throw file_not_exist_error("Can't rename file: " + std::string(oldname) + ". File does not exist.");
 
-	std::lock_guard<std::mutex> old_lock(fileLocks.get_reference(oldname));
-	std::lock_guard<std::mutex> new_lock(fileLocks.get_reference(newname));
+	std::lock_guard<std::mutex> old_lock(fileLocks.at(std::string(oldname)));
+	std::lock_guard<std::mutex> new_lock(fileLocks.at(std::string(newname)));
 
 	return std::rename(oldname, newname);
 

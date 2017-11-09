@@ -114,6 +114,8 @@ private:
 
   Unmodifiable<float> min_as_ratio;
 
+  Unmodifiable<bool> force_resort;
+
   template<typename T>
   bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
 	  try {
@@ -121,7 +123,7 @@ private:
 	  }
 	  catch (unmodifiable_error& e) {
 //		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
-		  variable_name.length(); // TODO: just to remove warnings. Remove variable_name string when finished.
+		  variable_name.length(); // TODO: just to remove compiler warnings. Remove variable_name string when finished.
 		 return false ;
 	  }
 	  return true;
@@ -814,6 +816,15 @@ public:
 		  value = 0.0f;
 	  set_unmodifiable(min_as_ratio, value, "min_as_ratio");
   }
+
+  bool get_force_resort() {
+	  return get_unmodifiable(force_resort, "force_resort");
+  }
+
+  void set_force_resort(bool value) {
+	  set_unmodifiable(force_resort, value, "force_resort");
+  }
+
 
 };
 
