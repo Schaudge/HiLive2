@@ -442,9 +442,6 @@ public:
 	}
 };
 
-
-
-
 /**
  * Class to organize the output for a specific cycle.
  * @author Tobias Loka

@@ -10,6 +10,11 @@
 AlignmentSettings globalAlignmentSettings;
 mutex_map<std::string> fileLocks;
 
+/**
+ * If a thread is used for output, call this function to start the next available output task.
+ * @param alnout The deque of output controllers for each output cycle.
+ * @return The written task. NO_TASK if no task was written (e.g., when no task is available).
+ */
 Task writeNextTaskToBam ( std::deque<AlnOut> & alnouts ) {
 
 	// Search for the next task to write
@@ -62,14 +67,16 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
     // Continue until surrender flag is set
     while ( !surrender ) {
 
-    	// Start an output task if output threads and tasks available.
-    	if ( ++writing_threads < globalAlignmentSettings.get_num_out_threads() ) {
-    		Task written_task = writeNextTaskToBam( alnouts );
-    		--writing_threads;
-    		if ( written_task != NO_TASK )
-    			continue;
-    	} else {
-    		--writing_threads;
+    	{ // scope for block guard
+    		atomic_block_guard<CountType> block( writing_threads );
+
+    		// Start an output task if output threads and tasks available.
+    		if ( block.get_blocked_value() <= globalAlignmentSettings.get_num_out_threads() ) {
+    			Task written_task = writeNextTaskToBam( alnouts );
+    			if ( written_task != NO_TASK ) {
+    				continue;
+    			}
+    		}
     	}
 
         // Try to obtain a new task
@@ -145,9 +152,8 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
         // Thread is idle --> Also use it for output if the maximum number of output threads is exceeded.
         else {
 
-    		writing_threads++;
+    		atomic_block_guard<CountType> block( writing_threads );
         	writeNextTaskToBam( alnouts );
-    		writing_threads--;
 
         }
 

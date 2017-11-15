@@ -363,7 +363,6 @@ enum AlignmentMode:char {
 	UNKNOWN='Z'
 };
 
-
 /**
  * Template to store a map of mutexes.
  * Ensure that a locked mutex gets always unlocked (on destruction, if necessary). If possible, use a combination of std::lock_guard and get_reference(T).
@@ -406,5 +405,36 @@ public:
 
 };
 
+/**
+ * A data type that increments an arithmetic field for the time of it's existance.
+ * This functionality can be used to block one slot of a certain capacity.
+ */
+template<
+	typename T,
+	typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+> class block_guard {
+	T& val;
+	T blocked_value;
+public:
+	block_guard( T& value ) : val(value), blocked_value(++val){ }
+	~block_guard() { --val; }
+	T get_blocked_value(){ return blocked_value; }
+};
+
+/**
+ * A data type that increments an atomic arithmetic field for the time of it's existance.
+ * This functionality can be used to block one slot of a certain capacity.
+ */
+template<
+	typename T,
+	typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+> class atomic_block_guard {
+	std::atomic<T>& val;
+	T blocked_value;
+public:
+	atomic_block_guard( std::atomic<T>& value ) : val(value), blocked_value(++val) { }
+	~atomic_block_guard() { --val; }
+	T get_blocked_value(){ return blocked_value; }
+};
 
 #endif /* DEFINITIONS_H */
