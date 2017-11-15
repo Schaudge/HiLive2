@@ -149,8 +149,7 @@ Contact
 Please consult the HiLive project website for questions!
 
 If this does not help, please feel free to consult:
-
- * Technical support <hilive.team@gmail.com> (technical contact)
+ * Technical support <hilive.team (at) gmail.com> (technical contact)
  * Bernhard Y. Renard <renardb (at) rki.de> (project head)
 
 also see CONTRIBUTORS for a complete list of contributors and their contact information
