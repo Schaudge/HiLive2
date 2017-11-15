@@ -20,9 +20,11 @@
 #include <memory>
 #include <thread>
 #include <mutex>
+#include <atomic>
 #include <chrono>
 #include <stdexcept>
 #include <utility>
+#include <type_traits>
 #include <boost/filesystem.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree.hpp>

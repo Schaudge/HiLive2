@@ -6,6 +6,8 @@
 #include "../lib/argument_parser.h"
 
 AlignmentSettings globalAlignmentSettings;
+mutex_map<std::string> fileLocks;
+
 
 /**
  * Main function that organizes the overall structure of the program.

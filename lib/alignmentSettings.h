@@ -53,7 +53,7 @@ private:
   Unmodifiable<std::vector<uint16_t>> output_cycles;
 
   // SWITCH: Keep the old alignment files of previous cycles
-  Unmodifiable<bool> keep_aln_files;
+  Unmodifiable<std::vector<uint16_t>> keep_aln_files;
 
   // PARAMETER: Memory block size for the input and output buffer in the streamed alignment
   Unmodifiable<uint64_t> block_size;
@@ -73,6 +73,9 @@ private:
   // PARAMETER: path to the index file
   Unmodifiable<std::string> index_fname;
 
+  // PARAMETER: the first cycle to handle. Should be 1 by default.
+  Unmodifiable<CountType> start_cycle;
+
   // PARAMETER: read length of all reads (including barcodes)
   Unmodifiable<CountType> cycles;
 
@@ -84,6 +87,9 @@ private:
 
   // PARAMETER: number of threads to use
   Unmodifiable<CountType> num_threads;
+
+  // PARAMETER: max. amount of threads used for output
+  Unmodifiable<CountType> num_out_threads;
 
   // SWITCH: activate extended CIGAR annotation
   Unmodifiable<bool> extended_cigar;
@@ -108,6 +114,8 @@ private:
 
   Unmodifiable<float> min_as_ratio;
 
+  Unmodifiable<bool> force_resort;
+
   template<typename T>
   bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
 	  try {
@@ -115,7 +123,7 @@ private:
 	  }
 	  catch (unmodifiable_error& e) {
 //		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
-		  variable_name.length(); // TODO: just to remove warnings. Remove variable_name string when finished.
+		  variable_name.length(); // TODO: just to remove compiler warnings. Remove variable_name string when finished.
 		 return false ;
 	  }
 	  return true;
@@ -219,7 +227,8 @@ public:
 
 	  // Technical settings
 	  xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
-	  xml_out.add_child("settings.technical.keep_aln_files", getXMLnode ( get_keep_aln_files() ));
+	  xml_out.add_child("settings.technical.num_out_threads", getXMLnode ( get_num_out_threads() ));
+	  xml_out.add_child("settings.technical.keep_aln_files", getXMLnode_vector ( get_keep_aln_files() ));
 	  xml_out.add_child("settings.technical.block_size", getXMLnode ( get_block_size() ));
 	  xml_out.add_child("settings.technical.compression_format", getXMLnode ( get_compression_format() ));
 
@@ -519,6 +528,10 @@ public:
       return (get_mode()==AlignmentMode::BESTN);
   }
 
+  bool get_unique_hit_mode() {
+      return (get_mode()==AlignmentMode::UNIQUE);
+  }
+
   CountType get_best_n() {
       return get_unmodifiable(best_n, "best_n", true);
   }
@@ -565,12 +578,19 @@ public:
 	  return true;
   }
 
-  void set_keep_aln_files(bool value) {
+  void set_keep_aln_files(std::vector<uint16_t> value) {
 	  set_unmodifiable(keep_aln_files, value, "keep_aln_files");
   }
 
-  bool get_keep_aln_files() {
+  std::vector<uint16_t> get_keep_aln_files() {
       return get_unmodifiable(keep_aln_files, "keep_aln_files");
+  }
+
+  bool is_keep_aln_files_cycle(CountType cycle) {
+	  auto aln_files_cycles = get_keep_aln_files();
+	  if ( std::find(aln_files_cycles.begin(), aln_files_cycles.end(), cycle) == aln_files_cycles.end() )
+		  return false;
+	  return true;
   }
 
   void set_block_size(std::string value) {
@@ -636,6 +656,11 @@ public:
 	  // All hit mode
 	  if ( value == "ALL" || value == "A" ) {
 		  set_mode(AlignmentMode::ALL);
+	  }
+
+	  // Unique mode
+	  if ( value == "UNIQUE" || value == "U" ) {
+		  set_mode(AlignmentMode::UNIQUE);
 	  }
 
 	  // Best N scores mode
@@ -704,6 +729,20 @@ public:
       return get_unmodifiable(cycles, "cycles");
   }
 
+  void set_start_cycle(CountType value) {
+	  set_unmodifiable(start_cycle, value, "start_cycle");
+  }
+
+  CountType get_start_cycle() {
+      CountType ret = get_unmodifiable(start_cycle, "start_cycle", true);
+
+      // Value if not set.
+      if ( ret == 0 )
+    	  return 1;
+
+      return ret;
+  }
+
   void set_out_dir(std::string value) {
 	  set_unmodifiable(out_dir, value, "out_dir");
   }
@@ -718,6 +757,14 @@ public:
 
   CountType get_num_threads() {
       return get_unmodifiable(num_threads, "num_threads");
+  }
+
+  void set_num_out_threads(CountType value) {
+	  set_unmodifiable(num_out_threads, value, "num_out_threads");
+  }
+
+  CountType get_num_out_threads() {
+      return get_unmodifiable(num_out_threads, "num_out_threads");
   }
 
   std::vector<SequenceElement> get_seqs() {
@@ -769,6 +816,15 @@ public:
 		  value = 0.0f;
 	  set_unmodifiable(min_as_ratio, value, "min_as_ratio");
   }
+
+  bool get_force_resort() {
+	  return get_unmodifiable(force_resort, "force_resort");
+  }
+
+  void set_force_resort(bool value) {
+	  set_unmodifiable(force_resort, value, "force_resort");
+  }
+
 
 };
 

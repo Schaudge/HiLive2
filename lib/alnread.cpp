@@ -1,7 +1,7 @@
 #include "alnread.h"
 
 
-seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_i) {
+seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_i, unsigned* as_i) {
 	typedef seqan::String<seqan::CigarElement<> > TSeqanCigarString;
 	TSeqanCigarString seqanCigarString;
 	seqan::CigarElement<> cigarElem;
@@ -49,6 +49,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
                 cigarElem.operation = globalAlignmentSettings.get_extended_cigar() ? '=' : 'M';
                 cigarElem.count=(*it).length;
                 seqan::appendValue(seqanCigarString, cigarElem);
+                (*as_i) += (*it).length;
                 last_offset = (*it).offset;
                 continue;
 			}
@@ -62,6 +63,8 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
                 cigarElem.operation = globalAlignmentSettings.get_extended_cigar() ? '=' : 'M';
 				cigarElem.count=(*it).length;
 				seqan::appendValue(seqanCigarString, cigarElem);
+				(*as_i) += (*it).length;
+				(*as_i) -= ( (*it).offset - last_offset );
                 last_offset = (*it).offset;
 				continue;
 			}
@@ -75,6 +78,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned* nm_
                 cigarElem.operation = globalAlignmentSettings.get_extended_cigar() ? '=' : 'M';
 				cigarElem.count=(*it).length;
 				seqan::appendValue(seqanCigarString, cigarElem);
+				(*as_i) += (*it).length;
                 last_offset = (*it).offset;
 				continue;
 			}
@@ -301,6 +305,7 @@ std::vector<char> ReadAlignment::serialize() {
 
 
 uint64_t ReadAlignment::deserialize(char* d) {
+
   // the total number of bytes read
   uint64_t bytes = 0; 
   
@@ -348,6 +353,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
     barcodeStoreVector.push_back(elem);
   }
 
+
   // read the number of seeds
   uint32_t num_seeds = 0;
   memcpy(&num_seeds,d+bytes,sizeof(uint32_t));
@@ -371,6 +377,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
     // therefore I only push back
     seeds.push_back(std::move(s));
   }
+
 
   return bytes;  
 }
@@ -460,9 +467,14 @@ bool seed_compare_pos (const USeed & i, const USeed & j) {
 
 // helper function for alignment output
 bool seed_compare_errors (const USeed & i, const USeed & j) {
-	if (  min_errors(i) == min_errors(j) )
-		return i->num_matches >= j->num_matches;
-	return (min_errors(i) < min_errors(j));
+//	CountType i_err = min_errors(i);
+//	CountType j_err = min_errors(j);
+//	if (  i_err == j_err )
+//		return i->num_matches >= j->num_matches;
+//	return ( i_err < j_err );
+	if ( i->num_matches == j->num_matches )
+		return min_errors(i) <= min_errors(j);
+	return i->num_matches > j->num_matches;
 }
 
 void ReadAlignment::sort_seeds_by_errors() {
@@ -695,7 +707,7 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
 
     // delete all seeds which do not reach threshold
     SeedVecIt it=seeds.begin();
-    bool foundHit = false;
+//    bool foundHit = false;
 
     while ( it!=seeds.end()) {
 
@@ -738,7 +750,7 @@ void ReadAlignment::filterAndCreateNewSeeds(GenomePosListType & pos, std::vector
             ++it;
 
     	// If not filtered, a hit was found
-        foundHit = true;
+//        foundHit = true;
     }
 
     // Create new seeds if they have a chance to stay below the error threshold (Consider the number of matches given by a PLACEHOLDER seed)
@@ -1117,6 +1129,9 @@ CountType ReadAlignment::getBarcodeIndex() {
 
 	// Get the barcodes of the read
 	std::string read_bc = getBarcodeString();
+
+	if ( read_bc.length() == 0 )
+		return NO_MATCH;
 
 	uint16_t fragment_errors = 0;
 	uint16_t fragment_pos = 0;

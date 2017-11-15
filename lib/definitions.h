@@ -318,6 +318,29 @@ public:
 
 };
 
+////////////////////////////////
+////////// Exceptions //////////
+////////////////////////////////
+class io_error : public std::runtime_error {
+public:
+	using std::runtime_error::runtime_error;
+};
+
+class file_open_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
+class file_not_exist_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
+class file_format_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
 ///////////////////////////////////////
 ////////// Other definitions //////////
 ///////////////////////////////////////
@@ -336,8 +359,82 @@ enum AlignmentMode:char {
 	ALLBEST='H',
 	ANYBEST='B',
 	BESTN='N',
-	UNKNOWN='U'
+	UNIQUE='U',
+	UNKNOWN='Z'
 };
 
+/**
+ * Template to store a map of mutexes.
+ * Ensure that a locked mutex gets always unlocked (on destruction, if necessary). If possible, use a combination of std::lock_guard and get_reference(T).
+ */
+template<typename K> class mutex_map {
+
+private:
+	std::map<K, std::mutex> map;
+	std::mutex mut;
+
+	typename std::map<K, std::mutex>::size_type count(K k) {
+		return map.count(k);
+	}
+
+	std::mutex& try_emplace(K k) {
+		{
+			std::lock_guard<std::mutex> lock(mut);
+			if ( !count(k) )
+				map.emplace(std::piecewise_construct, std::forward_as_tuple(k), std::forward_as_tuple());
+			return map.at(k);
+		}
+	}
+
+public:
+
+	void unlock(K k) {
+		if ( count(k) )
+			map.at(k).unlock();
+	}
+
+	void lock(K k) {
+		try_emplace(k);
+		map.at(k).lock();
+	}
+
+	std::mutex& at(K k){
+
+		return try_emplace(k);
+	}
+
+};
+
+/**
+ * A data type that increments an arithmetic field for the time of it's existance.
+ * This functionality can be used to block one slot of a certain capacity.
+ */
+template<
+	typename T,
+	typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+> class block_guard {
+	T& val;
+	T blocked_value;
+public:
+	block_guard( T& value ) : val(value), blocked_value(++val){ }
+	~block_guard() { --val; }
+	T get_blocked_value(){ return blocked_value; }
+};
+
+/**
+ * A data type that increments an atomic arithmetic field for the time of it's existance.
+ * This functionality can be used to block one slot of a certain capacity.
+ */
+template<
+	typename T,
+	typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+> class atomic_block_guard {
+	std::atomic<T>& val;
+	T blocked_value;
+public:
+	atomic_block_guard( std::atomic<T>& value ) : val(value), blocked_value(++val) { }
+	~atomic_block_guard() { --val; }
+	T get_blocked_value(){ return blocked_value; }
+};
 
 #endif /* DEFINITIONS_H */
