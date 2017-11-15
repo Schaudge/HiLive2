@@ -247,7 +247,7 @@ po::options_description HiLiveArgumentParser::technical_options() {
 	        		("block-size", po::value<std::string>(), "Block size for the alignment input/output stream in Bytes. Append 'K' or 'M' to specify in Kilobytes or Megabytes, respectively (e.g. '--block-size 64M' for 64 Megabytes)")
 					("compression,c", po::value<uint16_t>(), "Compress alignment files. 0: no compression 1: Deflate (smaller) 2: LZ4 (faster; default)")
 					("num-threads,n", po::value<CountType>(), "Number of threads to spawn [Default: all available]")
-					("num-out-threads,N", po::value<CountType>(), "Maximum number of threads to use for output if threads are not idle [Default: all available]");
+					("num-out-threads,N", po::value<CountType>(), "Maximum number of threads to use for output if threads are not idle [Default: half of -n]");
 	 return technical;
 }
 

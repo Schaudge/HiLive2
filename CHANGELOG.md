@@ -4,6 +4,21 @@ HiLive - Live Mapping of Illumina reads
 Changelog
 -----------
 
+v1.1
+-----
+
+General functionality:
+ * Continue a hilive run in a specified cycle if the temporary file is available (--continue ARG)
+ * Keep temporary alignment files of specified cycles (--keep-files ARG)
+ * New option to keep all temporary alignment files (--keep-all-files)
+
+Output:
+ * Multithreaded SAM/BAM output
+ * Different alignment modes are supported for intermediate sequencing cycles
+ * New output mode UNIQUE to report only unique alignments
+ * Output mode can be changed when using hilive-out executable without losing information
+ * Option to specify a minimum alignment score ratio for output (--min-as-ratio).
+
 v1.0
 -----
 
