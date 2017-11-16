@@ -199,11 +199,14 @@ protected:
 		bool was_set = false;
 
 		auto sub_isv = input_settings.get_child_optional(settings_key);
-		auto sub_rsv = input_settings.get_child_optional(settings_key);
+		auto sub_rsv = runInfo_settings.get_child_optional(settings_key);
 
 
 		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) ) {
+			if ( vm_key == "reads") {
+				std::cout << "USED PARAMETER" << std::endl;
+			}
 			value = cmd_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}

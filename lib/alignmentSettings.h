@@ -266,14 +266,15 @@ public:
   		std::vector<std::string> fragments;
   		split(*barcode, '-', fragments);
 
-  		// Check correct length of all fragments
-  		if ( barcode_lengths.size() != fragments.size())
-			throw std::runtime_error("Wrong fragment length in barcode " + *barcode);
-
   		// Check correct number of fragments
+  		if ( barcode_lengths.size() != fragments.size()) {
+			throw std::runtime_error("Wrong number of fragments for barcode " + *barcode + " (should have " + std::to_string(barcode_lengths.size()) + " fragments).");
+  		}
+
+  		// Check correct length of all fragments
   		for ( uint16_t num = 0; num != fragments.size(); num++ ) {
   			if ( fragments[num].length() != barcode_lengths[num] ) {
-  				throw std::runtime_error("Wrong number of fragments for barcode " + *barcode);
+  				throw std::runtime_error("Wrong fragment length in barcode " + *barcode);
   			}
   		}
 

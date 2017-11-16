@@ -179,3 +179,11 @@ uint32_t num_reads_from_bcl(std::string bcl) {
   return num_reads;
 }
 
+std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, CountType swathCount, CountType tileCount ) {
+	std::vector<uint16_t> tiles_vec;
+	for (uint16_t surf = 1; surf <= surfaceCount; surf++)
+		for (uint16_t swath = 1; swath <= swathCount; swath++)
+			for (uint16_t tile = 1; tile <= tileCount; tile++)
+				tiles_vec.push_back(surf*1000 + swath*100 + tile);
+	return tiles_vec;
+}

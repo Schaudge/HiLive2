@@ -371,41 +371,38 @@ bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
 			ptree ptree_Run = ptree_RunInfo.get_child("Run");
 
 			if (ptree_Run.count("Reads")!=0) {
+
 				ptree ptree_Reads = ptree_Run.get_child("Reads");
-				unsigned lenSum = 0;
-				std::string sequences = "";
-				std::vector<SequenceElement> tempSeqs;
+
+				// Get the sequence structure and total number of cycles
+				std::vector<std::string> sequences;
 				CountType num_cycles = 0;
-				unsigned mates = 0;
 				for (const auto &read : ptree_Reads) {
-					sequences += read.second.get<std::string>("<xmlattr>.NumCycles");
+					std::string sequence = "";
+					sequence += read.second.get<std::string>("<xmlattr>.NumCycles");
+					sequence += read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N" ? "R" : "B";
+					sequences.push_back(sequence);
 					num_cycles += read.second.get<unsigned>("<xmlattr>.NumCycles");
-					sequences += read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N" ? "R " : "B ";
-					tempSeqs.push_back(SequenceElement(tempSeqs.size(), (read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N") ? ++mates : 0, read.second.get<unsigned>("<xmlattr>.NumCycles")));
-					lenSum += read.second.get<unsigned>("<xmlattr>.NumCycles");
 				}
-				if ( sequences != "" )
-					runInfo_settings.put("settings.sequences", sequences);
+				if ( sequences.size() > 0 )
+					runInfo_settings.add_child("settings.sequences", getXMLnode_vector(sequences));
 				runInfo_settings.put("settings.cycles", num_cycles);
 
 	            if (ptree_Run.count("FlowcellLayout")!=0) {
+
 	            	ptree ptree_FlowcellLayout = ptree_Run.get_child("FlowcellLayout");
 
+	            	// Get the lanes
 	            	std::vector<uint16_t> lanes_vec(ptree_FlowcellLayout.get<unsigned>("<xmlattr>.LaneCount"));
 	            	std::iota(lanes_vec.begin(), lanes_vec.end(), 1);
-	            	std::string lanes = "";
+	            	runInfo_settings.add_child("settings.lanes", getXMLnode_vector(lanes_vec));
 
-	            	for ( auto l : lanes_vec )
-	            		lanes += std::to_string(l) + " ";
-	            	runInfo_settings.put("settings.lanes", lanes);
-
-	            	std::vector<uint16_t> tiles_vec;
-	            	std::string tiles;
-
-	            	for (uint16_t l = 1; l <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SurfaceCount"); l++)
-	            		for (uint16_t s = 1; s <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SwathCount"); s++)
-	            			for (uint16_t t = 1; t <= ptree_FlowcellLayout.get<unsigned>("<xmlattr>.TileCount"); t++)
-	            				tiles += std::to_string(l*1000 + s*100 + t) + " ";
+	            	// Get the tiles
+	            	std::vector<uint16_t> tiles_vec = flowcell_layout_to_tile_numbers(
+	            			ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SurfaceCount"),
+							ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SwathCount"),
+							ptree_FlowcellLayout.get<unsigned>("<xmlattr>.TileCount") );
+	            	runInfo_settings.add_child("settings.tiles", getXMLnode_vector(tiles_vec));
 	            }
 			}
 		}

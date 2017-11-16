@@ -168,5 +168,12 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
  */
 uint32_t num_reads_from_bcl(std::string bcl);
 
-
+/**
+ * Convert the flowcell layout data to a plain vector of tile numbers.
+ * @param surfaceCount The surface count.
+ * @param swatchCount The swath count.
+ * @param tileCount The tile count.
+ * @return A vector of tile numbers.
+ */
+std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, CountType swathCount, CountType tileCount );
 #endif /* TOOLS_STATIC_H */
