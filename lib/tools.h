@@ -96,10 +96,13 @@ uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id=1);
  */
 uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle );
 
-
 ////////////////////////////////////
 ////////// SAM/BAM output //////////
 ////////////////////////////////////
+
+std::string getTileBamTempFileName(CountType ln, CountType tl, std::string barcode, CountType cycle);
+std::string getTileBamFileName(CountType ln, CountType tl, std::string barcode, CountType cycle);
+
 
 /**
  * Get the header for a SAM/BAM output file.
@@ -143,5 +146,10 @@ uint16_t getMaxPossibleScore( CountType cycles );
 uint16_t getMinSoftclipPenalty( CountType softclip_length );
 
 ScoreType getMinCycleScore( CountType cycle, CountType read_length );
+
+/**
+ * Copy a file while locking them in the global fileLocks.
+ */
+int atomic_rename( const char *oldname, const char *newname );
 
 #endif /* TOOLS_H */

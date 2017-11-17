@@ -132,6 +132,19 @@ seqan::BamHeader getBamHeader() {
 	return header;
 }
 
+std::string getTileBamTempFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << ".temp" << file_suffix;
+	return fname.str();
+}
+
+std::string getTileBamFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << file_suffix;
+	return fname.str();
+}
 
 std::string getBamTempFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
@@ -139,7 +152,6 @@ std::string getBamTempFileName(std::string barcode, CountType cycle) {
 	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << ".temp" << file_suffix;
 	return fname.str();
 }
-
 
 std::string getBamFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
@@ -218,4 +230,16 @@ ScoreType getMinCycleScore( CountType cycle, CountType read_length ) {
 	ScoreType maxScore = read_length * globalAlignmentSettings.get_match_score();
 	ScoreType minCycleScore = maxScore - ( ceil((cycle - globalAlignmentSettings.get_anchor_length()) / globalAlignmentSettings.get_error_rate()) * getMinSingleErrorPenalty() );
 	return std::max(minCycleScore, globalAlignmentSettings.get_min_as());
+}
+
+int atomic_rename( const char *oldname, const char *newname ) {
+
+	if ( !file_exists(oldname) )
+		throw file_not_exist_error("Can't rename file: " + std::string(oldname) + ". File does not exist.");
+
+	std::lock_guard<std::mutex> old_lock(fileLocks.at(std::string(oldname)));
+	std::lock_guard<std::mutex> new_lock(fileLocks.at(std::string(newname)));
+
+	return std::rename(oldname, newname);
+
 }

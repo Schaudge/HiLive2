@@ -142,13 +142,13 @@ class KixRun {
 	 * Get the sequence names list
 	 * @return The complete list of sequence names
 	 */
-	StringListType getSeqNames(){ return seq_names; };
+	StringListType & getSeqNames(){ return seq_names; };
 
 	/**
 	 * Get the sequence lengths vector
 	 * @return The complete vector of sequence lengths
 	 */
-	std::vector<uint32_t> getSeqLengths(){ return seq_lengths; };
+	std::vector<uint32_t> & getSeqLengths(){ return seq_lengths; };
 
 	/**
 	 * Get the number of sequences

@@ -1,6 +1,7 @@
 #include "alnread.h"
 
-seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
+
+seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned& nm_i, ScoreType& as_i) {
 
 	bool extended_cigar = globalAlignmentSettings.get_extended_cigar();
 
@@ -15,6 +16,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 			cigarElem.operation='S';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
+			as_i -= globalAlignmentSettings.get_softclip_opening_penalty() + (((*it).length - 1) * globalAlignmentSettings.get_softclip_extension_penalty());
 			continue;
 		}
 
@@ -23,6 +25,8 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 			cigarElem.operation= extended_cigar ? 'X' : 'M';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
+			as_i -= (*it).length * globalAlignmentSettings.get_mismatch_penalty();
+			nm_i += (*it).length;
 			continue;
 		}
 
@@ -31,6 +35,8 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 			cigarElem.operation='D';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
+			as_i -= globalAlignmentSettings.get_deletion_opening_penalty() + (((*it).length - 1) * globalAlignmentSettings.get_deletion_extension_penalty());
+			nm_i += (*it).length;
 			continue;
 		}
 
@@ -39,6 +45,8 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 			cigarElem.operation='I';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
+			as_i -= globalAlignmentSettings.get_insertion_opening_penalty() + (((*it).length - 1) * globalAlignmentSettings.get_insertion_extension_penalty());
+			nm_i += (*it).length;
 			continue;
 		}
 
@@ -47,7 +55,9 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 			cigarElem.operation= extended_cigar ? '=' : 'M';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
+			as_i += (*it).length * globalAlignmentSettings.get_match_score();
 			continue;
+
 		}
 
 	}
@@ -543,6 +553,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
 	  seeds.push_back(std::move(s));
   }
 
+
   return bytes;  
 }
 
@@ -711,7 +722,6 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, KixRun*
 
 	// handle all non-deletion regions
 	if ( origin->cigar_data.back().offset != DELETION ) {
-
 
 		// Compute new maximal alignment score when having an insertion
 		ScoreType new_max_as;
@@ -980,6 +990,9 @@ CountType ReadAlignment::getBarcodeIndex() {
 	// Get the barcodes of the read
 	std::string read_bc = getBarcodeString();
 
+	if ( read_bc.length() == 0 )
+		return NO_MATCH;
+
 	uint16_t fragment_errors = 0;
 	uint16_t fragment_pos = 0;
 	uint16_t fragment_num = 0;
@@ -1084,11 +1097,8 @@ void ReadAlignment::getPositions(KixRun* index, USeed sd, PositionPairListType &
 
 }
 
-void ReadAlignment::getSeeds_scoresorted(SeedVec & seeds_sorted) {
-//	SeedVec seeds_sorted;
-	seeds_sorted.insert(seeds_sorted.end(), seeds.begin(), seeds.end());
-//	seeds_sorted.sort(seed_comparison_by_error);
-	std::sort(seeds_sorted.begin(), seeds_sorted.end(), seed_comparison_by_as);
+void ReadAlignment::sort_seeds_by_as() {
+	std::sort(seeds.begin(), seeds.end(), seed_comparison_by_as);
 }
 
 // Calculate the mapping quality for all alignments of the read based on the other alignments and the number of matching positions.

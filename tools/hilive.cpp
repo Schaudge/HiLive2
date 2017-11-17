@@ -5,8 +5,54 @@
 #include "../lib/alnstream.h"
 #include "../lib/parallel.h"
 #include "../lib/argument_parser.h"
+#include "../lib/tools_static.h"
 
 AlignmentSettings globalAlignmentSettings;
+mutex_map<std::string> fileLocks;
+
+/**
+ * If a thread is used for output, call this function to start the next available output task.
+ * @param alnout The deque of output controllers for each output cycle.
+ * @return The written task. NO_TASK if no task was written (e.g., when no task is available).
+ */
+Task writeNextTaskToBam ( std::deque<AlnOut> & alnouts ) {
+
+	// Search for the next task to write
+	for ( auto& alnout : alnouts ) {
+
+		// Only loop through non-finished output deques
+		if ( !alnout.is_finished() ) {
+
+			// Try to write the next task from the deque
+			Task return_status = alnout.write_next();
+
+			// Proceed with next deque if no task was written
+			if ( return_status == NO_TASK ) {
+
+				continue;
+
+			}
+
+			// Return the written task
+			else {
+
+				// Finalize the output for this cycle if this was the last task.
+				if ( alnout.is_finished() ) {
+
+					alnout.finalize();
+
+				}
+
+				return return_status;
+
+			}
+
+		}
+
+	}
+
+	return NO_TASK;
+}
 
 /**
  * Worker function for the alignment threads.
@@ -16,10 +62,22 @@ AlignmentSettings globalAlignmentSettings;
  * @param idx Pointer to the index object
  * @param surrender Control flag (threads stop if true)
  */
-void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun* idx, bool & surrender ) {
+void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun* idx, std::deque<AlnOut> & alnouts, std::atomic<CountType> & writing_threads, bool & surrender ) {
 
     // Continue until surrender flag is set
     while ( !surrender ) {
+
+    	{ // scope for block guard
+    		atomic_block_guard<CountType> block( writing_threads );
+
+    		// Start an output task if output threads and tasks available.
+    		if ( block.get_blocked_value() <= globalAlignmentSettings.get_num_out_threads() ) {
+    			Task written_task = writeNextTaskToBam( alnouts );
+    			if ( written_task != NO_TASK ) {
+    				continue;
+    			}
+    		}
+    	}
 
         // Try to obtain a new task
         Task t = tasks.pop();
@@ -29,15 +87,17 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
 
             // Execute the task
             bool success = true;
+            std::stringstream ss;
+
             try {
 
-                StreamedAlignment s (t.lane, t.tile, globalAlignmentSettings.get_root(), t.seqEl.length);
+                StreamedAlignment s (t.lane, t.tile, t.seqEl.length);
                 uint64_t num_seeds;
 
                 // Seed extension if current read is sequence fragment.
                 if ( !t.seqEl.isBarcode() ) {
                 	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate,idx);
-                	std::cout << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
+                	ss << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
 
                 }
 
@@ -49,81 +109,58 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
                 		CountType current_mate_cycle = t.seqEl.id < seqEl.id ? 0 : seqEl.length;
                 		s.extend_barcode(t.cycle, current_mate_cycle, t.seqEl.id, mate);
                 	}
-                	std::cout << "Task [" << t << "]: Extended barcode of " << --mate << " mates." << std::endl;
+                	ss << "Task [" << t << "]: Extended barcode of " << --mate << " mates." << std::endl;
                 }
+
+            	std::cout << ss.str();
+
             }
             catch (const std::exception &e) {
-                std::cerr << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
+                ss << "Failed to finish task [" << t << "]: " << e.what() << std::endl;
+                std::cerr << ss.str();
                 success = false;
             }
 
             // Push the task in the correct Task Queue (Finished or Failed)
             if (success) {
-                finished.push(t);
+
+            	// Make previous cycle available for output. If current cycle is the last one, make current cycle available.
+            	CountType seqCycle = getSeqCycle(t.cycle, t.seqEl.id);
+            	CountType output_cycle = seqCycle - 1;
+            	bool is_last_cycle = seqCycle == globalAlignmentSettings.get_cycles();
+
+            	if ( globalAlignmentSettings.is_output_cycle( output_cycle ) || is_last_cycle ) {
+            		for ( auto& alnout : alnouts ) {
+            			if ( output_cycle == alnout.get_cycle() ) {
+            				alnout.set_task_available( Task(t.lane, t.tile, output_cycle));
+            			}
+            			if ( is_last_cycle && alnout.get_cycle() == globalAlignmentSettings.get_cycles() ) {
+            				alnout.set_task_available( Task(t.lane, t.tile, globalAlignmentSettings.get_cycles()));
+            			}
+            		}
+            	}
+
+        		finished.push(t);
+
             }
             else {
                 failed.push(t);
             }
 
         }
+
+        // Thread is idle --> Also use it for output if the maximum number of output threads is exceeded.
         else {
-            // send this thread to sleep for a second
-            std::this_thread::sleep_for (std::chrono::milliseconds(100));
+
+    		atomic_block_guard<CountType> block( writing_threads );
+        	writeNextTaskToBam( alnouts );
+
         }
+
+        // send this thread to sleep for a second
+        std::this_thread::sleep_for (std::chrono::milliseconds(100));
+
     }  
-}
-
-/**
- * Worker function for the output thread.
- * Should only be called by one single thread!
- * @param agenda Reference to the agenda that organizes the tasks
- * @param idx Pointer to the index object
- * @param surrender Control flag (threads stop if true)
- * @author Tobias Loka
- */
-void output_worker( Agenda & agenda, KixRun* idx, bool & surrender ) {
-
-	// Get the output cycles (must be sorted!)
-	std::vector<CountType> output_cycles = globalAlignmentSettings.get_output_cycles();
-
-	// Delayed surrender
-	bool alignments_finished = false;
-
-	// Continue as long as there are output cycles left
-	while ( output_cycles.size() > 0 ) {
-
-		alignments_finished = surrender;
-
-		// Create output for the next cycle if all related tasks are finished.
-		CountType next_cycle = *(output_cycles.begin());
-		if ( agenda.finished(next_cycle) ) {
-
-			try {
-				if ( !alignments_to_sam(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), idx, next_cycle) )
-					std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed." << std::endl;
-				else {
-					std::cout << "Wrote output for cycle " << std::to_string(next_cycle) << "." << std::endl;
-				}
-			}
-			catch ( std::exception & e ) {
-				std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed: " << e.what() << std::endl;
-			}
-
-			// Remove current cycle from the list of output cycles.
-			output_cycles.erase(output_cycles.begin());
-		}
-
-		// If the the surrender flag set but no cycle was handled, remove the cycle from the list
-		if ( alignments_finished && output_cycles.size() > 0 && next_cycle == *(output_cycles.begin()) ) {
-			std::cerr << "Writing output for cycle " << std::to_string(next_cycle) << " failed: Not all tasks finished." << std::endl;
-			output_cycles.erase(output_cycles.begin());
-		}
-
-		// Sleep a second
-        std::this_thread::sleep_for (std::chrono::milliseconds(1000));
-
-	}
-
 }
 
 /**
@@ -169,11 +206,12 @@ int main(int argc, const char* argv[]) {
   		exit(EXIT_FAILURE);
 
     // Create the overall agenda
-    Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles());
+    Agenda agenda (globalAlignmentSettings.get_cycles(), globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), globalAlignmentSettings.get_start_cycle());
+
 
     // Wait for the first cycle to be written
     std::cout << "Waiting for the first cycle to finish..." << std::endl;
-    while ( ! agenda.cycle_available(1) ) {
+    while ( ! agenda.cycle_available(globalAlignmentSettings.get_start_cycle()) ) {
         agenda.update_status();
         std::this_thread::sleep_for(std::chrono::milliseconds(1000));
     }
@@ -184,7 +222,13 @@ int main(int argc, const char* argv[]) {
         for (uint16_t tl : globalAlignmentSettings.get_tiles()) {
             CountType mate = 1;
             for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
-                StreamedAlignment s (ln, tl, globalAlignmentSettings.get_root(), globalAlignmentSettings.getSeqByMate(mate).length);
+
+            	// Don't init files if "--continue" was used to start in a later cycle.
+            	if ( getMateCycle(mate, globalAlignmentSettings.get_start_cycle()) > 1 )
+            			continue;
+
+
+                StreamedAlignment s (ln, tl, globalAlignmentSettings.getSeqByMate(mate).length);
                 s.create_directories();
                 s.init_alignment(mate);
             }
@@ -200,16 +244,25 @@ int main(int argc, const char* argv[]) {
     TaskQueue finishedQ;
     TaskQueue failedQ;
 
-    // Create the alignment threads
-    std::cout << "Creating " << globalAlignmentSettings.get_num_threads() << " threads." << std::endl;
-    bool surrender = false;
-    std::vector<std::thread> workers;
-    for (int i = 0; i < globalAlignmentSettings.get_num_threads(); i++) {
-        workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), index, std::ref(surrender)));
+    // Init output controller for each output cycle. TODO: check if it is possible to replace the deque by a map (cycle, alnout).
+    std::deque<AlnOut> alnouts;
+    for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
+    	if ( cycle >= globalAlignmentSettings.get_start_cycle() )
+    		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
     }
 
-    // Create the output thread
-    std::thread output_thread = std::thread( output_worker, std::ref(agenda), index, std::ref(surrender) );
+    // Number of threads currently used for writing output.
+    std::atomic<CountType> writing_threads(0);
+
+    // Flag to stop the threads.
+    bool surrender = false;
+
+    // Create the threads
+    std::cout << "Creating " << globalAlignmentSettings.get_num_threads() << " threads." << std::endl;
+    std::vector<std::thread> workers;
+    for (int i = 0; i < globalAlignmentSettings.get_num_threads(); i++) {
+        workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), index, std::ref(alnouts), std::ref(writing_threads), std::ref(surrender)));
+    }
 
     // Process all tasks on the agenda
     while ( !agenda.finished() ) {
@@ -254,15 +307,28 @@ int main(int argc, const char* argv[]) {
         std::this_thread::sleep_for (std::chrono::milliseconds(100));
     }  
 
+    std::cout << "Finished all alignments." << std::endl;
+    std::cout << "Waiting for output tasks..." << std::endl;
+
+    for ( auto& alnout : alnouts ) {
+    	while ( !alnout.is_finalized() ) {
+    		; // wait
+    	}
+    }
+
+    // Clear the vector will destruct all elements.
+    alnouts.clear();
+
+    std::cout << "Finished output tasks." << std::endl;
+
     // Halt the threads
     surrender = true;
     for (auto& w : workers) {
         w.join();
     }
-    output_thread.join();
 
     std::cout << "All threads joined." << std::endl;
-    std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl << std::endl;
+//    std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl << std::endl;
     delete index;
 
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;

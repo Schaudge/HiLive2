@@ -48,7 +48,7 @@ struct Seed {
 	 * Get the CIGAR string in SeqAn format
 	 * @return CIGAR string in SeqAn format
 	 */
-	seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
+	seqan::String<seqan::CigarElement<> > returnSeqanCigarString(unsigned& nm_i, ScoreType& as_i);
 
 	/**
 	 * Get the alignment score of a seed (AS:i).
@@ -92,6 +92,8 @@ struct Seed {
 };
 
 typedef std::shared_ptr<Seed> USeed;
+  // return Seqans String of CigarElement
+  seqan::String<seqan::CigarElement<> > returnSeqanCigarString(unsigned* nm_i, unsigned* as_i);
 
 /**
  * Shared pointer to seeds.
@@ -374,11 +376,10 @@ class ReadAlignment {
 
 
 	/**
-	 * Get all seeds for the respective read sorted by errors
-	 * @return Vector containing sorted seeds
+	 * Sort the seeds by their alignment score.
 	 * @author Tobias Loka
 	 */
-	void getSeeds_scoresorted(SeedVec & seeds_sorted);
+	void sort_seeds_by_as();
 
 
 
@@ -389,6 +390,7 @@ class ReadAlignment {
 	 * @author Tobias Loka
 	 */
 	ReadAlignment(CountType tot_cyc, CountType cyc){total_cycles=tot_cyc; cycle=cyc;};
+
 
 }; // END class ReadAlignment 
 
