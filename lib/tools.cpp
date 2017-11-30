@@ -230,3 +230,15 @@ int atomic_rename( const char *oldname, const char *newname ) {
 	return std::rename(oldname, newname);
 
 }
+
+
+
+/////////////////////////////////
+////////// Other stuff //////////
+/////////////////////////////////
+
+char to_phred_quality ( uint8_t bc_qual ) {
+	char phred_score = '!';
+	phred_score += bc_qual;
+	return phred_score;
+}

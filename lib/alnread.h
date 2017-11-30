@@ -148,6 +148,9 @@ class ReadAlignment {
   // convert and return sequence of the read as string (without barcode)
   std::string getSequenceString();
 
+  // convert and return sequence of the read as string (without barcode)
+  std::string getQualityString();
+
   /**
    * Convert and return sequence of the barcode. Multiple barcodes are concatenated (without delimiter).
    * @return The Barcode as string

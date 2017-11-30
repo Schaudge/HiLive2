@@ -1032,9 +1032,15 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 				std::string seq;
 				seq.reserve(mateCycles[mateAlignmentIndex]);
 
-				// Only obtain sequence if no alignment was printed yet
-				if ( printedMateAlignments == 0 )
+				// Quality of the current read
+				std::string qual;
+				qual.reserve(mateCycles[mateAlignmentIndex]);
+
+				// Only obtain sequence and quality if no alignment was printed yet
+				if ( printedMateAlignments == 0 ) {
 					seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
+					qual = mateAlignments[mateAlignmentIndex]->getQualityString();
+				}
 
 				// flag and seq
 				record.flag = 0;
@@ -1044,10 +1050,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					seqan::clear(record.qual);
 				}
 				else {
-					record.seq = seq;
+					record.seq = seq == "" ? "*" : seq;
+					record.qual = qual == "" ? "*" : qual;
 				}
 				if ((*it)->start_pos < 0) { // if read matched reverse complementary
 					seqan::reverseComplement(record.seq);
+					seqan::reverse(record.qual);
 					record.flag |= 16;
 				}
 				if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
