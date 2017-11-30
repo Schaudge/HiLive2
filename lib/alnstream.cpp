@@ -987,6 +987,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 				continue; // TODO: handle if a single seed has more than one position, maybe just use FM index span
 
 			std::string seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
+			std::string qual = mateAlignments[mateAlignmentIndex]->getQualityString();
 
 			// for all seeds
 			/////////////////////////////////////////////////////////////////////////////
@@ -1036,6 +1037,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 				if (deletionSum >= supposed_cigar_length) {
 					it = mateAlignments[mateAlignmentIndex]->seeds.erase(it);
 					continue;
+
 				}
 
 				// Get positions for the current seed
@@ -1079,15 +1081,18 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					// flag and seq
 					record.flag = 0;
 					record.seq = seq;
+					record.qual = qual;
 
 					if ( index->isReverse(p->first) ) { // if read matched reverse complementary
 						seqan::reverseComplement(record.seq);
+						seqan::reverse(record.qual);
 						record.flag |= 16;
 					}
 
 					if ( printedMateAlignments > 0 ) { // if current seed is secondary alignment
 						record.flag |= 256;
 						seqan::clear(record.seq);
+						seqan::clear(record.qual);
 						record.qual = "*";
 					}
 

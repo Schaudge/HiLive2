@@ -152,4 +152,16 @@ ScoreType getMinCycleScore( CountType cycle, CountType read_length );
  */
 int atomic_rename( const char *oldname, const char *newname );
 
+/////////////////////////////////
+////////// Other stuff //////////
+/////////////////////////////////
+
+/**
+ * Convert a base call quality value to the respective char in PHRED syntax.
+ * This function considers the settings of full quality or 2-bit quality in the globalAlignmentSettings.
+ * @param bc_qual The base call quality as stored in HiLive.
+ * @return PHRED char ( "!" - "I" )
+ */
+char to_phred_quality ( uint8_t bc_qual );
+
 #endif /* TOOLS_H */

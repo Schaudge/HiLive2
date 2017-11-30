@@ -503,7 +503,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
   bytes += sizeof(CountType);
 
   // The sequence itself
-  unsigned seqVec_size = (unsigned) std::ceil((float) sequenceLen / 2.0);
+  unsigned seqVec_size = sequenceLen;
   sequenceStoreVector.clear();
   sequenceStoreVector.reserve(seqVec_size);
   for (unsigned i = 0; i <seqVec_size; ++i) {
@@ -519,7 +519,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
   bytes += sizeof(CountType);
 
   // The barcode itself
-  unsigned barVec_size = (unsigned) std::ceil((float) barcodeLen / 2.0);
+  unsigned barVec_size = barcodeLen;
   barcodeStoreVector.clear();
   barcodeStoreVector.reserve(barVec_size);
   for (unsigned i = 0; i <barVec_size; ++i) {
@@ -557,62 +557,78 @@ uint64_t ReadAlignment::deserialize(char* d) {
   return bytes;  
 }
 
-// TODO: handle Ns (use quality - maybe implement a unhash5() function or so considering quality)
 std::string ReadAlignment::getSequenceString() {
 
-    std::string seq = "";
+	std::string seq = "";
+	uint8_t two_bit_mask = 3;
 
-    // Append 2 bases at a time (fitting into 1 byte)
-    for (unsigned i = 0; i<sequenceStoreVector.size(); i++)
-        seq.append(unhash(sequenceStoreVector[i], 2));
+	// iterate through all sequence bytes
+	for (unsigned i = 0; i<sequenceLen; i++ ) {
 
-    // Delete overhang
-    for (unsigned i = sequenceLen; i<2*sequenceStoreVector.size(); ++i)
-        seq.pop_back();
+		// Next basecall (6 bits quality; 2 bits nucleotide)
+		uint8_t next = sequenceStoreVector[i];
 
-    return seq;
+		if ( next < 4 ) { // qual == 0 --> N-call
+			seq.append("N");
+		} else {		  // qual > 0  --> write nucleotide
+			seq += revtwobit_repr(next & two_bit_mask);
+		}
+	}
+
+	// return barcode sequence
+	return seq;
 
 }
 
 std::string ReadAlignment::getBarcodeString() {
 
+	std::string seq = "";
+	uint8_t two_bit_mask = 3;
 
-    std::string seq = "";
+	// iterate through all sequence bytes
+	for (unsigned i = 0; i<barcodeLen; i++ ) {
 
-    // Append 2 bases at a time (fitting into 1 byte)
-    for (unsigned i = 0; i<barcodeStoreVector.size(); i++)
-        seq.append(unhash(barcodeStoreVector[i], 2));
+		// Next basecall (6 bits quality; 2 bits nucleotide)
+		uint8_t next = barcodeStoreVector[i];
 
-    // Delete overhang
-    for (unsigned i = barcodeLen; i<2*barcodeStoreVector.size(); ++i)
-        seq.pop_back();
+		if ( next < 4 ) { // qual == 0 --> N-call
+			seq.append("N");
+		} else {		  // qual > 0  --> write nucleotide
+			seq += revtwobit_repr(next & two_bit_mask);
+		}
+	}
 
+    // return barcode sequence
     return seq;
-
 }
+
+std::string ReadAlignment::getQualityString() {
+
+	std::string qual = "";
+
+	// iterate through all sequence bytes
+	for (unsigned i = 0; i<sequenceLen; i++ ) {
+
+		// Next Quality (shift by 2 bit nucleotide information)
+		uint8_t next_qual = sequenceStoreVector[i] >> 2;
+
+		qual += (to_phred_quality(next_qual));
+	}
+
+	// return PHRED quality sequence
+	return qual;
+}
+
 
 void ReadAlignment::appendNucleotideToSequenceStoreVector(char bc, bool appendToBarCode) {
 
-	uint8_t nucl = bc & 3;
-	uint8_t qual = bc >> 2;
-
-	// Convert nucl and qual to four-bit value (first two bits describing the quality (0=N; 1=invalid; 2=valid); second two bits describing the nucleotide)
-	uint8_t four_bit_repr = ( ((qual != 0) + (qual >= globalAlignmentSettings.get_min_qual())) << 2 ) | nucl;
-
+	// Store byte
 	CountType & len = appendToBarCode ? barcodeLen : sequenceLen;
 	std::vector<uint8_t> & seqVector = appendToBarCode ? barcodeStoreVector : sequenceStoreVector;
+	seqVector.push_back(bc);
+	++len;
+	return;
 
-    // check if all bits from sequenceStoreVector are used
-    if (len % 2 == 0) { // yes, all used => new 8 Bit block needs to be created
-        uint8_t newBlock = four_bit_repr << 4; // 'empty' bits are on the right side
-        seqVector.push_back(newBlock);
-        ++len;
-    }
-
-    else { // not all bits are used. There is enough space for the new basecall
-        seqVector.back() = seqVector.back() | four_bit_repr;
-        ++len;
-    }
 }
 
 void ReadAlignment::extendSeed(char base, USeed origin, KixRun* index, SeedVec & newSeeds){

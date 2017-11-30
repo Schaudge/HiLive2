@@ -320,6 +320,12 @@ class ReadAlignment {
 	std::string getBarcodeString();
 
 	/**
+	 * Get base call quality of the read as string (without barcode).
+	 * @return The read qualities in PHRED33 syntax.
+	 */
+	std::string getQualityString();
+
+	/**
 	 * Check whether the barcode of this read fulfills the criteria of at least one user-defined barcode.
 	 * The nucleotides are only compared pairwise, not allowing for Indels.
 	 * @return The index of the matching barcode in globalAlignmentSettings.multiBarcodeVector. NO_MATCH, if none.
