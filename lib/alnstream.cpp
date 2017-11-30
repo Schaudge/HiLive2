@@ -710,7 +710,6 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 	}
 
 	// Get the finished cycles for each mate
-	std::vector<CountType> mateCycles;
 	for ( CountType mate = 1; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
 		mateCycles.push_back( getMateCycle( mate, cycle ) );
 	}
@@ -885,6 +884,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 	// set the alignment files
 	std::vector<iAlnStream*> alignmentFiles;
 	unsigned numberOfAlignments = 0;
+
 	for (unsigned mateIndex = 1; mateIndex <= mateCycles.size(); mateIndex++) {
 
 		if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ )
@@ -1140,6 +1140,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					last_seed_score = curr_seed_score;
 
 					++printedMateAlignments;
+
 				}
 			}
 			nextmate: {};
