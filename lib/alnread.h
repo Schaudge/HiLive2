@@ -48,7 +48,7 @@ struct Seed {
 	 * Get the CIGAR string in SeqAn format
 	 * @return CIGAR string in SeqAn format
 	 */
-	seqan::String<seqan::CigarElement<> > returnSeqanCigarString(unsigned& nm_i, ScoreType& as_i);
+	seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
 
 	/**
 	 * Get the alignment score of a seed (AS:i).

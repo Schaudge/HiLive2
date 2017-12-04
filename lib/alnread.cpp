@@ -1,7 +1,7 @@
 #include "alnread.h"
 
 
-seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned& nm_i, ScoreType& as_i) {
+seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 
 	bool extended_cigar = globalAlignmentSettings.get_extended_cigar();
 
@@ -16,7 +16,6 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned& nm_
 			cigarElem.operation='S';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
-			as_i -= globalAlignmentSettings.get_softclip_opening_penalty() + (((*it).length - 1) * globalAlignmentSettings.get_softclip_extension_penalty());
 			continue;
 		}
 
@@ -25,8 +24,6 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned& nm_
 			cigarElem.operation= extended_cigar ? 'X' : 'M';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
-			as_i -= (*it).length * globalAlignmentSettings.get_mismatch_penalty();
-			nm_i += (*it).length;
 			continue;
 		}
 
@@ -35,8 +32,6 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned& nm_
 			cigarElem.operation='D';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
-			as_i -= globalAlignmentSettings.get_deletion_opening_penalty() + (((*it).length - 1) * globalAlignmentSettings.get_deletion_extension_penalty());
-			nm_i += (*it).length;
 			continue;
 		}
 
@@ -45,8 +40,6 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned& nm_
 			cigarElem.operation='I';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
-			as_i -= globalAlignmentSettings.get_insertion_opening_penalty() + (((*it).length - 1) * globalAlignmentSettings.get_insertion_extension_penalty());
-			nm_i += (*it).length;
 			continue;
 		}
 
@@ -55,7 +48,6 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString(unsigned& nm_
 			cigarElem.operation= extended_cigar ? '=' : 'M';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
-			as_i += (*it).length * globalAlignmentSettings.get_match_score();
 			continue;
 
 		}

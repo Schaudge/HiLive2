@@ -35,7 +35,7 @@ class FilterParser {
   // current position in data
   uint32_t position;
   // number of reads in this filter file
-  uint32_t num_reads;
+  uint32_t num_reads = 0;
  public:
   // open file and directly load all data
   uint64_t open(std::string fname);

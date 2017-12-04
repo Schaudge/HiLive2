@@ -893,7 +893,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		CountType mateCycle = mateCycles[mateIndex-1];
 
 		if ( !sort_tile( lane, tile, mateIndex, mateCycle, globalAlignmentSettings.get_force_resort()) ) {
-			std::cout << "Couldn't sort" << std::endl;
 			continue;
 		}
 
@@ -1000,21 +999,22 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					first_seed_score = curr_seed_score;
 
 				// Stop in all best mode when AS:i score is lower than the first
-				if( globalAlignmentSettings.get_all_best_hit_mode() && first_seed_score > (*it)->get_as() )
+				if( globalAlignmentSettings.get_all_best_hit_mode() && first_seed_score > curr_seed_score )
 					goto nextmate;
 
 
 				// Don't write this seed if the user-specified score or softclip ratio is not fulfilled
-				ScoreType as ;
-				unsigned nm;
-				seqan::String<seqan::CigarElement<> > cigar = (*it)->returnSeqanCigarString(nm, as);
-
 				CountType softclip_length = (*it)->get_softclip_length();
-				if ( as < globalAlignmentSettings.get_min_as() || softclip_length > globalAlignmentSettings.get_max_softclip_ratio()*mateCycles[mateAlignmentIndex]) {
+				if ( curr_seed_score < globalAlignmentSettings.get_min_as() || softclip_length > globalAlignmentSettings.get_max_softclip_ratio()*mateCycles[mateAlignmentIndex]) {
 					continue;
 				}
 
 				// get CIGAR-String
+				seqan::String<seqan::CigarElement<> > cigar = (*it)->returnSeqanCigarString();
+
+				// Get NM:i value
+				unsigned nm = (*it)->get_nm();
+
 
 				// check if cigar string sums up to read length
 				// TODO Potentially conflicts with the 'eachMateAligned' flag if done here.
@@ -1046,8 +1046,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 				mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list);
 
 				// handle all positions
-				auto p = pos_list.begin();
-				while ( p != pos_list.end() ) {
+				for ( auto p = pos_list.begin(); p != pos_list.end(); ++p ) {
 
 					// Stop in any best mode when first alignment was already written
 					if( globalAlignmentSettings.get_any_best_hit_mode() && printedMateAlignments >= 1 )
@@ -1063,14 +1062,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 
 					// skip invalid positions
 					if (record.beginPos < 0 || PositionType(record.beginPos) == std::numeric_limits<PositionType>::max()) {
-						p = pos_list.erase(p);
 						continue;
 					}
 
 					// skip positions that were already written (equivalent alignments). This can be done because the best alignment for this position is written first.
 					if ( alignmentPositions.find(record.beginPos - ( record.beginPos % equivalentAlignmentWindow ) ) != alignmentPositions.end() ||
 							alignmentPositions.find(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ) ) != alignmentPositions.end()) {
-						p = pos_list.erase(p);
 						continue;
 					}
 
@@ -1091,9 +1088,9 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 
 					if ( printedMateAlignments > 0 ) { // if current seed is secondary alignment
 						record.flag |= 256;
-						seqan::clear(record.seq);
-						seqan::clear(record.qual);
-						record.qual = "*";
+						// TODO: integrate again when bug is fixed
+//						seqan::clear(record.seq);
+//						seqan::clear(record.qual);
 					}
 
 					if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
@@ -1117,12 +1114,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					// tags
 					seqan::BamTagsDict dict;
 
-					seqan::appendTagValue(dict, "AS", as);
+					seqan::appendTagValue(dict, "AS", curr_seed_score);
 
 					if (barcode!="")
 						seqan::appendTagValue(dict, "BC", barcode);
 
-					seqan::appendTagValue(dict, "NM", (*it)->get_nm());
+					seqan::appendTagValue(dict, "NM", nm);
 
 					std::string mdz = (*it)->getMDZString();
 
@@ -1152,6 +1149,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		}
 
 		// Write all records as a group to keep suboptimal alignments and paired reads together.
+		std::cout << records.size() << " records." << std::endl;
 		bfos[barcodeIndex].writeRecords(records);
 
 		for (auto e:mateAlignments)
