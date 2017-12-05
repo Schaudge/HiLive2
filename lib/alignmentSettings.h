@@ -660,7 +660,7 @@ public:
 	  }
 
 	  // Unique mode
-	  if ( value == "UNIQUE" || value == "U" ) {
+	  else if ( value == "UNIQUE" || value == "U" ) {
 		  set_mode(AlignmentMode::UNIQUE);
 	  }
 
