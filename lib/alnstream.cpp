@@ -1080,17 +1080,16 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					record.seq = seq;
 					record.qual = qual;
 
+					if ( printedMateAlignments > 0 ) { // if current seed is secondary alignment
+						record.flag |= 256;
+						seqan::clear(record.seq);
+						seqan::clear(record.qual);
+					}
+
 					if ( index->isReverse(p->first) ) { // if read matched reverse complementary
 						seqan::reverseComplement(record.seq);
 						seqan::reverse(record.qual);
 						record.flag |= 16;
-					}
-
-					if ( printedMateAlignments > 0 ) { // if current seed is secondary alignment
-						record.flag |= 256;
-						// TODO: integrate again when bug is fixed
-//						seqan::clear(record.seq);
-//						seqan::clear(record.qual);
 					}
 
 					if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
