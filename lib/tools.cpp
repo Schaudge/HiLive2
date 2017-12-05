@@ -228,7 +228,7 @@ ScoreType getMinCycleScore( CountType cycle, CountType read_length ) {
 		return globalAlignmentSettings.get_min_as();
 
 	ScoreType maxScore = read_length * globalAlignmentSettings.get_match_score();
-	ScoreType minCycleScore = maxScore - ( ceil((cycle - globalAlignmentSettings.get_anchor_length()) / globalAlignmentSettings.get_error_rate()) * getMinSingleErrorPenalty() );
+	ScoreType minCycleScore = maxScore - ( ceil((cycle - globalAlignmentSettings.get_anchor_length()) / float(globalAlignmentSettings.get_error_rate())) * getMinSingleErrorPenalty() );
 	return std::max(minCycleScore, globalAlignmentSettings.get_min_as());
 }
 

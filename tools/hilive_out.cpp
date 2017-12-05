@@ -52,7 +52,7 @@ int main(int argc, const char* argv[]) {
 	std::cout << "Start writing ouput." << std::endl;
 
 	// Maximum number of output threads.
-	CountType max_output_threads = globalAlignmentSettings.get_num_out_threads();
+	CountType max_output_threads = std::max(CountType(1), globalAlignmentSettings.get_num_out_threads());
 
 	std::cout << "Using " << max_output_threads << " threads." << std::endl;
 

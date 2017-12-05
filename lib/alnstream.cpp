@@ -1149,7 +1149,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		}
 
 		// Write all records as a group to keep suboptimal alignments and paired reads together.
-		std::cout << records.size() << " records." << std::endl;
 		bfos[barcodeIndex].writeRecords(records);
 
 		for (auto e:mateAlignments)
