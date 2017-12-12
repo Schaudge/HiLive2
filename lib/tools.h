@@ -141,7 +141,7 @@ uint16_t getMinSingleErrorPenalty();
 
 uint16_t getMaxSingleErrorPenalty();
 
-uint16_t getMaxPossibleScore( CountType cycles );
+ScoreType getMaxPossibleScore( CountType cycles );
 
 uint16_t getMinSoftclipPenalty( CountType softclip_length );
 

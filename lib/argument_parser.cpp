@@ -223,11 +223,11 @@ po::options_description HiLiveArgumentParser::scoring_options() {
 	scoring.add_options()
 					("min-as", po::value<ScoreType>(), "Minimum alignment score [Default: Depends on score model]")
 					("match-score", po::value<CountType>(), "Score for a match [Default: 0]")
-					("mismatch-penalty", po::value<CountType>(), "Penalty for a mismatch [Default: 1]")
-					("insertion-opening-penalty", po::value<CountType>(), "Penalty for insertion opening [Default: 1]")
-					("insertion-extension-penalty", po::value<CountType>(), "Penalty for insertion extension [Default: 1]")
-					("deletion-opening-penalty", po::value<CountType>(), "Penalty for deletion opening [Default: 1]")
-					("deletion-extension-penalty", po::value<CountType>(), "Penalty for deletion extension [Default: 1]")
+					("mismatch-penalty", po::value<CountType>(), "Penalty for a mismatch [Default: 6]")
+					("insertion-opening-penalty", po::value<CountType>(), "Penalty for insertion opening [Default: 5]")
+					("insertion-extension-penalty", po::value<CountType>(), "Penalty for insertion extension [Default: 3]")
+					("deletion-opening-penalty", po::value<CountType>(), "Penalty for deletion opening [Default: 5]")
+					("deletion-extension-penalty", po::value<CountType>(), "Penalty for deletion extension [Default: 3]")
 					("max-gap-length", po::value<CountType>(), "Maximal gap length. High influence on runtime depending on the scoring scheme [Default: 3]")
 					("softclip-opening-penalty", po::value<float>(), "Penalty for softclip opening (only relevant during output!) [Default: mismatch-penalty]")
 					("softclip-extension-penalty", po::value<float>(), "Penalty for softclip extension (only relevant during output!) [Default: mismatch-penalty/error-rate]")
@@ -551,11 +551,11 @@ bool HiLiveArgumentParser::set_options() {
 
 		// Scoring scheme
 		set_option<CountType>("match-score", "settings.scores.match_score", 0, &AlignmentSettings::set_match_score);
-		set_option<CountType>("mismatch-penalty", "settings.scores.mismatch_penalty", 1, &AlignmentSettings::set_mismatch_penalty);
-		set_option<CountType>("insertion-opening-penalty", "settings.scores.insertion_opening_penalty", 1, &AlignmentSettings::set_insertion_opening_penalty);
-		set_option<CountType>("deletion-opening-penalty", "settings.scores.deletion_opening_penalty", 1, &AlignmentSettings::set_deletion_opening_penalty);
-		set_option<CountType>("insertion-extension-penalty", "settings.scores.insertion_extension_penalty", 1, &AlignmentSettings::set_insertion_extension_penalty);
-		set_option<CountType>("deletion-extension-penalty", "settings.scores.deletion_extension_penalty", 1, &AlignmentSettings::set_deletion_extension_penalty);
+		set_option<CountType>("mismatch-penalty", "settings.scores.mismatch_penalty", 6, &AlignmentSettings::set_mismatch_penalty);
+		set_option<CountType>("insertion-opening-penalty", "settings.scores.insertion_opening_penalty", 5, &AlignmentSettings::set_insertion_opening_penalty);
+		set_option<CountType>("deletion-opening-penalty", "settings.scores.deletion_opening_penalty", 5, &AlignmentSettings::set_deletion_opening_penalty);
+		set_option<CountType>("insertion-extension-penalty", "settings.scores.insertion_extension_penalty", 3, &AlignmentSettings::set_insertion_extension_penalty);
+		set_option<CountType>("deletion-extension-penalty", "settings.scores.deletion_extension_penalty", 3, &AlignmentSettings::set_deletion_extension_penalty);
 		set_option<CountType>("max-gap-length", "settings.scores.max_gap_length", 3, &AlignmentSettings::set_max_gap_length);
 		set_option<float>("softclip-opening-penalty", "settings.scores.softclip_opening_penalty", float(globalAlignmentSettings.get_mismatch_penalty()), &AlignmentSettings::set_softclip_opening_penalty);
 		set_option<float>("softclip-extension-penalty", "settings.scores.softclip_extension_penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_anchor_length(), &AlignmentSettings::set_softclip_extension_penalty);

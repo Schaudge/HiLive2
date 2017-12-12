@@ -54,6 +54,10 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 
 	}
 
+	// Correct last element (cannot be an InDel)
+	if ( seqanCigarString[length(seqanCigarString)-1].operation == 'I' || seqanCigarString[length(seqanCigarString)-1].operation == 'D')
+		seqanCigarString[length(seqanCigarString)-1].operation = extended_cigar ? 'X' : 'M';
+
     // collapse Neighboring match regions
 	for (unsigned k = 1; k<length(seqanCigarString); k++)
 		if ((seqanCigarString[k-1].operation == 'M') && (seqanCigarString[k].operation == 'M')) {
@@ -262,7 +266,7 @@ ScoreType Seed::get_as() {
 
 			// Softclip
 			if ( cigar_it == cigar_data.begin() || std::next(cigar_it) == cigar_data.end() )
-				as -= ( globalAlignmentSettings.get_softclip_opening_penalty() + ( ( cigar_it->length - 1 ) * globalAlignmentSettings.get_softclip_extension_penalty() ) );
+				as -= ( globalAlignmentSettings.get_softclip_opening_penalty() + ( ( cigar_it->length ) * globalAlignmentSettings.get_softclip_extension_penalty() ) );
 
 			// Regular mismatch
 			else
@@ -276,7 +280,7 @@ ScoreType Seed::get_as() {
 			as -= globalAlignmentSettings.get_insertion_opening_penalty();
 
 			// Extension
-			as -= ( ( cigar_it->length - 1 ) * globalAlignmentSettings.get_insertion_extension_penalty() );
+			as -= ( ( cigar_it->length ) * globalAlignmentSettings.get_insertion_extension_penalty() );
 
 			break;
 
@@ -286,7 +290,7 @@ ScoreType Seed::get_as() {
 			as -= globalAlignmentSettings.get_deletion_opening_penalty();
 
 			// Extension
-			as -= ( ( cigar_it->length - 1 ) * globalAlignmentSettings.get_deletion_extension_penalty() );
+			as -= ( ( cigar_it->length ) * globalAlignmentSettings.get_deletion_extension_penalty() );
 
 			break;
 
@@ -307,7 +311,7 @@ CountType Seed::get_nm() {
 	CountType nm = 0;
 
 	// Don't count mismatches at front or end of the CIGAR string
-	for ( auto el = ++(cigar_data.begin()); el != --(cigar_data.end()); ++el )
+	for ( auto el = ++(cigar_data.begin()); el != cigar_data.end(); ++el )
 		nm += el->offset >= DELETION ? el->length : 0;
 
 	return nm;
@@ -732,11 +736,9 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, KixRun*
 	if ( origin->cigar_data.back().offset != DELETION ) {
 
 		// Compute new maximal alignment score when having an insertion
-		ScoreType new_max_as;
-		if ( origin->cigar_data.back().offset == INSERTION)
-			new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_extension_penalty() - globalAlignmentSettings.get_match_score();
-		else
-			new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_opening_penalty() - globalAlignmentSettings.get_match_score();
+		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_extension_penalty() - globalAlignmentSettings.get_match_score();
+		if ( origin->cigar_data.back().offset != INSERTION)
+			new_max_as -= globalAlignmentSettings.get_insertion_opening_penalty();
 
 		// Extend insertion region as long as number of errors is allowed.
 		if ( new_max_as >= getMinCycleScore(cycle, total_cycles) ) {
@@ -772,7 +774,7 @@ void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, KixRun* 
 	for (int b=0; b<4; b++) {
 
 		// Can only be opening (extension is performed in recursive_goDown() function)
-		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_opening_penalty();
+		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_opening_penalty() - globalAlignmentSettings.get_deletion_extension_penalty();
 
 		// Don't start iteration with a match base (no deletion region required there!) or when having already all allowed errors.
 		if ( b == base_repr || new_max_as < getMinCycleScore(cycle, total_cycles) )
@@ -1109,7 +1111,106 @@ void ReadAlignment::sort_seeds_by_as() {
 	std::sort(seeds.begin(), seeds.end(), seed_comparison_by_as);
 }
 
+
+// TODO!!!
 // Calculate the mapping quality for all alignments of the read based on the other alignments and the number of matching positions.
-int16_t MAPQ(const SeedVec &sv){
-  return sv.size();
+std::vector<uint8_t> ReadAlignment::getMAPQs(){
+
+	std::vector<uint8_t> mapq;
+	std::vector<float> singleMAPQFactors;
+
+	uint16_t minSingleErrorPenalty = getMinSingleErrorPenalty();
+	ScoreType maxPossibleScore = getMaxPossibleScore(cycle);
+	ScoreType minCycleScore = getMinCycleScore(cycle, total_cycles);
+	uint16_t maxErrorsWithMinPenalty = (maxPossibleScore - minCycleScore) / minSingleErrorPenalty;
+
+	float best_factor = 1.0f - (1.0f * hill_function(maxErrorsWithMinPenalty+1, std::pow(maxErrorsWithMinPenalty+1.0f,2), 1.0f));
+
+	bool unique = true;
+
+	if ( seeds.size() == 0 )
+		return mapq;
+	else if ( seeds.size() != 1 )
+		unique = false;
+
+	mapq.reserve(seeds.size());
+	singleMAPQFactors.reserve(seeds.size());
+
+	float singleMAPQFactorSum = 0;
+
+	for ( auto & s : seeds ) {
+
+		// Weight the minimal number of errors
+		float mapqFactor = float( 1 / float(1.0f + std::pow (  float( float( getMaxPossibleScore(cycle) - s->get_as() ) / getMinSingleErrorPenalty() ) , 2 ) ) );
+
+		singleMAPQFactors.push_back(mapqFactor);
+		singleMAPQFactorSum += ( mapqFactor * ( s->vDesc.range.i2 - s->vDesc.range.i1 ) );
+		if ( s->vDesc.range.i2 - s->vDesc.range.i1 > 1 )
+			unique = false;
+	}
+
+	for ( CountType i=0; i<seeds.size(); i++ ) {
+
+		// Always give 42 for unique, perfectly matching alignments
+		if ( unique && seeds[i]->get_as() == maxPossibleScore ) {
+			mapq.push_back(42);
+		}
+
+		// Forall other alignments, calculate the individual factor and use it to calculate the final MAPQ value
+		else {
+
+			// --- Hill equation heuristics ---
+
+			/*
+			 * Taking the maximal number of errors that are possible with the given min_as
+			 * makes that an error gives a higher penalty if less errors are allowed.
+			 * Thus, 2 errors if 4 are allowed will reach a better MAPQ than with only 2
+			 * allowed errors.
+			 */
+			CountType n = maxErrorsWithMinPenalty+1;
+
+			/*
+			 * Squaring the distance of the score to the minimal allowed score makes it having
+			 * more influence than the distance to the best score (L).
+			 * This makes sense because if no other alignments occur for 2 or 3 more errors
+			 * this has a higher meaning for correctness than being close to perfect.
+			 */
+			float ka = std::pow( float(float(seeds[i]->get_as() - minCycleScore) / float(minSingleErrorPenalty)) + 1.0f, 2 );
+
+			/*
+			 * Distance to the perfect alignment ( +1 to prevent division by 0).
+			 * Only has minor influence compared to the distance to min_as (see variable ka).
+			 */
+			float L = float(float(maxPossibleScore - seeds[i]->get_as()) / float(minSingleErrorPenalty)) + 1.0f;
+
+			/*
+			 * Execute the hill function. the 1-(0.5*hill) makes a unique alignment always
+			 * having at least a MAPQ of 3.
+			 * The second part of the min function is a boundary to catch values when only
+			 * a small number of errors is allowed. If so, the hill approach underestimates
+			 * the probability of an alignment.
+			 */
+			float factor = 1.0f - std::min(float(hill_function(n,ka,L)), float(0.0675f*std::pow(float(maxErrorsWithMinPenalty),2)));
+
+			/*
+			 * Normalization to the best possible factor (factor of a perfect alignment).
+			 */
+			float corrected_factor = factor / best_factor;
+
+			/*
+			 * Calculate the MAPQ from the factor, the seed factor and the sum.
+			 * The maximum of 0.9999 makes the MAPQ never being higher than 40.
+			 * A higher score (42) can only be achieved by unique alignments that are handled before.
+			 */
+			CountType mapq_score = prob2mapq( corrected_factor * singleMAPQFactors[i] / singleMAPQFactorSum, 0.9999f);
+
+			mapq.push_back(mapq_score);
+
+		}
+	}
+
+
+	return mapq;
 }
+
+

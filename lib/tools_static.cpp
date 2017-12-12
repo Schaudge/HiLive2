@@ -187,3 +187,11 @@ std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, 
 				tiles_vec.push_back(surf*1000 + swath*100 + tile);
 	return tiles_vec;
 }
+
+float hill_function(CountType n, float ka, float L) {
+	return float( 1.0f / float( std::pow(ka/L, n) + 1.0f));
+}
+
+CountType prob2mapq(float prob, float max_prob) {
+	return ( float( (-10.0f) * std::log10( 1.0f - std::min(max_prob, prob ))) + 0.5f);
+}

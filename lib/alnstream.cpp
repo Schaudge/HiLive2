@@ -988,9 +988,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 			std::string seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
 			std::string qual = mateAlignments[mateAlignmentIndex]->getQualityString();
 
+			std::vector<uint8_t> mapqs = mateAlignments[mateAlignmentIndex]->getMAPQs();
+			auto mapqs_it = mapqs.begin();
+
 			// for all seeds
 			/////////////////////////////////////////////////////////////////////////////
-			for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ++it) {
+			for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ++it, ++mapqs_it) {
 
 				ScoreType curr_seed_score = (*it)->get_as();
 
@@ -1059,6 +1062,8 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					record.rID = CountType(p->first / 2);
 
 					record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(index, *p, *it);
+
+					record.mapQ = *mapqs_it;
 
 					// skip invalid positions
 					if (record.beginPos < 0 || PositionType(record.beginPos) == std::numeric_limits<PositionType>::max()) {

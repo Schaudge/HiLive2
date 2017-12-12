@@ -397,6 +397,7 @@ class ReadAlignment {
 	 */
 	ReadAlignment(CountType tot_cyc, CountType cyc){total_cycles=tot_cyc; cycle=cyc;};
 
+	std::vector<uint8_t> getMAPQs();
 
 }; // END class ReadAlignment 
 
@@ -405,6 +406,6 @@ class ReadAlignment {
 //-------------------------------------------------------------------//
 //------  Other helper functions  -----------------------------------//
 //-------------------------------------------------------------------//
-int16_t MAPQ(const SeedVec &sv);
+
 
 #endif /* ALNREAD_H */

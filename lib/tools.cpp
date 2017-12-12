@@ -192,10 +192,10 @@ uint16_t getMinSingleErrorPenalty() {
 	uint16_t mismatch_penalty = globalAlignmentSettings.get_mismatch_penalty() + globalAlignmentSettings.get_match_score();
 
 	// Deletion: +1 deletion, maximum number of matches can still be reached
-	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty();
+	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty() + globalAlignmentSettings.get_deletion_extension_penalty();
 
 	// Insertion: +1 insertion, -1 match
-	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_match_score();
+	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_insertion_extension_penalty() + globalAlignmentSettings.get_match_score();
 
 	return std::min(mismatch_penalty, std::min(insertion_penalty, deletion_penalty));
 }
@@ -206,15 +206,15 @@ uint16_t getMaxSingleErrorPenalty() {
 	uint16_t mismatch_penalty = globalAlignmentSettings.get_mismatch_penalty() + globalAlignmentSettings.get_match_score();
 
 	// Deletion: +1 deletion, maximum number of matches can still be reached
-	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty();
+	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty() + globalAlignmentSettings.get_deletion_extension_penalty();
 
 	// Insertion: +1 insertion, -1 match
-	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_match_score();
+	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_insertion_extension_penalty() + globalAlignmentSettings.get_match_score();
 
 	return std::max(mismatch_penalty, std::max(insertion_penalty, deletion_penalty));
 }
 
-uint16_t getMaxPossibleScore( CountType cycles ) {
+ScoreType getMaxPossibleScore( CountType cycles ) {
 	return cycles * globalAlignmentSettings.get_match_score();
 }
 
@@ -227,7 +227,7 @@ ScoreType getMinCycleScore( CountType cycle, CountType read_length ) {
 	if ( cycle < globalAlignmentSettings.get_anchor_length() )
 		return globalAlignmentSettings.get_min_as();
 
-	ScoreType maxScore = read_length * globalAlignmentSettings.get_match_score();
+	ScoreType maxScore = getMaxPossibleScore(read_length);
 	ScoreType minCycleScore = maxScore - ( ceil((cycle - globalAlignmentSettings.get_anchor_length()) / float(globalAlignmentSettings.get_error_rate())) * getMinSingleErrorPenalty() );
 	return std::max(minCycleScore, globalAlignmentSettings.get_min_as());
 }
