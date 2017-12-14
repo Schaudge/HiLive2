@@ -1159,7 +1159,8 @@ std::vector<uint8_t> ReadAlignment::getMAPQs(){
 
 			float prob = 1.0f;
 			if ( seeds[i]->get_as() != maxPossibleScore ) {
-				prob = 0.9999f - (  (1.0f - (1.0f / std::max(1.0f,std::pow(error_percent-(99.0f/float(cycle)),2.0f)))) * ( 2.0f / std::max(1.0f,std::pow(max_error_percent - error_percent,2.0f) )));
+//				prob = 0.9999f - (  (1.0f - (1.0f / std::max(1.0f,std::pow(error_percent-(99.0f/float(cycle)),2.0f)))) * ( 2.0f / std::max(1.0f,std::pow(max_error_percent - error_percent,2.0f) )));
+				prob = 0.5f + ( 0.5f * ( 1 - std::pow( 10.0f, -5 - max_error_percent + (2 * error_percent))));
 			}
 
 			mapq.push_back(prob2mapq(prob * singleMAPQFactors[i] / singleMAPQFactorSum, 0.9999f));
