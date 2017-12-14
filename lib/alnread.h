@@ -370,7 +370,6 @@ class ReadAlignment {
 	 */
 	PositionType get_SAM_start_pos(KixRun* index, PositionPairType p, USeed & sd);
 
-
 	/**
 	 * Get all positions of a seed
 	 * @param index The FM index
@@ -380,14 +379,11 @@ class ReadAlignment {
 	 */
 	void getPositions(KixRun* index, USeed sd, PositionPairListType & position_list);
 
-
 	/**
 	 * Sort the seeds by their alignment score.
 	 * @author Tobias Loka
 	 */
 	void sort_seeds_by_as();
-
-
 
 	/**
 	 * Constructor for an object of type ReadAlignment
@@ -397,6 +393,12 @@ class ReadAlignment {
 	 */
 	ReadAlignment(CountType tot_cyc, CountType cyc){total_cycles=tot_cyc; cycle=cyc;};
 
+	/**
+	 * Get a vector of MAPQ values, one value for each seed.
+	 * Size of the vector equals the number of seeds (not positions!).
+	 * @return Vector containing the MAPQ values for each seed.
+	 * @author Tobias Loka
+	 */
 	std::vector<uint8_t> getMAPQs();
 
 }; // END class ReadAlignment 

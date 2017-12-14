@@ -963,6 +963,8 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		/////////////////////////////////////////////////////////////////////////////
 		for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
 
+			mateAlignments[mateAlignmentIndex]->cycle -= 1;
+
 			// Alignment disabled
 			if ( mateAlignments[mateAlignmentIndex]->is_disabled() )
 				continue;

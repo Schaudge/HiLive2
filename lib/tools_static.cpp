@@ -188,10 +188,19 @@ std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, 
 	return tiles_vec;
 }
 
-float hill_function(CountType n, float ka, float L) {
-	return float( 1.0f / float( std::pow(ka/L, n) + 1.0f));
-}
-
 CountType prob2mapq(float prob, float max_prob) {
+	// Catch negative values and save computation time for value <0.1 that always have a MAPQ of 0
+	if ( prob <= 0.1f)
+		return 0;
+
+	// Save computation time for several values up to 0.5
+	if ( prob <= 0.29f)
+		return 1;
+	if ( prob <= 0.435f )
+		return 2;
+	if ( prob <= 0.55f )
+		return 3;
+
+	// Otherwise calculate the correct value
 	return ( float( (-10.0f) * std::log10( 1.0f - std::min(max_prob, prob ))) + 0.5f);
 }

@@ -208,8 +208,6 @@ static inline void trim(std::string &s) {
  */
 std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, CountType swathCount, CountType tileCount );
 
-float hill_function(CountType n, float ka, float L);
-
 CountType prob2mapq(float prob, float max_prob = 0.99993f);
 
 #endif /* TOOLS_STATIC_H */

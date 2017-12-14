@@ -1111,9 +1111,6 @@ void ReadAlignment::sort_seeds_by_as() {
 	std::sort(seeds.begin(), seeds.end(), seed_comparison_by_as);
 }
 
-
-// TODO!!!
-// Calculate the mapping quality for all alignments of the read based on the other alignments and the number of matching positions.
 std::vector<uint8_t> ReadAlignment::getMAPQs(){
 
 	std::vector<uint8_t> mapq;
@@ -1122,9 +1119,8 @@ std::vector<uint8_t> ReadAlignment::getMAPQs(){
 	uint16_t minSingleErrorPenalty = getMinSingleErrorPenalty();
 	ScoreType maxPossibleScore = getMaxPossibleScore(cycle);
 	ScoreType minCycleScore = getMinCycleScore(cycle, total_cycles);
-	uint16_t maxErrorsWithMinPenalty = (maxPossibleScore - minCycleScore) / minSingleErrorPenalty;
-
-	float best_factor = 1.0f - (1.0f * hill_function(maxErrorsWithMinPenalty+1, std::pow(maxErrorsWithMinPenalty+1.0f,2), 1.0f));
+	float maxErrorsWithMinPenalty = float(maxPossibleScore - minCycleScore) / float(minSingleErrorPenalty);
+	float max_error_percent = float(100.0f * float(maxErrorsWithMinPenalty)) / float(cycle);
 
 	bool unique = true;
 
@@ -1156,56 +1152,17 @@ std::vector<uint8_t> ReadAlignment::getMAPQs(){
 			mapq.push_back(42);
 		}
 
-		// Forall other alignments, calculate the individual factor and use it to calculate the final MAPQ value
+		// Otherwise, apply MAPQ heuristics. Base Call Quality is not considered.
 		else {
 
-			// --- Hill equation heuristics ---
+			float error_percent = float(100.0f * float(maxPossibleScore - seeds[i]->get_as()) / float(minSingleErrorPenalty)) / float(cycle);
 
-			/*
-			 * Taking the maximal number of errors that are possible with the given min_as
-			 * makes that an error gives a higher penalty if less errors are allowed.
-			 * Thus, 2 errors if 4 are allowed will reach a better MAPQ than with only 2
-			 * allowed errors.
-			 */
-			CountType n = maxErrorsWithMinPenalty+1;
+			float prob = 1.0f;
+			if ( seeds[i]->get_as() != maxPossibleScore ) {
+				prob = 0.9999f - (  (1.0f - (1.0f / std::max(1.0f,std::pow(error_percent-(99.0f/float(cycle)),2.0f)))) * ( 2.0f / std::max(1.0f,std::pow(max_error_percent - error_percent,2.0f) )));
+			}
 
-			/*
-			 * Squaring the distance of the score to the minimal allowed score makes it having
-			 * more influence than the distance to the best score (L).
-			 * This makes sense because if no other alignments occur for 2 or 3 more errors
-			 * this has a higher meaning for correctness than being close to perfect.
-			 */
-			float ka = std::pow( float(float(seeds[i]->get_as() - minCycleScore) / float(minSingleErrorPenalty)) + 1.0f, 2 );
-
-			/*
-			 * Distance to the perfect alignment ( +1 to prevent division by 0).
-			 * Only has minor influence compared to the distance to min_as (see variable ka).
-			 */
-			float L = float(float(maxPossibleScore - seeds[i]->get_as()) / float(minSingleErrorPenalty)) + 1.0f;
-
-			/*
-			 * Execute the hill function. the 1-(0.5*hill) makes a unique alignment always
-			 * having at least a MAPQ of 3.
-			 * The second part of the min function is a boundary to catch values when only
-			 * a small number of errors is allowed. If so, the hill approach underestimates
-			 * the probability of an alignment.
-			 */
-			float factor = 1.0f - std::min(float(hill_function(n,ka,L)), float(0.0675f*std::pow(float(maxErrorsWithMinPenalty),2)));
-
-			/*
-			 * Normalization to the best possible factor (factor of a perfect alignment).
-			 */
-			float corrected_factor = factor / best_factor;
-
-			/*
-			 * Calculate the MAPQ from the factor, the seed factor and the sum.
-			 * The maximum of 0.9999 makes the MAPQ never being higher than 40.
-			 * A higher score (42) can only be achieved by unique alignments that are handled before.
-			 */
-			CountType mapq_score = prob2mapq( corrected_factor * singleMAPQFactors[i] / singleMAPQFactorSum, 0.9999f);
-
-			mapq.push_back(mapq_score);
-
+			mapq.push_back(prob2mapq(prob * singleMAPQFactors[i] / singleMAPQFactorSum, 0.9999f));
 		}
 	}
 
