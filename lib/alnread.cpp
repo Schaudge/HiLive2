@@ -54,10 +54,6 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
 
 	}
 
-	// Correct last element (cannot be an InDel)
-	if ( seqanCigarString[length(seqanCigarString)-1].operation == 'I' || seqanCigarString[length(seqanCigarString)-1].operation == 'D')
-		seqanCigarString[length(seqanCigarString)-1].operation = extended_cigar ? 'X' : 'M';
-
     // collapse Neighboring match regions
 	for (unsigned k = 1; k<length(seqanCigarString); k++)
 		if ((seqanCigarString[k-1].operation == 'M') && (seqanCigarString[k].operation == 'M')) {
@@ -635,10 +631,11 @@ void ReadAlignment::extendSeed(char base, USeed origin, KixRun* index, SeedVec &
 	// Extend alignment match (can be match or NO_MATCH)
 	getMatchSeeds(tbr, origin, index, newSeeds);
 
-	// Extend insertion
-	getInsertionSeeds(tbr, origin, index, newSeeds);
+	// Extend insertion (only if not in the last cycle)
+	if ( cycle != total_cycles )
+		getInsertionSeeds(tbr, origin, index, newSeeds);
 
-	// Extend deletion
+	// Extend deletion (may occur in the last cycle since it must always be closed by a match when created)
 	getDeletionSeeds(tbr, origin, index, newSeeds);
 
 }
@@ -896,10 +893,7 @@ void ReadAlignment::createSeeds(KixRun* index, SeedVec & newSeeds) {
 
 }
 
-void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
-
-	if ( testPrint )
-		std::cout << "ExtendAlignment 1" << std::endl;
+void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 
     // cycle is not allowed to be > total_cycles
     assert( total_cycles >= cycle );
@@ -911,7 +905,9 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
         return;
 
 	SeedVec newSeeds;
-	newSeeds.reserve(9*seeds.size()); // worst case estimation for only 1 error
+
+	// Reserve space for the worst case scenario: 4*M + 4*D + 1*I for each existing seed plus 1 new seed
+	newSeeds.reserve(9*seeds.size() + 1);
 
 	// extend existing seeds
     char base = revtwobit_repr(bc & 3);
@@ -919,42 +915,19 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
     	extendSeed(base, (*seed), index, newSeeds);
     }
 
-    // create new seeds in defined intervals
-//    if ( cycle % globalAlignmentSettings.get_anchor_length() == 0 ) {  	// Each anchor_length cycles
-    if ( cycle >= globalAlignmentSettings.get_anchor_length() ) {			// Each cycle
+    // create new seeds in defined intervals (intervals are handled inside createSeeds() function)
+    if ( cycle >= globalAlignmentSettings.get_anchor_length() ) {
     	createSeeds(index, newSeeds);
     }
 
 	// sort the newSeeds vector
-//    newSeeds.sort(PComp<USeed>);
     std::sort(newSeeds.begin(), newSeeds.end(), PComp<USeed>);
 
-	// put only unique seeds into the seeds set.
+	// put only the "best" of similar seeds into the vector
 	seeds.clear();
 
 	if(newSeeds.size() == 0)
 		return;
-
-	if ( testPrint ) {
-		std::cout << "---NEWSEEDS---" << std::endl;
-		for(auto sd = newSeeds.begin(); sd != newSeeds.end(); ++sd) {
-			std::cout << "CIGAR: " ;
-			for (auto el = (*sd)->cigar_data.begin(); el != (*sd)->cigar_data.end(); ++el ) {
-				std::cout << el->length;
-				if(el->offset == NO_MATCH)
-					std::cout << "X";
-				else if (el->offset == DELETION)
-					std::cout << "D";
-				else if (el->offset == INSERTION)
-					std::cout << "I";
-				else
-					std::cout << "M";
-		    }
-			std::cout << " MAX_AS: " << (*sd)->max_as;
-			std::cout << " RANGE: " << (*sd)->vDesc.range;
-			std::cout << std::endl;
-		}
-	}
 
 	auto svit = newSeeds.begin();
 	USeed lastUniqueSeed = (*svit);
@@ -970,27 +943,6 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index, bool testPrint) {
 		++svit;
 	}
 	seeds.emplace_back(lastUniqueSeed); // pushback the last unique seed that was not pushed in the while loop.
-
-	if ( testPrint ) {
-		std::cout << "---SEEDS---" << std::endl;
-		for(auto sd = seeds.begin(); sd != seeds.end(); ++sd) {
-			std::cout << "CIGAR: " ;
-			for (auto el = (*sd)->cigar_data.begin(); el != (*sd)->cigar_data.end(); ++el ) {
-				std::cout << el->length;
-				if(el->offset == NO_MATCH)
-					std::cout << "X";
-				else if (el->offset == DELETION)
-					std::cout << "D";
-				else if (el->offset == INSERTION)
-					std::cout << "I";
-				else
-					std::cout << "M";
-		    }
-			std::cout << " MAX_AS: " << (*sd)->max_as;
-			std::cout << " RANGE: " << (*sd)->vDesc.range;
-			std::cout << std::endl;
-		}
-	}
 
 	return;
 }
@@ -1113,43 +1065,63 @@ void ReadAlignment::sort_seeds_by_as() {
 
 std::vector<uint8_t> ReadAlignment::getMAPQs(){
 
-	std::vector<uint8_t> mapq;
-	std::vector<float> singleMAPQFactors;
+	// Vector that contains the final MAPQ values
+	std::vector<uint8_t> mapqs;
 
-	uint16_t minSingleErrorPenalty = getMinSingleErrorPenalty();
-	ScoreType maxPossibleScore = getMaxPossibleScore(cycle);
-	ScoreType minCycleScore = getMinCycleScore(cycle, total_cycles);
-	float maxErrorsWithMinPenalty = float(maxPossibleScore - minCycleScore) / float(minSingleErrorPenalty);
-	float max_error_percent = float(100.0f * float(maxErrorsWithMinPenalty)) / float(cycle);
-
+	// True, if there is exactly one alignment for the read.
 	bool unique = true;
 
+	// Stop if not seeds.
 	if ( seeds.size() == 0 )
-		return mapq;
+		return mapqs;
+	// Check if the best alignment can still be unique.
 	else if ( seeds.size() != 1 )
 		unique = false;
 
-	mapq.reserve(seeds.size());
-	singleMAPQFactors.reserve(seeds.size());
+	// Vector that contains the MAPQ factor for each seed
+	// The MAPQ factor is the weight of all alignments of a read
+	std::vector<float> mapqFactors;
 
-	float singleMAPQFactorSum = 0;
+	uint16_t minSingleErrorPenalty = getMinSingleErrorPenalty();
+	ScoreType maxPossibleScore = getMaxPossibleScore(cycle);
 
+	// Maximal number of single errors for the minimal score of the current cycle (this does not consider affine gap penalties)
+	float maxErrorsWithMinPenalty = float(maxPossibleScore - getMinCycleScore(cycle, total_cycles)) / float(minSingleErrorPenalty);
+
+	// Maximal error percentage for the minimal score of the current cycle ( this does not consider affine gap penalties)
+	float max_error_percent = float(100.0f * float(maxErrorsWithMinPenalty)) / float(total_cycles);
+
+	mapqs.reserve(seeds.size());
+	mapqFactors.reserve(seeds.size());
+
+	// Sum of all MAPQ factors
+	float mapqFactorsSum = 0;
+
+	// Minimal number of errors for the best seed. This is required to compute the MAPQ factor
+	float minReadErrors = float( getMaxPossibleScore(cycle) - seeds[0]->get_as() ) / getMinSingleErrorPenalty();
+
+	// Compute the sum of all MAPQ factors
 	for ( auto & s : seeds ) {
 
 		// Weight the minimal number of errors
-		float mapqFactor = float( 1 / float(1.0f + std::pow (  float( float( getMaxPossibleScore(cycle) - s->get_as() ) / getMinSingleErrorPenalty() ) , 2 ) ) );
+		float mapqFactor = std::pow ( 0.01f, (float( getMaxPossibleScore(cycle) - s->get_as() ) / getMinSingleErrorPenalty()) - minReadErrors );
 
-		singleMAPQFactors.push_back(mapqFactor);
-		singleMAPQFactorSum += ( mapqFactor * ( s->vDesc.range.i2 - s->vDesc.range.i1 ) );
+		mapqFactors.push_back(mapqFactor);
+
+		// For the sum, multiply the factor by the number of positions for this seed.
+		mapqFactorsSum += ( mapqFactor * ( s->vDesc.range.i2 - s->vDesc.range.i1 ) );
+
+		// Check if the best alignment can still be unique
 		if ( s->vDesc.range.i2 - s->vDesc.range.i1 > 1 )
 			unique = false;
 	}
 
+	// Compute the MAPQ for all seeds
 	for ( CountType i=0; i<seeds.size(); i++ ) {
 
 		// Always give 42 for unique, perfectly matching alignments
 		if ( unique && seeds[i]->get_as() == maxPossibleScore ) {
-			mapq.push_back(42);
+			mapqs.push_back(42);
 		}
 
 		// Otherwise, apply MAPQ heuristics. Base Call Quality is not considered.
@@ -1159,16 +1131,15 @@ std::vector<uint8_t> ReadAlignment::getMAPQs(){
 
 			float prob = 1.0f;
 			if ( seeds[i]->get_as() != maxPossibleScore ) {
-//				prob = 0.9999f - (  (1.0f - (1.0f / std::max(1.0f,std::pow(error_percent-(99.0f/float(cycle)),2.0f)))) * ( 2.0f / std::max(1.0f,std::pow(max_error_percent - error_percent,2.0f) )));
-				prob = 0.5f + ( 0.5f * ( 1 - std::pow( 10.0f, -5 - max_error_percent + (2 * error_percent))));
+				prob = 0.49995f + ( 0.5f * ( 1.0f - std::pow( 10.0f, -5.0f - max_error_percent + (2.0f * error_percent))));
 			}
 
-			mapq.push_back(prob2mapq(prob * singleMAPQFactors[i] / singleMAPQFactorSum, 0.9999f));
+			mapqs.push_back(prob2mapq(prob * mapqFactors[i] / mapqFactorsSum));
 		}
 	}
 
 
-	return mapq;
+	return mapqs;
 }
 
 

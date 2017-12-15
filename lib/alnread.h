@@ -150,7 +150,7 @@ inline bool seed_comparison_by_as(const USeed a, const USeed b) {
  */
 inline bool operator <(const Seed l, const Seed r) {
 
-	// Lower range wins
+	// Lower start position of the vertex range wins
 	if ( l.vDesc < r.vDesc )
 		return true;
 	else if ( l.vDesc != r.vDesc )
@@ -162,7 +162,7 @@ inline bool operator <(const Seed l, const Seed r) {
 		auto lCig = l.cigar_data.begin();
 		auto rCig = r.cigar_data.begin();
 
-		// Different offsets -> MATCH wins.
+		// Different offsets -> MATCH wins (this means, we don't have a softclip)
 		if ( lCig->offset != rCig->offset ) {
 			return ( lCig->offset != NO_MATCH );
 		}
@@ -350,7 +350,7 @@ class ReadAlignment {
 	 * @param settings The alignment settings
 	 * @author Tobias Loka
 	 */
-	void extend_alignment(char bc, KixRun* index, bool testPrint=false);
+	void extend_alignment(char bc, KixRun* index);
 
 	/**
 	 * Disable the alignment.
