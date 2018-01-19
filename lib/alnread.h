@@ -375,9 +375,10 @@ class ReadAlignment {
 	 * @param index The FM index
 	 * @param sd The respective seed
 	 * @param position_list Reference to the list of positions (all resulting positions are added to this list)
+	 * @param [optional] Limit the number of positions to save runtime.
 	 * @author Tobias Loka
 	 */
-	void getPositions(KixRun* index, USeed sd, PositionPairListType & position_list);
+	void getPositions(KixRun* index, USeed sd, PositionPairListType & position_list, CountType max_positions=MAX_NUM_POSITIONS);
 
 	/**
 	 * Sort the seeds by their alignment score.

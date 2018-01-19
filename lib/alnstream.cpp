@@ -1043,7 +1043,10 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 				// Get positions for the current seed
 				PositionPairListType pos_list;
 
-				mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list);
+				if ( globalAlignmentSettings.get_any_best_hit_mode() )
+					mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list, 1);
+				else
+					mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list);
 
 				// handle all positions
 				for ( auto p = pos_list.begin(); p != pos_list.end(); ++p ) {

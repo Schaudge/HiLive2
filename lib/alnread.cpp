@@ -1047,11 +1047,16 @@ PositionType ReadAlignment::get_SAM_start_pos(KixRun* index, PositionPairType p,
     return sam_pos;
 }
 
-void ReadAlignment::getPositions(KixRun* index, USeed sd, PositionPairListType & position_list) {
+void ReadAlignment::getPositions(KixRun* index, USeed sd, PositionPairListType & position_list, CountType max_positions) {
 
 
 	seqan::Pair<unsigned> hitInterval = sd->vDesc.range;
-	for (; hitInterval.i1 < hitInterval.i2; ++hitInterval.i1) {
+
+	// maximal value to retrieve positions
+	unsigned max_i2 = max_positions == MAX_NUM_POSITIONS ? hitInterval.i2 : std::min(hitInterval.i2, hitInterval.i1 + max_positions);
+
+	for (; hitInterval.i1 < max_i2; ++hitInterval.i1) {
+
 		std::pair<GenomeIdType, PositionType> el ( seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i1, seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i2);
 		position_list.push_back(el);
 	}

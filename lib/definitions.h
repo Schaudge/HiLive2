@@ -440,6 +440,8 @@ public:
 ////////// Other definitions //////////
 ///////////////////////////////////////
 
+const CountType MAX_NUM_POSITIONS = std::numeric_limits<CountType>::max();
+
 /**
  * A list of strings
  */
