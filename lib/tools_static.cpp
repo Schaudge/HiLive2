@@ -70,8 +70,9 @@ std::vector<char> read_binary_file(const std::string &fname) {
   f = fopen(fname.c_str(), "rb");
 
   if (!f) {
-    std::cerr << "Error reading binary file " << fname << ": Could not open file." << std::endl;
-    return std::vector<char>();
+	  std::stringstream error;
+	  error << "Error reading binary file " << fname << ": Could not open file.";
+	  throw std::ios::failure ( error.str() );
   }
 
   // allocate memory
@@ -81,8 +82,9 @@ std::vector<char> read_binary_file(const std::string &fname) {
   uint64_t read = fread(data.data(), 1, size, f);
 
   if (read != size){
-    std::cerr << "Error reading binary file " << fname << ": File size: " << size << " bytes. Read: " << read << " bytes." << std::endl;
-    return std::vector<char>();
+	  std::stringstream error;
+	  error << "Error reading binary file " << fname << ": Read " << read << " bytes while file has " << size << " bytes.";
+	  throw std::ios::failure ( error.str() );
   }
 
   fclose(f);
@@ -97,8 +99,9 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
   ofile = fopen(fname.c_str(), "wb");
 
   if (!ofile) {
-    std::cerr << "Error serializing object to file " << fname << ": Could not open file for writing." << std::endl;
-    return 1;
+	  std::stringstream error;
+	  error << "Error serializing object to file " << fname << ": Could not open file for writing.";
+	  throw std::ios::failure ( error.str() );
   }
 
   // write all data
@@ -108,7 +111,9 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
   fclose(ofile);
 
   if (written != data.size()){
-    std::cerr << "Error serializing object to file " << fname << ": Total size: " << data.size() << " bytes. Written: " << written << " bytes." << std::endl;
+	  std::stringstream error;
+	  error << "Error serializing object to file " << fname << ": Wrote " << written << " bytes while data contains " << data.size() << " bytes.";
+	  throw std::ios::failure ( error.str() );
   }
 
   return written;

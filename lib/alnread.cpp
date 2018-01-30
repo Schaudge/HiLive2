@@ -1054,6 +1054,7 @@ void ReadAlignment::getPositions(KixRun* index, USeed sd, PositionPairListType &
 
 	// maximal value to retrieve positions
 	unsigned max_i2 = max_positions == MAX_NUM_POSITIONS ? hitInterval.i2 : std::min(hitInterval.i2, hitInterval.i1 + max_positions);
+//	unsigned max_i2 = hitInterval.i2;
 
 	for (; hitInterval.i1 < max_i2; ++hitInterval.i1) {
 

@@ -887,6 +887,10 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 
 		CountType mateCycle = mateCycles[mateIndex-1];
 
+		// Nothing to do if mate is not sequenced yet.
+		if ( mateCycle == 0 )
+			continue;
+
 		if ( !sort_tile( lane, tile, mateIndex, mateCycle, globalAlignmentSettings.get_force_resort()) ) {
 			continue;
 		}
@@ -968,7 +972,8 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 			if ( mateAlignments[mateAlignmentIndex]->seeds.size() == 0 )
 				continue;
 
-			readname << "|r" << mateAlignmentIndex+1;
+			// The segment can be recognized by the respective SAM flag.
+			// readname << "|r" << mateAlignmentIndex+1;
 
 			// Variables for output modes
 			ScoreType first_seed_score = 0;
@@ -1146,6 +1151,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 					last_seed_score = curr_seed_score;
 
 					++printedMateAlignments;
+					alignmentPositions.insert(record.beginPos - ( record.beginPos % equivalentAlignmentWindow ));
 
 				}
 			}

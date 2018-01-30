@@ -19,34 +19,25 @@
  */
 struct Seed {
 
-	/**
-	 * Vertex iterator for the FM index. Contains the position information of the alignment
-	 */
+	/** Vertex iterator for the FM index. Contains the position information of the alignment. */
 	FMVertexDescriptor vDesc;
 
-	/**
-	 * Minimal number of errors (minimal in terms of the front softclip, number of errors after seeding is exact)
-	 */
-//	CountType num_errors;
-
-	/**
-	 * Maximal AS:i score that can be reached based on the current alignment.
-	 */
+	/** Maximal AS:i score that can be reached based on the current alignment. */
 	ScoreType max_as;
 
-	/**
-	 * Information about matches/mismatches (similar to CIGAR). The last element is the current one
-	 */
+	/** Information about matches/mismatches (similar to CIGAR). The last element is the current one. */
 	CigarVector cigar_data;
 
 	/** Vector to store nucleotides of the index sequence when different to the read. */
 	std::vector<uint8_t> mdz_nucleotides;
 
+	/** Length of the mdz nucleotide list. */
 	uint8_t mdz_length;
 
 	/**
 	 * Get the CIGAR string in SeqAn format
 	 * @return CIGAR string in SeqAn format
+	 * TODO: give extended CIGAR information as a parameter instead of inside the function.
 	 */
 	seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
 
@@ -62,11 +53,22 @@ struct Seed {
 	 */
 	CountType get_nm();
 
-	/** Get length of the front softclip. */
+	/**
+	 * Get length of the front softclip.
+	 * @return Length of the front softclip.
+	 */
 	CountType get_softclip_length();
 
+	/**
+	 * Add a nucleotide to the MDZ vector.
+	 * @param nucl Nucleotide to be added to the MDZ vector (as char [ACGT])
+	 */
 	void add_mdz_nucleotide(char nucl);
 
+	/**
+	 * Get the String for the MD:Z tag.
+	 * @return The MDZ tag as string.
+	 */
 	std::string getMDZString();
 
 	/**
@@ -88,34 +90,39 @@ struct Seed {
 	 */
 	uint16_t deserialize(char* d);
 
+	/**
+	 * [Debug] Print the seed to the command line.
+	 */
 	void cout();
 };
 
+/** Data type of USeed. */
 typedef std::shared_ptr<Seed> USeed;
-  // return Seqans String of CigarElement
-  seqan::String<seqan::CigarElement<> > returnSeqanCigarString(unsigned* nm_i, unsigned* as_i);
 
-/**
- * Shared pointer to seeds.
- */
+/** Shared pointer to seeds. */
 typedef std::vector<USeed> SeedVec;
 
-/**
- * Iterator for a list of shared pointers to seeds.
- */
+/** Iterator for a list of shared pointers to seeds. */
 typedef SeedVec::iterator SeedVecIt;
 
 /**
  * Compare two pointers by comparing the respective target objects.
+ * @param a "left" pointer
+ * @param b "right" pointer
+ * @return true, if the object a points at is "smaller" (in terms of the comparison) than the object b points at.
  */
-
 template <typename T> bool PComp(const T & a, const T & b)
 {
-   return *a < *b;
+	return *a < *b;
 }
 
 /**
- * Comparator for seeds to sort them by their number of errors.
+ * Comparator for seeds to sort them by their alignment score.
+ * @param a "left" USeed
+ * @param b "right" USeed
+ * @return true if the score of a is greater than the score of b. For equal scores,
+ * the seed with no or shorter softclip (second criterion) or with less CIGAR
+ * elements (third criterion) is ranked better.
  * @author Tobias Loka
  */
 inline bool seed_comparison_by_as(const USeed a, const USeed b) {
@@ -146,6 +153,9 @@ inline bool seed_comparison_by_as(const USeed a, const USeed b) {
 /**
  * Define '<'-operator for seeds.
  * Used for sorting by the range in the FM index.
+ * @param l "left" Seed
+ * @param r "right" Seed
+ * @return true if the position of l in the index is smaller than the position of r.
  * @author Tobias Loka
  */
 inline bool operator <(const Seed l, const Seed r) {
@@ -193,7 +203,7 @@ inline bool operator <(const Seed l, const Seed r) {
  */
 class ReadAlignment {
 
- private:
+private:
 
 	/** Number of cycles for the current alignment */
 	CountType total_cycles;
@@ -238,7 +248,7 @@ class ReadAlignment {
 	 * @param origin The seed to be extended
 	 * @param allowedErrors Number of permitted errors for this seed
 	 * @param index The FM index
-     * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
+	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
 	void getInsertionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
@@ -276,17 +286,17 @@ class ReadAlignment {
 
 
 
- public:
+public:
 
 	/** Flag of the illumina read (1=valid) */
 	unsigned char flags = 1;
 
 	/** The current alignment cycle */
 	CountType cycle;
-  
+
 	/** List of all seeds for the respective read */
 	SeedVec seeds;
-  
+
 	/**
 	 * Get the size of the serialized alignment
 	 * @return Size of the serialized alignment in bytes
@@ -330,8 +340,8 @@ class ReadAlignment {
 	 * The nucleotides are only compared pairwise, not allowing for Indels.
 	 * @return The index of the matching barcode in globalAlignmentSettings.multiBarcodeVector. NO_MATCH, if none.
 	 * Also return NO_MATCH, if demultiplexing is not activated.
-     * @author 	Tobias Loka
-     */
+	 * @author 	Tobias Loka
+	 */
 	CountType getBarcodeIndex() ;
 
 	/**
@@ -375,7 +385,7 @@ class ReadAlignment {
 	 * @param index The FM index
 	 * @param sd The respective seed
 	 * @param position_list Reference to the list of positions (all resulting positions are added to this list)
-	 * @param [optional] Limit the number of positions to save runtime.
+	 * @param max_positions [optional] Limit the number of positions to save runtime.
 	 * @author Tobias Loka
 	 */
 	void getPositions(KixRun* index, USeed sd, PositionPairListType & position_list, CountType max_positions=MAX_NUM_POSITIONS);
