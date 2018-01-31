@@ -461,6 +461,24 @@ enum AlignmentMode:char {
 };
 
 /**
+ * SAM flags as defined in the specification.
+ */
+enum SAMFlag:uint16_t {
+	MULT_SEG			= 1,	// Template has multiple segments
+	ALL_SEG_MAPPED		= 2,	// Each segment properly aligned
+	SEG_UNMAPPED		= 4,	// Segment unmapped
+	NEXT_SEG_UNMAPPED	= 8,	// Next segment in the template unmapped
+	SEQ_RC				= 16,	// SEQ being reverse complemented
+	NEXT_SEQ_RC			= 32,	// SEQ of the next segment in the template being reverse complemented
+	FIRST_SEG			= 64,	// the first segment inn the template
+	LAST_SEG			= 128,	// The last segment in the template
+	SEC_ALIGNMENT		= 256,	// secondary alignment
+	FILTER_NOT_PASSED	= 512,	// Not passing filteres, such as platform quality control
+	PCR_OR_OPTICAL_DUPL	= 1024,	// PCR or optical duplicate
+	SUPPL_ALIGNMENT		= 2048	// supplementary alignment
+};
+
+/**
  * Template to store a map of mutexes.
  * Ensure that a locked mutex gets always unlocked (on destruction, if necessary). If possible, use a combination of std::lock_guard and get_reference(T).
  */
