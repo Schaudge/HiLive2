@@ -470,7 +470,7 @@ enum SAMFlag:uint16_t {
 	NEXT_SEG_UNMAPPED	= 8,	// Next segment in the template unmapped
 	SEQ_RC				= 16,	// SEQ being reverse complemented
 	NEXT_SEQ_RC			= 32,	// SEQ of the next segment in the template being reverse complemented
-	FIRST_SEG			= 64,	// the first segment inn the template
+	FIRST_SEG			= 64,	// the first segment in the template
 	LAST_SEG			= 128,	// The last segment in the template
 	SEC_ALIGNMENT		= 256,	// secondary alignment
 	FILTER_NOT_PASSED	= 512,	// Not passing filteres, such as platform quality control

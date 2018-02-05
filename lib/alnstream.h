@@ -297,9 +297,6 @@ class StreamedAlignment {
 
 };
 
-
-
-
 /**
  * Extension of SeqAn's BamFileOut data type supporting multithreading via an atomic flag.
  * @author Tobias Loka
@@ -522,6 +519,29 @@ private:
 	 * @return true, if sorting was successful.
 	 */
 	bool sort_tile ( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite = false );
+
+	/**
+	 * Open an input alignment stream of the sorted align file of a mate.
+	 * If a sorted align file does not exist yet or resort if forced, the sort_tile function is called to create this file.
+	 * @param lane The lane.
+	 * @param tile The tile.
+	 * @param mateCycle Cycle of the desired mate. In general, this is NOT the sequencing cycle.
+	 * @param mate The current mate.
+	 * @param istream The input stream to open the file.
+	 * @return 0 on success. 1 on invalid mate. 2 on matecycle equals 0. 3 on sorted align file not available.
+	 */
+	CountType openiAlnStream( CountType lane, CountType tile, CountType mateCycle, CountType mate, iAlnStream* istream);
+
+	/**
+	 * Open the input alignment streams of the sorted align files of all mates.
+	 * @param lane The lane.
+	 * @param tile The tile.
+	 * @param filter_exist true, if a filter file exist.
+	 * @param filter_size Number of alignments in the filter file. This value is ignored if filter_exist==false.
+	 * @return Vector containing pointer to all opened input streams.
+	 */
+	std::vector<iAlnStream*> openiAlnStreams( CountType lane, CountType tile, bool filter_exist, unsigned filter_size);
+
 
 	/**
 	 * Calls __write_tile_to_bam__(Task t) to start the output of a task with handled exceptions.

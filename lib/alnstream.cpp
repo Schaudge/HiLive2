@@ -841,6 +841,92 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 
 }
 
+CountType AlnOut::openiAlnStream( CountType lane, CountType tile, CountType mateCycle, CountType mate, iAlnStream* istream) {
+
+	// Check if mate is valid.
+	if ( globalAlignmentSettings.getSeqByMate(mate) == NULLSEQ )
+		return 1;
+
+	// Check if mate cycle is >0
+	if ( mateCycle == 0 )
+		return 2;
+
+	// Sort file if necessary
+	if ( ! sort_tile( lane, tile, mate, mateCycle, globalAlignmentSettings.get_force_resort() ) )
+		return 3;
+
+	// Open sorted alignment file
+	std::string alignment_fname = alignment_name(lane, tile, mateCycle, mate) + ".sorted";
+
+	// Check if sorted file exist
+	if ( !file_exists(alignment_fname) ) {
+		return 3;
+	}
+
+	// Open the stream
+	istream->open(alignment_fname);
+
+	return 0;
+}
+
+std::vector<iAlnStream*> AlnOut::openiAlnStreams( CountType lane, CountType tile, bool filter_exist, unsigned filter_size) {
+
+	std::vector<iAlnStream*> alignmentFiles;
+	unsigned numberOfAlignments = 0;
+
+	for (unsigned mateIndex = 1; mateIndex <= mateCycles.size(); mateIndex++) {
+
+		// Init the stream object
+		iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
+
+		// Try to open the stream
+		CountType ret = openiAlnStream(lane, tile, mateCycles[mateIndex-1], mateIndex, input);
+
+		// On success
+		if ( ret == 0 ) {
+
+			// compare number of reads in alignment file with number of reads in filter file, if filter file exists
+			if ( filter_exist && input->get_num_reads() != filter_size ) {
+				std::stringstream msg;
+				msg << "Unequal number of reads in filter file (" << filter_size << ") and alignment file (" << input->get_num_reads() << ")";
+				throw std::length_error(msg.str());
+			}
+
+			// compare number of reads in alignment file with number of reads in previous alignment file
+			if (mateIndex != 1 && input->get_num_reads() != numberOfAlignments) {
+				throw std::length_error("Unequal number of reads (between mates)");
+			}
+
+			alignmentFiles.push_back(input);
+			numberOfAlignments = input->get_num_reads();
+			continue;
+		}
+
+		// Throw an exception if a mate is not valid (should not happen)
+		else if ( ret == 1 ) {
+			throw std::runtime_error("Mate number is not valid: " + mateIndex);
+		}
+
+		// Mate not sequenced yet (mateCycle==0)
+		else if ( ret == 2 ) {
+			continue;
+		}
+
+		// Sorted file is not available
+		else if ( ret == 3 ) {
+			throw std::runtime_error("Sorted align file not found.");
+		}
+
+		// Undefined return value
+		else {
+			throw std::logic_error("Undefined return value of function AlnOut::openiAlnStream: " + ret);
+		}
+
+	}
+
+	return alignmentFiles;
+
+}
 
 void AlnOut::write_tile_to_bam ( Task t ) {
 
@@ -857,9 +943,7 @@ void AlnOut::write_tile_to_bam ( Task t ) {
 }
 
 
-void AlnOut::__write_tile_to_bam__ ( Task t) {
-
-	std::vector<std::lock_guard<std::mutex>> locks;
+void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 	CountType lane = t.lane;
 	CountType tile = t.tile;
@@ -875,48 +959,9 @@ void AlnOut::__write_tile_to_bam__ ( Task t) {
 		filters.open(filter_fname);
 	}
 
-
-	// set the alignment files
-	std::vector<iAlnStream*> alignmentFiles;
-	unsigned numberOfAlignments = 0;
-
-	for (unsigned mateIndex = 1; mateIndex <= mateCycles.size(); mateIndex++) {
-
-		if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ )
-			return;
-
-		CountType mateCycle = mateCycles[mateIndex-1];
-
-		// Nothing to do if mate is not sequenced yet.
-		if ( mateCycle == 0 )
-			continue;
-
-		if ( !sort_tile( lane, tile, mateIndex, mateCycle, globalAlignmentSettings.get_force_resort()) ) {
-			continue;
-		}
-
-		// Open sorted alignment file
-		std::string alignment_fname = alignment_name(lane, tile, mateCycle, mateIndex) + ".sorted";
-		if ( !file_exists(alignment_fname) ) {
-			continue;
-		}
-
-		iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
-		input->open(alignment_fname);
-
-		// compare number of reads in alignment file with number of reads in filter file, if filter file exists
-		if (file_exists(filter_fname) && input->get_num_reads() != filters.size()) {
-			throw std::length_error("Unequal number of reads (.filer vs .align)");
-		}
-
-		// compare number of reads in alignment file with number of reads in previous alignment file
-		if (mateIndex != 1 && input->get_num_reads() != numberOfAlignments) {
-			throw std::length_error("Unequal number of reads (between mates)");
-		}
-
-		numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
-		alignmentFiles.push_back(input);
-	}
+	// Open the input streams for the sorted alignment files.
+	std::vector<iAlnStream*> alignmentFiles = openiAlnStreams( lane, tile, file_exists(filter_fname), filters.size());
+	unsigned numberOfAlignments = alignmentFiles[0]->get_num_reads();
 
 	// for all reads in a tile
 	/////////////////////////////////////////////////////////////////////////////
