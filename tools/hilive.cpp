@@ -3,6 +3,7 @@
 #include "../lib/global_variables.h"
 #include "../lib/kindex.h"
 #include "../lib/alnstream.h"
+#include "../lib/alnout.h"
 #include "../lib/parallel.h"
 #include "../lib/argument_parser.h"
 #include "../lib/tools_static.h"

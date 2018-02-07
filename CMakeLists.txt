@@ -56,7 +56,7 @@ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
 ### setup HiLive libraries ###
 include_directories("${PROJECT_SOURCE_DIR}/lib")
 # make a list of HiLive libraries
-set (LIB_NAMES tools_static tools alnread alnstream illumina_parsers kindex parallel argument_parser)
+set (LIB_NAMES tools_static tools alnread alnstream alnout illumina_parsers kindex parallel argument_parser)
 set(LIB_LIST "")
 foreach (x ${LIB_NAMES})
 	list(APPEND LIB_LIST "lib/${x}.cpp")
