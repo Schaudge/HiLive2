@@ -253,6 +253,8 @@ void AlnOut::write_tile_to_bam ( Task t ) {
 
 void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
+	//TODO: Write real paired-end output (?)
+
 	CountType lane = t.lane;
 	CountType tile = t.tile;
 
@@ -275,12 +277,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 	/////////////////////////////////////////////////////////////////////////////
 	for (uint64_t i = 0; i < numberOfAlignments; i++) {
 
-		std::vector<seqan::BamAlignmentRecord> records;
-
 		std::vector<ReadAlignment*> mateAlignments;
 		for (auto e:alignmentFiles) {
 			mateAlignments.push_back(e->get_alignment());
 		}
+
+		std::vector<std::vector<seqan::BamAlignmentRecord>> mateRecords(mateAlignments.size());
 
 		// if the filter file is available and the filter flag is 0 then skip
 		if (filters.size() != 0 && filters.next() == false)
@@ -455,8 +457,8 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 						record.flag |= 16;
 					}
 
-					//TODO: Write real paired-end output (?)
 					if ( mateAlignments.size() > 1) { // if there are at least two mates already sequenced
+
 						record.flag |= 1;
 						if (mateAlignmentIndex == 0) {
 							record.flag |= 64;
@@ -466,15 +468,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 							record.flag |= 192; // 64 + 128
 						}
 
-						// TODO: that was a wrong interpretation of the flag.
-						// Should only be set if two alignments belong together ("read mapped in PROPER pair")
-//						bool eachMateAligned = true;
-//						if ( globalAlignmentSettings.get_mates() == mateAlignments.size() ) {
-//							for (auto & e : mateAlignments)
-//								eachMateAligned = eachMateAligned && e->seeds.size() > 0;
-//							if ( eachMateAligned )
-//								record.flag |= 2;
-//						}
 					}
 
 					// tags
@@ -500,7 +493,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 
 					// fill records list
-					records.push_back(record);
+					mateRecords[mateAlignmentIndex].push_back(record);
 
 					// set variables for mode selection
 					if ( last_seed_score != curr_seed_score || num_diff_scores == 0 )
@@ -515,16 +508,64 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 			nextmate: {};
 		}
 
+
+		// Set flags related to the next mate. Proper pairs are not considered (just take the data of the first entry of the next mate).
+		// For the last mate, refer to the first mate (as it is done for paired end data)
+		setMateSAMFlags(mateRecords);
+
 		// Write all records as a group to keep suboptimal alignments and paired reads together.
-		bfos[barcodeIndex].writeRecords(records);
+		bfos[barcodeIndex].writeRecords(mateRecords);
+
 
 		for (auto e:mateAlignments)
 			delete e;
+
 	}
 	for (auto e:alignmentFiles)
 		delete e;
 
 	return;
+}
+
+void AlnOut::setMateSAMFlags( std::vector<std::vector<seqan::BamAlignmentRecord>> & mateRecords ) {
+	for ( CountType i=0; i<mateRecords.size(); i++ ) {
+
+		// Stop if not paired
+		if ( mateRecords.size() <= 1 )
+			break;
+
+		// Set related mate index
+		CountType next = i==mateRecords.size()-1 ? 0 : i+1;
+
+		for ( auto & record_pointer : mateRecords[i] ) {
+
+			if ( mateRecords[next].size() > 0 ) {
+
+				CountType mateFlag = mateRecords[next][0].flag;
+
+				// first mate entry is reverse complemented
+				if ( hasSAMFlag( mateFlag, SAMFlag::SEQ_RC ) ) {
+					record_pointer.flag = addSAMFlag(record_pointer.flag, SAMFlag::NEXT_SEQ_RC);
+				}
+
+				// first mate entry is flagged as unmapped
+				if ( hasSAMFlag( mateFlag, SAMFlag::SEG_UNMAPPED ) ) {
+					record_pointer.flag = addSAMFlag(record_pointer.flag, SAMFlag::NEXT_SEG_UNMAPPED);
+				}
+
+				// set next mate rID
+				record_pointer.rNextId = mateRecords[next][0].rID;
+
+				// set next mate pos
+				record_pointer.pNext = mateRecords[next][0].beginPos;
+
+				// mate is unmapped
+			} else {
+				record_pointer.flag |= SAMFlag::NEXT_SEG_UNMAPPED;
+			}
+		}
+
+	}
 }
 
 

@@ -162,6 +162,36 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
 /////////////////////////////////
 
 /**
+ * Check if a number contains a certain SAM flag.
+ * @param value The value to check
+ * @param flag The flag to check for
+ * @return true, if value contains flag
+ */
+template<typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type> bool hasSAMFlag( T value, SAMFlag flag ) {
+	return ( ( value & flag) == flag );
+}
+
+/**
+ * Add a SAM flag to the total flag value.
+ * @param value The total flag value
+ * @param flag The flag to add
+ * @return The new total flag value
+ */
+template<typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type> T addSAMFlag( T value, SAMFlag flag ) {
+	return ( value | flag );
+}
+
+/**
+ * Remove a SAM flag from the total flag value.
+ * @param value The total flag value
+ * @param flag The flag to remove
+ * @return The new total flag value
+ */
+template<typename T, typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type> T removeSAMFlag( T value, SAMFlag flag ) {
+	return ( addSAMFlag(value, flag) ^ flag );
+}
+
+/**
  * Extract the number of reads from a BCL file.
  * @param bcl Path to the bcl file.
  * @return Number of reads in the bcl file.

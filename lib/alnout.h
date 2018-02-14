@@ -85,6 +85,24 @@ public:
 
 	}
 
+	/**
+	 * Write records to the output file in a "thread-safe" manner.
+	 * @param records Reference to a vector containing an other vector of records.
+	 */
+	void writeRecords ( std::vector<std::vector<seqan::BamAlignmentRecord>> & records ) {
+
+		if ( records.size() == 0 )
+			return;
+
+		lock();
+
+		for ( auto & subvector : records)
+		seqan::writeRecords(bfo, subvector);
+
+		unlock();
+
+	}
+
 };
 
 /**
@@ -222,6 +240,12 @@ private:
 	 * @return true, if the task didn't exist before and was successfully created.  false otherwise.
 	 */
 	bool add_task( Task t, ItemStatus status );
+
+	/**
+	 * Set the SAM fields according to the information about the other mates
+	 * @param reference to a vecor of vectors for SAM records of each mate.
+	 */
+	void setMateSAMFlags( std::vector<std::vector<seqan::BamAlignmentRecord>> & records );
 
 	/**
 	 * Create a temporary align file that is sorted by score.
