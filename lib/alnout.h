@@ -242,7 +242,9 @@ private:
 	bool add_task( Task t, ItemStatus status );
 
 	/**
-	 * Set the SAM fields according to the information about the other mates
+	 * Set the SAM fields according to the information about the other mates.
+	 * Proper pairs are not considered (just take the data of the first entry of the next mate).
+	 * For the last mate, refer to the first mate (as it is done for paired end data)
 	 * @param reference to a vecor of vectors for SAM records of each mate.
 	 */
 	void setMateSAMFlags( std::vector<std::vector<seqan::BamAlignmentRecord>> & records );

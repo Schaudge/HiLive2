@@ -470,27 +470,26 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 					}
 
-					// tags
+					// Dictionary for additional SAM tags
 					seqan::BamTagsDict dict;
 
+					// Alignment Score
 					seqan::appendTagValue(dict, "AS", curr_seed_score);
 
+					// Barcode sequence
 					if (barcode!="")
 						seqan::appendTagValue(dict, "BC", barcode);
 
+					// Number of mismatches
 					seqan::appendTagValue(dict, "NM", nm);
 
+					// MD:Z string
 					std::string mdz = (*it)->getMDZString();
-
 					if ( index->isReverse(p->first))
 						mdz = reverse_mdz(mdz);
-
 					seqan::appendTagValue(dict, "MD", mdz);
 
-
 					record.tags = seqan::host(dict);
-
-
 
 					// fill records list
 					mateRecords[mateAlignmentIndex].push_back(record);
@@ -509,8 +508,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 		}
 
 
-		// Set flags related to the next mate. Proper pairs are not considered (just take the data of the first entry of the next mate).
-		// For the last mate, refer to the first mate (as it is done for paired end data)
+		// Set flags related to the next mate.
 		setMateSAMFlags(mateRecords);
 
 		// Write all records as a group to keep suboptimal alignments and paired reads together.
