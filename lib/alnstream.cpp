@@ -519,7 +519,7 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
 } 
 
 
-uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index) {
+uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate) {
 
   // 1. Open the input file
   //-----------------------
@@ -581,7 +581,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
       if(filters.next()) {
-        ra->extend_alignment(basecalls.next(), index);
+        ra->extend_alignment(basecalls.next());
         num_seeds += ra->seeds.size();
       }
       else {
@@ -592,7 +592,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
     // filter file was not found -> treat every alignment as valid
     else {
-      ra->extend_alignment(basecalls.next(), index);
+      ra->extend_alignment(basecalls.next());
       num_seeds += ra->seeds.size();
     }
 

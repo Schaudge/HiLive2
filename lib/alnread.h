@@ -71,6 +71,49 @@ struct Seed {
 	 */
 	std::string getMDZString();
 
+//	/**
+//	 * Get the SAM records for a specified span of positions. The span is half-open: [0,lastPosition).
+//	 * @param index The index to obtain SAM entries for.
+//	 * @param lastPosition Index of the last position to obtain SAM entries from. If unset, get all positions.
+//	 * equals the expected number of elements in the returned vector.
+//	 * @return A std::vector containing the SAM records.
+//	 */
+//	std::vector<seqan::BamAlignmentRecord> getSAMrecords( KixRun* index, CountType lastPosition=MAX_NUM_POSITIONS ) {
+//		return getSAMrecords( index, 0, lastPosition);
+//	}
+//
+//	/**
+//	 * Get the SAM records for a specified span of positions. The span is half-open: [firstPosition,lastPosition).
+//	 * @param index The index to obtain SAM entries for.
+//	 * @param firstPosition Index of the first position to obtain SAM entries from.
+//	 * @param lastPosition Index of the last position to obtain SAM entries from. If unset, get all positions starting at firstPosition.
+//	 * @return A std::vector containing the SAM records.
+//	 */
+//	std::vector<seqan::BamAlignmentRecord> getSAMrecords( KixRun* index, CountType firstPosition, CountType lastPosition=MAX_NUM_POSITIONS );
+
+//	/**
+//	 * Get the positions for this seed. The span is half-open: [0,lastPosition).
+//	 * @param index The index to obtain positions entries for.
+//	 * @param lastPosition Index of the last position to obtain positions from. If unset, get all positions.
+//	 * @return A container containing the positions.
+//	 */
+//	PositionPairListType getPositions( KixRun* index, CountType lastPosition=MAX_NUM_POSITIONS ) {
+//		return getPositions ( index, 0, lastPosition );
+//	}
+
+	/**
+	 * Get the positions for this seed. The span is half-open: [firstPosition,lastPosition).
+	 * @param index The index to obtain positions entries for.
+	 * @param firstPosition Index of the first position to obtain positions from.
+	 * @param lastPosition Index of the last position to obtain positions from. If unset, get all positions starting at firstPosition.
+	 * @return A container containing the positions.
+	 */
+	std::vector<GenomePosType>  getPositions( CountType firstPosition, CountType lastPosition=MAX_NUM_POSITIONS );
+
+	CountType getNumPositions() {
+		return vDesc.range.i2 - vDesc.range.i1;
+	}
+
 	/**
 	 * Determine size of the serialized seed
 	 * @return size in bytes
@@ -229,7 +272,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void extendSeed(char base, USeed s, KixRun* index, SeedVec & newSeeds);
+	void extendSeed(char base, USeed s, SeedVec & newSeeds);
 
 	/**
 	 * Extend a seed by alignment matches (Match or SNP)
@@ -240,7 +283,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getMatchSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
+	void getMatchSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds);
 
 	/**
 	 * Extend a seed by an insertion
@@ -251,7 +294,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getInsertionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
+	void getInsertionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds);
 
 
 	/**
@@ -263,7 +306,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getDeletionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
+	void getDeletionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds);
 
 	/**
 	 * Add deletions to the alignment up to the permitted number of errors
@@ -274,7 +317,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void recursive_goDown(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds);
+	void recursive_goDown(CountType base_repr, USeed origin, SeedVec & newSeeds);
 
 	/** Create new seeds
 	 * @param index The FM index
@@ -282,7 +325,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void createSeeds(KixRun* index, SeedVec & newSeeds);
+	void createSeeds(SeedVec & newSeeds);
 
 
 
@@ -360,7 +403,7 @@ public:
 	 * @param settings The alignment settings
 	 * @author Tobias Loka
 	 */
-	void extend_alignment(char bc, KixRun* index);
+	void extend_alignment(char bc);
 
 	/**
 	 * Disable the alignment.
@@ -378,17 +421,7 @@ public:
 	 * @return The position in SAM specification
 	 * @author Tobias Loka
 	 */
-	PositionType get_SAM_start_pos(KixRun* index, PositionPairType p, USeed & sd);
-
-	/**
-	 * Get all positions of a seed
-	 * @param index The FM index
-	 * @param sd The respective seed
-	 * @param position_list Reference to the list of positions (all resulting positions are added to this list)
-	 * @param max_positions [optional] Limit the number of positions to save runtime.
-	 * @author Tobias Loka
-	 */
-	void getPositions(KixRun* index, USeed sd, PositionPairListType & position_list, CountType max_positions=MAX_NUM_POSITIONS);
+	PositionType get_SAM_start_pos(GenomePosType p, USeed & sd);
 
 	/**
 	 * Sort the seeds by their alignment score.

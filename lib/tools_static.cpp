@@ -11,6 +11,12 @@ bool gp_compare (GenomePosType i,GenomePosType j) {
 	return (i.pos < j.pos);
 }
 
+bool compare_records_by_pos(const seqan::BamAlignmentRecord & l, const seqan::BamAlignmentRecord & r) {
+	if ( l.rID == r.rID )
+		return l.beginPos < r.beginPos;
+	return l.rID < r.rID;
+}
+
 
 /////////////////////////////////////
 ////////// Type convertion //////////

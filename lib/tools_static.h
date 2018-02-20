@@ -26,6 +26,8 @@
 bool gp_compare (GenomePosType i,GenomePosType j);
 
 
+bool compare_records_by_pos(const seqan::BamAlignmentRecord & l, const seqan::BamAlignmentRecord & r);
+
 /////////////////////////////////////
 ////////// Type convertion //////////
 /////////////////////////////////////
@@ -54,7 +56,7 @@ std::ifstream::pos_type get_filesize(const std::string &fname);
 
 /**
  * Check if a given path is a directory.
- * @param Path of interest.
+ * @param path of interest.
  * @return true, if the given path is a directory.
  */
 bool is_directory(const std::string &path);
@@ -160,6 +162,18 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
 /////////////////////////////////
 ////////// Other stuff //////////
 /////////////////////////////////
+
+/**
+ * Get a number as a std::string with N digits (e.g., 6 -> "006" for N=3).
+ * @param value The number to be formatted.
+ * @param N The number of digits.
+ * @return The formatted number as std::string.
+ */
+template<typename T, typename=typename std::enable_if<std::is_arithmetic<T>::value, T>::type> std::string to_N_digits ( T value, CountType N ) {
+	std::stringstream ss;
+	ss << std::setw(N) << std::setfill('0') << value;
+	return ss.str();
+}
 
 /**
  * Check if a number contains a certain SAM flag.

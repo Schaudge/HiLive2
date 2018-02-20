@@ -387,6 +387,30 @@ std::string Seed::getMDZString() {
 	return mdz_string;
 }
 
+std::vector<GenomePosType> Seed::getPositions( CountType firstPosition, CountType lastPosition ) {
+
+	std::vector<GenomePosType> position_list;
+
+	seqan::Pair<unsigned> hitInterval = vDesc.range;
+
+	// Return empty list if there is nothing to return.
+	if ( lastPosition <= firstPosition || hitInterval.i2 - hitInterval.i1 <= firstPosition )
+		return position_list;
+
+	// set span values
+	unsigned min_i1 = hitInterval.i1 + firstPosition;
+	unsigned max_i2 = lastPosition == MAX_NUM_POSITIONS ? hitInterval.i2 : std::min(hitInterval.i2, hitInterval.i1 + lastPosition);
+
+	for (; min_i1 < max_i2; ++min_i1) {
+		GenomePosType el ( seqan::getFibre(idx->idx, seqan::FibreSA())[min_i1].i1, seqan::getFibre(idx->idx, seqan::FibreSA())[min_i1].i2);
+		position_list.push_back(el);
+	}
+
+	return position_list;
+
+}
+
+
 uint64_t ReadAlignment::serialize_size() {
 
   // Total size
@@ -623,29 +647,29 @@ void ReadAlignment::appendNucleotideToSequenceStoreVector(char bc, bool appendTo
 
 }
 
-void ReadAlignment::extendSeed(char base, USeed origin, KixRun* index, SeedVec & newSeeds){
+void ReadAlignment::extendSeed(char base, USeed origin, SeedVec & newSeeds){
 
 	// The new base / nucleotide
 	CountType tbr = twobit_repr(base);
 
 	// Extend alignment match (can be match or NO_MATCH)
-	getMatchSeeds(tbr, origin, index, newSeeds);
+	getMatchSeeds(tbr, origin, newSeeds);
 
 	// Extend insertion (only if not in the last cycle)
 	if ( cycle != total_cycles )
-		getInsertionSeeds(tbr, origin, index, newSeeds);
+		getInsertionSeeds(tbr, origin, newSeeds);
 
 	// Extend deletion (may occur in the last cycle since it must always be closed by a match when created)
-	getDeletionSeeds(tbr, origin, index, newSeeds);
+	getDeletionSeeds(tbr, origin, newSeeds);
 
 }
 
-void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
 
 	// iterate through possible bases
 	for (int b=0; b<4; b++) {
 
-		FMTopDownIterator it(index->idx, origin->vDesc); 	// Create index iterator
+		FMTopDownIterator it(idx->idx, origin->vDesc); 	// Create index iterator
 
 		// Only handle when the path exist in the genome
 		if (goDown(it,seqan::DnaString(revtwobit_repr(b)))) {
@@ -711,7 +735,7 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, KixRun* ind
 	}
 }
 
-void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
 
 	// Don't handle insertions after deletions.
 	if ( origin->cigar_data.back().offset == DELETION )
@@ -722,7 +746,7 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, KixRun*
 		return;
 
 	// If all occurences of the seed match the current base, insertion is not required.
-	FMTopDownIterator it(index->idx, origin->vDesc);
+	FMTopDownIterator it(idx->idx, origin->vDesc);
 	uint64_t range = origin->vDesc.range.i2 - origin->vDesc.range.i1;
 	if ( seqan::goDown(it, seqan::DnaString(revtwobit_repr(base_repr))) ) {
 		if ( it.vDesc.range.i2 - it.vDesc.range.i1 == range )
@@ -761,7 +785,7 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, KixRun*
 	}
 }
 
-void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
 
 	// Don't handle insertion regions
 	if ( origin->cigar_data.back().offset == INSERTION )
@@ -778,7 +802,7 @@ void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, KixRun* 
 			continue;
 
 		// Create index iterator
-		FMTopDownIterator it(index->idx, origin->vDesc);
+		FMTopDownIterator it(idx->idx, origin->vDesc);
 
 		// Only consider paths existing in the index
 		if ( goDown(it, seqan::DnaString(revtwobit_repr(b)))) {
@@ -796,12 +820,12 @@ void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, KixRun* 
 			// Add MDZ nucleotide
 			s->add_mdz_nucleotide(revtwobit_repr(b));
 
-			recursive_goDown(base_repr, s, index, newSeeds);
+			recursive_goDown(base_repr, s, newSeeds);
 		}
 	}
 }
 
-void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec & newSeeds) {
 
 	if ( origin->max_as < globalAlignmentSettings.get_min_as() ) // too many errors -> no seeds
 		return;
@@ -814,7 +838,7 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, KixRun* 
 		for (int b=0; b<4; b++) {
 
 			// Create index iterator
-			FMTopDownIterator it(index->idx, origin->vDesc);
+			FMTopDownIterator it(idx->idx, origin->vDesc);
 
 			// Only consider paths existing in the index
 			if ( goDown(it, seqan::DnaString(revtwobit_repr(b)))) {
@@ -854,14 +878,14 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, KixRun* 
 
 					s->cigar_data.back().length += 1; // extend deletion region
 					s->add_mdz_nucleotide(revtwobit_repr(b));
-					recursive_goDown(base_repr, s, index, newSeeds);
+					recursive_goDown(base_repr, s, newSeeds);
 
 				}
 			}
 		}
 }
 
-void ReadAlignment::createSeeds(KixRun* index, SeedVec & newSeeds) {
+void ReadAlignment::createSeeds(SeedVec & newSeeds) {
 
 	// Stop if not enough cycles to create anchor
 	if ( cycle < globalAlignmentSettings.get_anchor_length() )
@@ -880,7 +904,7 @@ void ReadAlignment::createSeeds(KixRun* index, SeedVec & newSeeds) {
 
 	std::string anchor_seq = getSequenceString().substr( sequenceLen - globalAlignmentSettings.get_anchor_length(), globalAlignmentSettings.get_anchor_length());
 
-	FMTopDownIterator it(index->idx);
+	FMTopDownIterator it(idx->idx);
 	if ( seqan::goDown(it, seqan::DnaString(anchor_seq)) ) {
 		USeed seed ( new Seed() );
 		seed->max_as = max_as;
@@ -893,7 +917,7 @@ void ReadAlignment::createSeeds(KixRun* index, SeedVec & newSeeds) {
 
 }
 
-void ReadAlignment::extend_alignment(char bc, KixRun* index) {
+void ReadAlignment::extend_alignment(char bc) {
 
     // cycle is not allowed to be > total_cycles
     assert( total_cycles >= cycle );
@@ -912,12 +936,12 @@ void ReadAlignment::extend_alignment(char bc, KixRun* index) {
 	// extend existing seeds
     char base = revtwobit_repr(bc & 3);
     for ( auto seed = seeds.begin(); seed != seeds.end(); ++seed ) {
-    	extendSeed(base, (*seed), index, newSeeds);
+    	extendSeed(base, (*seed), newSeeds);
     }
 
     // create new seeds in defined intervals (intervals are handled inside createSeeds() function)
     if ( cycle >= globalAlignmentSettings.get_anchor_length() ) {
-    	createSeeds(index, newSeeds);
+    	createSeeds(newSeeds);
     }
 
 	// sort the newSeeds vector
@@ -1017,23 +1041,23 @@ bool ReadAlignment::is_disabled() {
 	return flags == 0;
 }
 
-PositionType ReadAlignment::get_SAM_start_pos(KixRun* index, PositionPairType p, USeed & sd) {
+PositionType ReadAlignment::get_SAM_start_pos(GenomePosType p, USeed & sd) {
 
 	// Only valid if CIGAR string exist (should always be the case)
 	if ( sd->cigar_data.size() == 0 )
 		return std::numeric_limits<PositionType>::max();
 
 	// Retrieve position from the index
-	PositionType sam_pos = p.second;
+	PositionType sam_pos = p.pos;
 
 	// REVERSE POSITIONS: position is already correct
-	if ( index->isReverse(p.first) ) {
+	if ( idx->isReverse(p.gid) ) {
 		return sam_pos;
 	}
 
 	// FORWARD POSITIONS: Compute start position
 	else {
-		sam_pos = index->getSequenceLength(p.first) - p.second;
+		sam_pos = idx->getSequenceLength(p.gid) - p.pos;
 
 		CountType cigLen = 0;
 		for ( auto el = sd->cigar_data.begin(); el != sd->cigar_data.end(); ++el ) {
@@ -1042,25 +1066,12 @@ PositionType ReadAlignment::get_SAM_start_pos(KixRun* index, PositionPairType p,
 			}
 		}
 		sam_pos -= cigLen;
+
+		// Begin pos in SAM specification ignores the softclip.
+		sam_pos += sd->get_softclip_length();
 	}
 
     return sam_pos;
-}
-
-void ReadAlignment::getPositions(KixRun* index, USeed sd, PositionPairListType & position_list, CountType max_positions) {
-
-
-	seqan::Pair<unsigned> hitInterval = sd->vDesc.range;
-
-	// maximal value to retrieve positions
-	unsigned max_i2 = max_positions == MAX_NUM_POSITIONS ? hitInterval.i2 : std::min(hitInterval.i2, hitInterval.i1 + max_positions);
-
-	for (; hitInterval.i1 < max_i2; ++hitInterval.i1) {
-		std::pair<GenomeIdType, PositionType> el ( seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i1, seqan::getFibre(index->idx, seqan::FibreSA())[hitInterval.i1].i2);
-		position_list.push_back(el);
-	}
-
-
 }
 
 void ReadAlignment::sort_seeds_by_as() {

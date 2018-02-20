@@ -25,6 +25,8 @@
 #include <stdexcept>
 #include <utility>
 #include <type_traits>
+#include <iomanip>
+#include <unordered_map>
 #include <boost/filesystem.hpp>
 #include <boost/property_tree/xml_parser.hpp>
 #include <boost/property_tree/ptree.hpp>

@@ -282,7 +282,7 @@ class StreamedAlignment {
    * @param index Pointer to the reference index.
    * @return Total number of seeds (for all reads).
    */
-  uint64_t extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index);
+  uint64_t extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate);
 
   /**
    * Extend the barcode for all reads with the information of the current sequencing cycle.

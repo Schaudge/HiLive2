@@ -205,9 +205,6 @@ private:
 	/** Minimal alignment score for a certain cycle to print an alignment. */
 	std::vector<CountType> min_as_scores;
 
-	/** The underlying index for the output. */
-	KixRun* index;
-
 	/**
 	 * Set the status of a task (only if the task exists).
 	 * @param t The task.
@@ -240,6 +237,9 @@ private:
 	 * @return true, if the task didn't exist before and was successfully created.  false otherwise.
 	 */
 	bool add_task( Task t, ItemStatus status );
+
+	// TODO: documentation
+	void findPairs( std::vector<std::vector<seqan::BamAlignmentRecord>> & mateRecords );
 
 	/**
 	 * Set the SAM fields according to the information about the other mates.
@@ -282,7 +282,6 @@ private:
 	 */
 	std::vector<iAlnStream*> openiAlnStreams( CountType lane, CountType tile, bool filter_exist, unsigned filter_size);
 
-
 	/**
 	 * Calls __write_tile_to_bam__(Task t) to start the output of a task with handled exceptions.
 	 * @param t Task that contains the information about lane and tile.
@@ -310,7 +309,7 @@ public:
 	 * @param cycl The sequencing cycle.
 	 * @param idx The underlying index.
 	 */
-	AlnOut (std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl, KixRun* idx);
+	AlnOut (std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl);
 
 	/**
 	 * Destructor.

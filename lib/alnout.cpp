@@ -4,7 +4,7 @@
 //------  Streamed SAM generation -----------------------------------//
 //-------------------------------------------------------------------//
 
-AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl, KixRun* idx ) : cycle(cycl),index(idx) {
+AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl) : cycle(cycl) {
 
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;
@@ -42,7 +42,7 @@ void AlnOut::init() {
 		return;
 
 	// Init the bamIOContext (the same object can be used for all output streams)
-	bfos.set_context(index->getSeqNames(), index->getSeqLengths());
+	bfos.set_context(idx->getSeqNames(), idx->getSeqLengths());
 
 	// Init the header (the same object can be used for all output streams)
 	seqan::BamHeader header = getBamHeader();
@@ -250,7 +250,6 @@ void AlnOut::write_tile_to_bam ( Task t ) {
 	}
 }
 
-
 void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 	//TODO: Write real paired-end output (?)
@@ -401,12 +400,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 				}
 
 				// Get positions for the current seed
-				PositionPairListType pos_list;
+				std::vector<GenomePosType> pos_list;
 
 				if ( globalAlignmentSettings.get_any_best_hit_mode() )
-					mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list, 1);
+					pos_list = (*it)->getPositions(0, 1);
 				else
-					mateAlignments[mateAlignmentIndex]->getPositions(index, *it, pos_list);
+					pos_list = (*it)->getPositions(0);
 
 				// handle all positions
 				for ( auto p = pos_list.begin(); p != pos_list.end(); ++p ) {
@@ -419,9 +418,9 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 					record.qName = readname.str();
 
-					record.rID = CountType(p->first / 2);
+					record.rID = CountType(p->gid / 2);
 
-					record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(index, *p, *it);
+					record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*p, *it);
 
 					record.mapQ = *mapqs_it;
 
@@ -437,7 +436,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					}
 
 					record.cigar = cigar;
-					if ( index->isReverse(p->first) )
+					if ( idx->isReverse(p->gid) )
 						seqan::reverse(record.cigar);
 
 					// flag and seq
@@ -451,7 +450,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 						seqan::clear(record.qual);
 					}
 
-					if ( index->isReverse(p->first) ) { // if read matched reverse complementary
+					if ( idx->isReverse(p->gid) ) { // if read matched reverse complementary
 						seqan::reverseComplement(record.seq);
 						seqan::reverse(record.qual);
 						record.flag |= 16;
@@ -485,7 +484,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 					// MD:Z string
 					std::string mdz = (*it)->getMDZString();
-					if ( index->isReverse(p->first))
+					if ( idx->isReverse(p->gid))
 						mdz = reverse_mdz(mdz);
 					seqan::appendTagValue(dict, "MD", mdz);
 
@@ -506,7 +505,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 			}
 			nextmate: {};
 		}
-
 
 		// Set flags related to the next mate.
 		setMateSAMFlags(mateRecords);

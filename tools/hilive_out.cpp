@@ -11,6 +11,7 @@
 namespace po = boost::program_options;
 
 AlignmentSettings globalAlignmentSettings;
+KixRun* idx;
 mutex_map<std::string> fileLocks;
 
 /**
@@ -42,13 +43,13 @@ int main(int argc, const char* argv[]) {
 
 	// load the index
 	std::cout << "Loading Index Header..." << std::endl;
-	KixRun* index = new KixRun();
+	idx = new KixRun();
 //
 //	index->get_header_information(globalAlignmentSettings.get_index_fname());
 //	index->store_kmer();
 
-    index->load_metadata( globalAlignmentSettings.get_index_fname() );
-    index->load_fmindex( globalAlignmentSettings.get_index_fname() );
+    idx->load_metadata( globalAlignmentSettings.get_index_fname() );
+    idx->load_fmindex( globalAlignmentSettings.get_index_fname() );
 
 	std::cout << "Start writing ouput." << std::endl;
 
@@ -63,7 +64,7 @@ int main(int argc, const char* argv[]) {
 	bool all_finished = false;
 
 	for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
-		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
+		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle);
 	}
 
 	while ( !all_finished ) {
@@ -111,7 +112,7 @@ int main(int argc, const char* argv[]) {
 
 	std::cout << "Finished." << std::endl;
 
-	delete index;
+	delete idx;
 
 	return EXIT_SUCCESS;
 }

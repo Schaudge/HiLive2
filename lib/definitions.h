@@ -60,11 +60,6 @@ const std::string seq_chars = "ACGTacgt";
 typedef uint32_t GenomeIdType;
 
 /**
- * Constant variable to tag a k-mer as "trimmed".
- */
-const GenomeIdType TRIMMED = std::numeric_limits<GenomeIdType>::max();
-
-/**
  * A list of Genome Ids
  */
 typedef std::vector<GenomeIdType> GenomeIdListType;
@@ -78,12 +73,6 @@ typedef std::vector<GenomeIdType> GenomeIdListType;
  * Type for positions in a genome.
  */
 typedef uint32_t PositionType;
-
-// GenomeID / Position pair
-typedef std::pair<GenomeIdType, PositionType> PositionPairType;
-
-// List of Genome ID / Position pairs
-typedef std::list<PositionPairType> PositionPairListType;
 
 /**
  * A pair of genome ID and position.
@@ -122,16 +111,6 @@ typedef GenomePosListType::iterator GenomePosListIt;
  * This type also limits the k-mer weight (currently to 32).
  */
 typedef uint64_t HashIntoType;
-
-/**
- * K-mer index type.
- */
-typedef std::vector<GenomePosListType> KmerIndexType;
-
-/**
- * A lightweight type for storing the index.
- */
-typedef std::vector<char*> KixRunDB;
 
 
 //////////////////////////////
@@ -181,7 +160,6 @@ inline bool operator!=(const FMVertexDescriptor l, FMVertexDescriptor r) {
 	return !(l==r);
 //	return std::memcmp(&(l),&(r),sizeof(l)) != 0;
 }
-
 
 ////////////////////////////////////////
 ////////// Integer data types //////////
@@ -477,6 +455,25 @@ enum SAMFlag:uint16_t {
 	PCR_OR_OPTICAL_DUPL	= 1024,	// PCR or optical duplicate
 	SUPPL_ALIGNMENT		= 2048	// supplementary alignment
 };
+
+//enum ExtendedAlignmentMode:uint8_t {
+//	ALL					= 0,	// All alignments that were found
+//	ALL_BEST			= 1,	// All alignments with the best score
+//	BEST_N				= 2,	// At most N alignments with the best score
+//	N					= 3,	// The N best alignments (not all alignments need to have the best score)
+//	ANY_BEST			= 4,	// Any best alignment (equals BEST_N1)
+//	UNIQUE				= 5,	// Only alignments where no secondary alignment(s) exist
+//	UNIQUE_STRICT		= 6,	// Only alignments where no secondary alignment(s) exist for each single mate
+//	NONE				= 7,	// Report none of the alignments
+//
+//	// Modes to report alternative single-mate alignments when proper pairs exist
+//	ALL_SUPERIOR		= 10,	// Report all single mate alignments that are better than the proper pair alignment(s)
+//	ALL_BEST_SUPERIOR	= 11,	// Report all best single mate alignments that are better than the proper pair alignment(s)
+//	BEST_N_SUPERIOR		= 12,	// Report N of the best alignments that are better than the proper pair alignment(s)
+//	N_SUPERIOR			= 13,	// Report N alignments that are better than the proper pair alignment(s)
+//	ANY_BEST_SUPERIOR	= 14,	// Report any of the best alignments that is better than the proper pair alignment(s)
+//	ALL_CONSIDERED		= 15,	// Report all alignments that are considered for pairing.
+//};
 
 /**
  * Template to store a map of mutexes.

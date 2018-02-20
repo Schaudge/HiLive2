@@ -9,6 +9,7 @@
 #include "../lib/tools_static.h"
 
 AlignmentSettings globalAlignmentSettings;
+KixRun* idx;
 mutex_map<std::string> fileLocks;
 
 /**
@@ -63,7 +64,7 @@ Task writeNextTaskToBam ( std::deque<AlnOut> & alnouts ) {
  * @param idx Pointer to the index object
  * @param surrender Control flag (threads stop if true)
  */
-void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun* idx, std::deque<AlnOut> & alnouts, std::atomic<CountType> & writing_threads, bool & surrender ) {
+void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::deque<AlnOut> & alnouts, std::atomic<CountType> & writing_threads, bool & surrender ) {
 
     // Continue until surrender flag is set
     while ( !surrender ) {
@@ -97,7 +98,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, KixRun
 
                 // Seed extension if current read is sequence fragment.
                 if ( !t.seqEl.isBarcode() ) {
-                	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate,idx);
+                	num_seeds = s.extend_alignment(t.cycle,t.seqEl.id,t.seqEl.mate);
                 	ss << "Task [" << t << "]: Found " << num_seeds << " seeds." << std::endl;
 
                 }
@@ -196,10 +197,10 @@ int main(int argc, const char* argv[]) {
 
     // Load the index
     std::cout << "Loading Index ... " << std::endl;
-    KixRun* index = new KixRun();
+    idx = new KixRun();
 
-    index->load_metadata( globalAlignmentSettings.get_index_fname() );
-    index->load_fmindex( globalAlignmentSettings.get_index_fname() );
+    idx->load_metadata( globalAlignmentSettings.get_index_fname() );
+    idx->load_fmindex( globalAlignmentSettings.get_index_fname() );
 
   	// Write the alignment settings to an XML file
   	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
@@ -249,7 +250,7 @@ int main(int argc, const char* argv[]) {
     std::deque<AlnOut> alnouts;
     for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
     	if ( cycle >= globalAlignmentSettings.get_start_cycle() )
-    		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
+    		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle);
     }
 
     // Number of threads currently used for writing output.
@@ -262,7 +263,7 @@ int main(int argc, const char* argv[]) {
     std::cout << "Creating " << globalAlignmentSettings.get_num_threads() << " threads." << std::endl;
     std::vector<std::thread> workers;
     for (int i = 0; i < globalAlignmentSettings.get_num_threads(); i++) {
-        workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), index, std::ref(alnouts), std::ref(writing_threads), std::ref(surrender)));
+        workers.push_back(std::thread(worker, std::ref(toDoQ), std::ref(finishedQ), std::ref(failedQ), std::ref(alnouts), std::ref(writing_threads), std::ref(surrender)));
     }
 
     // Process all tasks on the agenda
@@ -330,7 +331,7 @@ int main(int argc, const char* argv[]) {
 
     std::cout << "All threads joined." << std::endl;
 //    std::cout << "Total mapping time: " << time(NULL) - t_start << " s" << std::endl << std::endl;
-    delete index;
+    delete idx;
 
     std::cout << "Total run time: " << time(NULL) - t_start << " s" << std::endl;
     exit(EXIT_SUCCESS);
