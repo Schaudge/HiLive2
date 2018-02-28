@@ -390,6 +390,7 @@ std::string Seed::getMDZString() {
 std::vector<GenomePosType> Seed::getPositions( CountType firstPosition, CountType lastPosition ) {
 
 	std::vector<GenomePosType> position_list;
+	FMTopDownIterator it(idx->idx, vDesc);
 
 	seqan::Pair<unsigned> hitInterval = vDesc.range;
 
@@ -397,14 +398,15 @@ std::vector<GenomePosType> Seed::getPositions( CountType firstPosition, CountTyp
 	if ( lastPosition <= firstPosition || hitInterval.i2 - hitInterval.i1 <= firstPosition )
 		return position_list;
 
-	// set span values
-	unsigned min_i1 = hitInterval.i1 + firstPosition;
-	unsigned max_i2 = lastPosition == MAX_NUM_POSITIONS ? hitInterval.i2 : std::min(hitInterval.i2, hitInterval.i1 + lastPosition);
+	// Get occurences
+	auto positions = seqan::getOccurrences(it);
+	auto num_positions = seqan::length(positions);
 
-	for (; min_i1 < max_i2; ++min_i1) {
-		GenomePosType el ( seqan::getFibre(idx->idx, seqan::FibreSA())[min_i1].i1, seqan::getFibre(idx->idx, seqan::FibreSA())[min_i1].i2);
+	for ( unsigned i = firstPosition; i < lastPosition && i < num_positions; ++i) {
+		GenomePosType el ( positions[i].i1, positions[i].i2 );
 		position_list.push_back(el);
 	}
+
 
 	return position_list;
 
