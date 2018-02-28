@@ -389,24 +389,37 @@ std::string Seed::getMDZString() {
 
 std::vector<GenomePosType> Seed::getPositions( CountType firstPosition, CountType lastPosition ) {
 
+	// Total number of positions covered by this seed
+	CountType seed_positions = vDesc.range.i2 - vDesc.range.i1;
+
+	// Invalid function parameters ==> return empty list
+	if ( lastPosition <= firstPosition || seed_positions <= firstPosition )
+		return std::vector<GenomePosType>();
+
+	// Modify the vertex descriptor of the seed according to the given function parameters
+	FMVertexDescriptor sub_vDesc = vDesc;
+
+	if ( firstPosition > 0 )
+		sub_vDesc.range.i1 += firstPosition;
+
+	if ( lastPosition < seed_positions ) // If lastPosition > seed_positions, use the original vDesc.range.i2
+		sub_vDesc.range.i2 = vDesc.range.i1 + lastPosition;
+
+	// FM iterator
+	FMTopDownIterator it(idx->idx, sub_vDesc);
+
+	// List containing the positions obtained from the index (reserve enough space to not move the list in memory)
 	std::vector<GenomePosType> position_list;
-	FMTopDownIterator it(idx->idx, vDesc);
-
-	seqan::Pair<unsigned> hitInterval = vDesc.range;
-
-	// Return empty list if there is nothing to return.
-	if ( lastPosition <= firstPosition || hitInterval.i2 - hitInterval.i1 <= firstPosition )
-		return position_list;
 
 	// Get occurences
 	auto positions = seqan::getOccurrences(it);
-	auto num_positions = seqan::length(positions);
+	CountType sub_positions = seqan::length(positions);
+	position_list.reserve( std::min ( seed_positions, sub_positions ) );
 
-	for ( unsigned i = firstPosition; i < lastPosition && i < num_positions; ++i) {
-		GenomePosType el ( positions[i].i1, positions[i].i2 );
-		position_list.push_back(el);
+	// Put positions into the return list
+	for ( CountType i = 0; i < sub_positions; ++i ) {
+		position_list.emplace_back(positions[i].i1, positions[i].i2);
 	}
-
 
 	return position_list;
 
