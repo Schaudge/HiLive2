@@ -255,3 +255,21 @@ char to_phred_quality ( uint8_t bc_qual ) {
 	phred_score += bc_qual;
 	return phred_score;
 }
+
+bool isSeedingCycle(CountType cycle) {
+
+	// Don't seed cycles smaller than the anchor length
+	if ( cycle < globalAlignmentSettings.get_anchor_length() )
+		return false;
+
+	// Create seeds when reaching the anchor length for the first time
+	if ( cycle == globalAlignmentSettings.get_anchor_length() )
+		return true;
+
+	// Create seeds every seeding_interval cycle after the first anchor
+	if ( ( cycle - globalAlignmentSettings.get_anchor_length() ) % globalAlignmentSettings.get_seeding_interval() == 0 )
+		return true;
+
+	return false;
+
+}

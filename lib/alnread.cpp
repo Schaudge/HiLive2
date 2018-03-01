@@ -1,7 +1,7 @@
 #include "alnread.h"
 
 
-seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
+seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() const {
 
 	bool extended_cigar = globalAlignmentSettings.get_extended_cigar();
 
@@ -66,7 +66,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() {
     return seqanCigarString;
 }
 
-void Seed::cout(){
+void Seed::cout() const {
 	std::cout << "----- SEED START -----" << std::endl;
 	std::cout << "Max. alignment score: " << this->max_as << std::endl;
 	std::cout << "CIGAR: ";
@@ -88,7 +88,7 @@ void Seed::cout(){
 	std::cout << std::endl << "------ SEED END ------" << std::endl;
 }
 
-uint16_t Seed::serialize_size() {
+uint16_t Seed::serialize_size() const {
 
   // Calculate total size
   uint16_t total_size = 0;
@@ -244,7 +244,7 @@ uint16_t Seed::deserialize(char* d) {
   return bytes;  
 }
 
-ScoreType Seed::get_as() {
+ScoreType Seed::get_as() const {
 
 	ScoreType as = 0;
 
@@ -302,7 +302,7 @@ ScoreType Seed::get_as() {
 	return as;
 }
 
-CountType Seed::get_nm() {
+CountType Seed::get_nm() const {
 
 	CountType nm = 0;
 
@@ -313,13 +313,14 @@ CountType Seed::get_nm() {
 	return nm;
 }
 
-CountType Seed::get_softclip_length() {
+CountType Seed::get_softclip_length() const {
 	if ( cigar_data.size() == 0 )
 		return 0;
 
 	CountType sc_length = cigar_data.front().offset == NO_MATCH ? cigar_data.front().length : 0;
 	return sc_length;
 }
+
 void Seed::add_mdz_nucleotide(char nucl) {
 
 	uint8_t n = twobit_repr(nucl) << (6 - ( 2 * (mdz_length % 4) ) );
@@ -332,7 +333,7 @@ void Seed::add_mdz_nucleotide(char nucl) {
 
 }
 
-std::string Seed::getMDZString() {
+std::string Seed::getMDZString() const {
 
 	std::string mdz_string = "";
 	uint8_t nucleotide_pos = 0;
@@ -387,7 +388,7 @@ std::string Seed::getMDZString() {
 	return mdz_string;
 }
 
-std::vector<GenomePosType> Seed::getPositions( CountType firstPosition, CountType lastPosition ) {
+std::vector<GenomePosType> Seed::getPositions( CountType firstPosition, CountType lastPosition ) const {
 
 	// Total number of positions covered by this seed
 	CountType seed_positions = vDesc.range.i2 - vDesc.range.i1;
@@ -425,8 +426,7 @@ std::vector<GenomePosType> Seed::getPositions( CountType firstPosition, CountTyp
 
 }
 
-
-uint64_t ReadAlignment::serialize_size() {
+uint64_t ReadAlignment::serialize_size() const {
 
   // Total size
   uint64_t total_size = 0;
@@ -588,7 +588,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
   return bytes;  
 }
 
-std::string ReadAlignment::getSequenceString() {
+std::string ReadAlignment::getSequenceString() const {
 
 	std::string seq = "";
 	uint8_t two_bit_mask = 3;
@@ -611,7 +611,7 @@ std::string ReadAlignment::getSequenceString() {
 
 }
 
-std::string ReadAlignment::getBarcodeString() {
+std::string ReadAlignment::getBarcodeString() const {
 
 	std::string seq = "";
 	uint8_t two_bit_mask = 3;
@@ -633,7 +633,7 @@ std::string ReadAlignment::getBarcodeString() {
     return seq;
 }
 
-std::string ReadAlignment::getQualityString() {
+std::string ReadAlignment::getQualityString() const {
 
 	std::string qual = "";
 
@@ -649,7 +649,6 @@ std::string ReadAlignment::getQualityString() {
 	// return PHRED quality sequence
 	return qual;
 }
-
 
 void ReadAlignment::appendNucleotideToSequenceStoreVector(char bc, bool appendToBarCode) {
 
@@ -902,14 +901,6 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec 
 
 void ReadAlignment::createSeeds(SeedVec & newSeeds) {
 
-	// Stop if not enough cycles to create anchor
-	if ( cycle < globalAlignmentSettings.get_anchor_length() )
-		return;
-
-	// Stop if not a seeding cycle
-	if ( cycle != globalAlignmentSettings.get_anchor_length() && ( cycle - globalAlignmentSettings.get_anchor_length() ) % globalAlignmentSettings.get_seeding_interval() != 0 )
-		return;
-
 	CountType softclip_cycles = cycle - globalAlignmentSettings.get_anchor_length();
 	CountType max_match_cycles = total_cycles - softclip_cycles;
 	ScoreType max_as = ( max_match_cycles * globalAlignmentSettings.get_match_score() ) - getMinSoftclipPenalty(softclip_cycles);
@@ -955,7 +946,7 @@ void ReadAlignment::extend_alignment(char bc) {
     }
 
     // create new seeds in defined intervals (intervals are handled inside createSeeds() function)
-    if ( cycle >= globalAlignmentSettings.get_anchor_length() ) {
+    if ( isSeedingCycle(cycle) ) {
     	createSeeds(newSeeds);
     }
 
@@ -986,7 +977,7 @@ void ReadAlignment::extend_alignment(char bc) {
 	return;
 }
 
-CountType ReadAlignment::getBarcodeIndex() {
+CountType ReadAlignment::getBarcodeIndex() const {
 
 	// Get the barcodes of the read
 	std::string read_bc = getBarcodeString();
@@ -1052,11 +1043,11 @@ void ReadAlignment::disable() {
   }
 }
 
-bool ReadAlignment::is_disabled() {
+bool ReadAlignment::is_disabled() const {
 	return flags == 0;
 }
 
-PositionType ReadAlignment::get_SAM_start_pos(GenomePosType p, USeed & sd) {
+PositionType ReadAlignment::get_SAM_start_pos(GenomePosType p, USeed & sd) const {
 
 	// Only valid if CIGAR string exist (should always be the case)
 	if ( sd->cigar_data.size() == 0 )
@@ -1093,7 +1084,7 @@ void ReadAlignment::sort_seeds_by_as() {
 	std::sort(seeds.begin(), seeds.end(), seed_comparison_by_as);
 }
 
-std::vector<uint8_t> ReadAlignment::getMAPQs(){
+std::vector<uint8_t> ReadAlignment::getMAPQs() const {
 
 	// Vector that contains the final MAPQ values
 	std::vector<uint8_t> mapqs;
@@ -1172,7 +1163,7 @@ std::vector<uint8_t> ReadAlignment::getMAPQs(){
 	return mapqs;
 }
 
-void ReadAlignment::addReadInfoToRecord(seqan::BamAlignmentRecord & record) {
+void ReadAlignment::addReadInfoToRecord(seqan::BamAlignmentRecord & record) const {
 	record.seq = getSequenceString();
 	record.qual = getQualityString();
 }

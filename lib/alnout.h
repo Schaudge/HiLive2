@@ -48,7 +48,6 @@ public:
 	 * */
 	Atomic_bfo( std::string f_name) : bfo(f_name.c_str()) { }
 
-
 	/** Destructor. */
 	~Atomic_bfo ( ) {	}
 

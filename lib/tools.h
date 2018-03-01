@@ -164,4 +164,9 @@ int atomic_rename( const char *oldname, const char *newname );
  */
 char to_phred_quality ( uint8_t bc_qual );
 
+/**
+ * Check if a cycle is a seeding cycle.
+ */
+bool isSeedingCycle(CountType cycle);
+
 #endif /* TOOLS_H */

@@ -18,16 +18,16 @@ private:
 	///////////////////////////////////////
 
 	/** Memory block size for the input and output buffer in the streamed alignment. */
-	Unmodifiable<uint64_t> block_size;
+	Immutable<uint64_t> block_size;
 
 	/** Compression format for alignment files. */
-	Unmodifiable<uint8_t> compression_format;
+	Immutable<uint8_t> compression_format;
 
 	/** Number of threads to use. */
-	Unmodifiable<CountType> num_threads;
+	Immutable<CountType> num_threads;
 
 	// SWITCH: Keep the old alignment files of previous cycles
-	Unmodifiable<std::vector<uint16_t>> keep_aln_files;
+	Immutable<std::vector<uint16_t>> keep_aln_files;
 
 
 	////////////////////////////////////
@@ -35,25 +35,25 @@ private:
 	////////////////////////////////////
 
 	/** Value N for best_n output mode. */
-	Unmodifiable<CountType> best_n;
+	Immutable<CountType> best_n;
 
 	/** Switch: Write BAM instead of SAM output. */
-	Unmodifiable<bool> write_bam;
+	Immutable<bool> write_bam;
 
 	/** Cycles for (intermediate) SAM/BAM output. */
-	Unmodifiable<std::vector<uint16_t>> output_cycles;
+	Immutable<std::vector<uint16_t>> output_cycles;
 
 	/** Switch: Activate extended CIGAR annotation. */
-	Unmodifiable<bool> extended_cigar;
+	Immutable<bool> extended_cigar;
 
 	/** Output mode. */
-	Unmodifiable<AlignmentMode> mode;
+	Immutable<AlignmentMode> mode;
 
 	/** Switch: store all sequences. */ // TODO: this setting seems to not be considered in the program.
-	Unmodifiable<bool> keep_all_sequences;
+	Immutable<bool> keep_all_sequences;
 
 	/** Switch: Report unmapped reads. */
-	Unmodifiable<bool> report_unmapped;
+	Immutable<bool> report_unmapped;
 
 
 	////////////////////////////////////
@@ -61,43 +61,43 @@ private:
 	////////////////////////////////////
 
 	/** Minimal alignment score to keep an alignment. */
-	Unmodifiable<ScoreType> min_as;
+	Immutable<ScoreType> min_as;
 
 	/** Score for an alignment match. */
-	Unmodifiable<CountType> match_score;
+	Immutable<CountType> match_score;
 
 	/** Penalty for an alignment mismatch. */
-	Unmodifiable<CountType> mismatch_penalty;
+	Immutable<CountType> mismatch_penalty;
 
 	/** Penalty for opening an insertion region. */
-	Unmodifiable<CountType> insertion_opening_penalty;
+	Immutable<CountType> insertion_opening_penalty;
 
 	/** Penalty for opening a deletion region. */
-	Unmodifiable<CountType> deletion_opening_penalty;
+	Immutable<CountType> deletion_opening_penalty;
 
 	/** Penalty for extending an insertion region. */
-	Unmodifiable<CountType> insertion_extension_penalty;
+	Immutable<CountType> insertion_extension_penalty;
 
 	/** Penalty for extending a deletion region. */
-	Unmodifiable<CountType> deletion_extension_penalty;
+	Immutable<CountType> deletion_extension_penalty;
 
 	/** Penalty for opening a softclip region (only for output, not for filtering). */
-	Unmodifiable<float> softclip_opening_penalty;
+	Immutable<float> softclip_opening_penalty;
 
 	/** Penalty for extending a softclip region (only for output, not for filtering). */
-	Unmodifiable<float> softclip_extension_penalty;
+	Immutable<float> softclip_extension_penalty;
 
 	/** Maximal consecutive number of insertions or deletions. */
-	Unmodifiable<CountType> max_gap_length;
+	Immutable<CountType> max_gap_length;
 
 	// PARAMETER: max. amount of threads used for output
-	Unmodifiable<CountType> num_out_threads;
+	Immutable<CountType> num_out_threads;
 
 	// PARAMETER: the first cycle to handle. Should be 1 by default.
-	Unmodifiable<CountType> start_cycle;
+	Immutable<CountType> start_cycle;
 
 	/** Maximal relative length of softclip region. */
-	Unmodifiable<float> max_softclip_ratio;
+	Immutable<float> max_softclip_ratio;
 
 
 	///////////////////////////////////////
@@ -105,34 +105,34 @@ private:
 	///////////////////////////////////////
 
 	/** Length of the alignment anchor. */
-	Unmodifiable<CountType> anchorLength;
+	Immutable<CountType> anchorLength;
 
 	/** Interval to increase the number of tolerated errors. */
-	Unmodifiable<CountType> errorRate;
+	Immutable<CountType> errorRate;
 
 	/** Interval to create new seeds. */
-	Unmodifiable<CountType> seeding_interval;
+	Immutable<CountType> seeding_interval;
 
 	/** Minimal quality for a base call to be valid. */
-	Unmodifiable<CountType> min_qual;
+	Immutable<CountType> min_qual;
 
 	/** Sort the alignment files for output even if sorted files already exist.*/
-	Unmodifiable<bool> force_resort;
+	Immutable<bool> force_resort;
 
 	/** List of lanes to process. */
-	Unmodifiable<std::vector<uint16_t>> lanes;
+	Immutable<std::vector<uint16_t>> lanes;
 
 	/** List of tiles to process. */
-	Unmodifiable<std::vector<uint16_t>> tiles;
+	Immutable<std::vector<uint16_t>> tiles;
 
 	/** Total length of the sequencing procedure. */
-	Unmodifiable<CountType> cycles;
+	Immutable<CountType> cycles;
 
 	/** List of all sequence fragments. */
-	Unmodifiable<std::vector<SequenceElement>> seqs;
+	Immutable<std::vector<SequenceElement>> seqs;
 
 	/** Total number of mates. */
-	Unmodifiable<uint16_t> mates;
+	Immutable<uint16_t> mates;
 
 
 	////////////////////////////////////////////
@@ -140,13 +140,13 @@ private:
 	////////////////////////////////////////////
 
 	/** List of barcode sequences (split in an inner vector for multibarcodes). */
-	Unmodifiable<std::vector<std::vector<std::string>>> barcodeVector;
+	Immutable<std::vector<std::vector<std::string>>> barcodeVector;
 
 	/** Number of tolerated mismatches for barcodes. */
-	Unmodifiable<std::vector<uint16_t>> barcode_errors;
+	Immutable<std::vector<uint16_t>> barcode_errors;
 
 	/** Switch: Keep all barcodes (disables barcode filtering). */
-	Unmodifiable<bool> keep_all_barcodes;
+	Immutable<bool> keep_all_barcodes;
 
 
 	//////////////////////////////////////////
@@ -154,16 +154,16 @@ private:
 	//////////////////////////////////////////
 
 	/** Temporary directory for the streamed alignment. */
-	Unmodifiable<std::string> temp_dir;
+	Immutable<std::string> temp_dir;
 
 	/** Root directory of hilive run. */
-	Unmodifiable<std::string> root;
+	Immutable<std::string> root;
 
 	/** Index file(s) prefix. */
-	Unmodifiable<std::string> index_fname;
+	Immutable<std::string> index_fname;
 
 	/** Output directory. */
-	Unmodifiable<std::string> out_dir;
+	Immutable<std::string> out_dir;
 
 
 	///////////////////////////////////////
@@ -200,39 +200,39 @@ private:
 	}
 
 	/**
-	 * Set the barcode vector. Can only be set once (unmodifiable object).
+	 * Set the barcode vector. Can only be set once (immutable object).
 	 * @param value The barcode split in a 2D-vector, where first dimension are the different barcodes and second dimension the fragments of multi-barcodes.
 	 * @author Tobias Loka
 	 */
 	void set_barcodeVector(std::vector<std::vector<std::string> > value) {
-		set_unmodifiable(barcodeVector, value, "barcodeVector");
+		set_immutable(barcodeVector, value);
 	}
 
 	/**
-	 * Set the seq vector. Can only be set once (unmodifiable object).
+	 * Set the seq vector. Can only be set once (immutable object).
 	 * @param value Vector of SequenceElement objects that contain all information about the read structure.
 	 * @author Tobias Loka
 	 */
 	void set_seqs(std::vector<SequenceElement> value) {
-		set_unmodifiable(seqs, value, "seqs");
+		set_immutable(seqs, value);
 	}
 
 	/**
-	 * Set the block size. Can only be set once (unmodifiable object).
+	 * Set the block size. Can only be set once (immutable object).
 	 * @param value The block size as unsigned integer.
 	 * @author Tobias Loka
 	 */
 	void set_block_size(uint64_t value) {
-		set_unmodifiable(block_size, value, "block_size");
+		set_immutable(block_size, value);
 	}
 
 	/**
-	 * Set the number of mates. Can only be set once (unmodifiable object).
+	 * Set the number of mates. Can only be set once (immutable object).
 	 * @param value The number of mates as unsigned integer.
 	 * @author Tobias Loka
 	 */
 	void set_mates(uint16_t value) {
-		set_unmodifiable(mates, value, "mates");
+		set_immutable(mates, value);
 	}
 
 	/**
@@ -240,19 +240,19 @@ private:
 	 * @return The output mode as AlignmentMode object.
 	 * @author Tobias Loka
 	 */
-	AlignmentMode get_mode() {
-		return get_unmodifiable(mode, "mode");
+	AlignmentMode get_mode() const{
+		return get_immutable(mode);
 	}
 
 	/**
-	 * Set the output mode. Can only be set once (unmodifiable object).
+	 * Set the output mode. Can only be set once (immutable object).
 	 * @param value The output mode as AlignmentMode object.
 	 * @param bestn (optional) Defines the N for the best_n mode (0 if not defined).
 	 * @author Tobias Loka
 	 */
 	void set_mode(AlignmentMode value, CountType bestn = 0) {
-		set_unmodifiable(mode, value, "mode");
-		set_unmodifiable(best_n, bestn, "best_n");
+		set_immutable(mode, value);
+		set_immutable(best_n, bestn);
 	}
 
 
@@ -330,7 +330,6 @@ public:
 		return xml_out;
 	}
 
-
 	/**
 	 * Create the internal barcode structure.
 	 * @param barcodeArg A vector of strings as given via the command line (dual barcodes being split by a "-" char).
@@ -384,8 +383,8 @@ public:
 	 * Get the barcodes as stored internally.
 	 * @return Barcodes as a 2-dimensional vector of strings.
 	 */
-	std::vector<std::vector<std::string> > get_barcodeVector() {
-		return get_unmodifiable(barcodeVector, "barcodeVector", true);
+	std::vector<std::vector<std::string> > get_barcodeVector() const {
+		return get_immutable(barcodeVector, true);
 	}
 
 	/**
@@ -393,7 +392,7 @@ public:
 	 * @param unformatted_barcode A barcode as single string without delimiter
 	 * @return Barcode with a "-" char between dual barcodes. Lengths of the single barcodes is retrieved from the internal data structure.
 	 */
-	std::string format_barcode(std::string unformatted_barcode) {
+	std::string format_barcode(std::string unformatted_barcode) const {
 		CountType pos = 0;
 		for ( auto el : get_seqs() ) {
 			if ( el.mate == 0 ) {
@@ -414,7 +413,7 @@ public:
 	 * @param index Index of the requested barcode.
 	 * @return The requested barcode as formatted string (including "-" delimiting between single barcodes).
 	 */
-	std::string get_barcodeString(CountType index) {
+	std::string get_barcodeString(CountType index) const {
 
 		// invalid index
 		if ( index >= get_barcodeVector().size() ) {
@@ -492,7 +491,7 @@ public:
 	 * @return The respective SequenceElement object for the given id.
 	 * @author Tobias Loka
 	 */
-	SequenceElement getSeqById(CountType id) {return seqs.get()[id];}
+	SequenceElement getSeqById(CountType id) const {return seqs.get()[id];}
 
 	/**
 	 * Get a SequenceElement object from the seqs vector by using the mate number
@@ -500,7 +499,7 @@ public:
 	 * @return The respective SequenceElement object for the given mate number. NULLSEQ if mate==0 (barcodes).
 	 * @author Tobias Loka
 	 */
-	SequenceElement getSeqByMate(CountType mate) {
+	SequenceElement getSeqByMate(CountType mate) const {
 		if ( mate == 0 ) return NULLSEQ;
 		auto the_seq = seqs.get();
 		for (uint16_t i = 0; i != the_seq.size(); i++) {
@@ -514,30 +513,30 @@ public:
 	 * @param value The minimum quality as a number (0-41 for Illumina PHRED scores)
 	 */
 	void set_min_qual(CountType value) {
-		set_unmodifiable(min_qual, value, "min_qual");
+		set_immutable(min_qual, value);
 	}
 
 	/**
 	 * Get the minimum quality for a valid base call.
 	 * @return The minimum quality as a number (0-41 for Illumina PHRED scores)
 	 */
-	CountType get_min_qual() {
-		return get_unmodifiable(min_qual, "min_qual");
+	CountType get_min_qual() const {
+		return get_immutable(min_qual);
 	}
 
 	/**
 	 * Check alignment mode for any best hit mode
 	 * @return True if any best hit mode is activated
 	 */
-	bool get_any_best_hit_mode() {
-		return (get_unmodifiable(mode, "mode")==AlignmentMode::ANYBEST);
+	bool get_any_best_hit_mode() const {
+		return (get_immutable(mode)==AlignmentMode::ANYBEST);
 	}
 
 	/**
 	 * Check alignment mode for all hit mode
 	 * @return True if all hit mode is activated
 	 */
-	bool get_all_hit_mode() {
+	bool get_all_hit_mode() const {
 		return (get_mode()==AlignmentMode::ALL);
 	}
 
@@ -545,7 +544,7 @@ public:
 	 * Check alignment mode for all best hit mode
 	 * @return True if all best hit mode is activated
 	 */
-	bool get_all_best_hit_mode() {
+	bool get_all_best_hit_mode() const {
 		return (get_mode()==AlignmentMode::ALLBEST);
 	}
 
@@ -553,7 +552,7 @@ public:
 	 * Check alignment mode for all best N hit mode
 	 * @return True if all best N hit mode is activated
 	 */
-	bool get_all_best_n_scores_mode() {
+	bool get_all_best_n_scores_mode() const {
 		return (get_mode()==AlignmentMode::BESTN);
 	}
 
@@ -561,7 +560,7 @@ public:
 	 * Check alignment mode for unique hit mode
 	 * @return True if unique hit mode is activated
 	 */
-	bool get_unique_hit_mode() {
+	bool get_unique_hit_mode() const {
 		return (get_mode()==AlignmentMode::UNIQUE);
 	}
 
@@ -569,8 +568,8 @@ public:
 	 * Get the N value for the "best N scores" mode.
 	 * @return Number of "best" scores to print alignments for
 	 */
-	CountType get_best_n() {
-		return get_unmodifiable(best_n, "best_n", true);
+	CountType get_best_n() const {
+		return get_immutable(best_n, true);
 	}
 
 	/**
@@ -578,16 +577,16 @@ public:
 	 * @param value Path to the directory as string.
 	 */
 	void set_temp_dir(std::string value) {
-		set_unmodifiable(temp_dir, value, "temp_dir");
+		set_immutable(temp_dir, value);
 	}
 
 	/**
 	 * Get the directory to store temporary data.
 	 * @return Path to the directory as string.
 	 */
-	std::string get_temp_dir() {
-		std::string dir = get_unmodifiable(temp_dir, "temp_dir");
-		dir = dir!="" ? dir : get_unmodifiable(root, "root");
+	std::string get_temp_dir() const {
+		std::string dir = get_immutable(temp_dir);
+		dir = dir!="" ? dir : get_immutable(root);
 		return dir;
 	}
 
@@ -596,15 +595,15 @@ public:
 	 * @param value true for BAM, false for SAM output
 	 */
 	void set_write_bam(bool value) {
-		set_unmodifiable(write_bam, value, "write_bam");
+		set_immutable(write_bam, value);
 	}
 
 	/**
 	 * Get setting of the output format (SAM or BAM)
 	 * @return true if BAM, false if SAM
 	 */
-	bool get_write_bam() {
-		return get_unmodifiable(write_bam, "write_bam");
+	bool get_write_bam() const {
+		return get_immutable(write_bam);
 	}
 
 	/**
@@ -621,15 +620,15 @@ public:
 		}
 		std::sort(the_cycles.begin(), the_cycles.end());
 		the_cycles.erase( std::unique(the_cycles.begin(), the_cycles.end()), the_cycles.end());
-		set_unmodifiable(output_cycles, the_cycles, "output_cycles");
+		set_immutable(output_cycles, the_cycles);
 	}
 
 	/**
 	 * Get the cycles to write output.
 	 * @return Output cycles as a vector of Integers as given as user input.
 	 */
-	std::vector<uint16_t> get_output_cycles() {
-		return get_unmodifiable(output_cycles, "output_cycles", true);
+	std::vector<uint16_t> get_output_cycles() const {
+		return get_immutable(output_cycles, true);
 	}
 
 	/**
@@ -637,7 +636,7 @@ public:
 	 * @param cycle Requested cycle to check for output.
 	 * @return true if requested cycle is an output cycle. false otherwise
 	 */
-	bool is_output_cycle(CountType cycle) {
+	bool is_output_cycle(CountType cycle) const {
 		auto out_cycles = get_output_cycles();
 		if ( std::find(out_cycles.begin(), out_cycles.end(), cycle) == out_cycles.end() )
 			return false;
@@ -649,15 +648,15 @@ public:
 	 * @rparam value Kept cycles as a vector of Integers as given as user input.
 	 */
 	void set_keep_aln_files(std::vector<uint16_t> value) {
-		set_unmodifiable(keep_aln_files, value, "keep_aln_files");
+		set_immutable(keep_aln_files, value);
 	}
 
 	/**
 	 * Get the cycles to keep the alignment files for.
 	 * @return Kept cycles as a vector of Integers as given as user input.
 	 */
-	std::vector<uint16_t> get_keep_aln_files() {
-		return get_unmodifiable(keep_aln_files, "keep_aln_files");
+	std::vector<uint16_t> get_keep_aln_files() const {
+		return get_immutable(keep_aln_files);
 	}
 
 	/**
@@ -665,7 +664,7 @@ public:
 	 * @param cycle Requested cycle to check for keeping temporary files.
 	 * @return true if requested cycle is a kept cycle. false otherwise
 	 */
-	bool is_keep_aln_files_cycle(CountType cycle) {
+	bool is_keep_aln_files_cycle(CountType cycle) const {
 		auto aln_files_cycles = get_keep_aln_files();
 		if ( std::find(aln_files_cycles.begin(), aln_files_cycles.end(), cycle) == aln_files_cycles.end() )
 			return false;
@@ -713,8 +712,8 @@ public:
 	 * Get the block size for output.
 	 * @param value The block size as uint64_t (in bytes)
 	 */
-	uint64_t get_block_size() {
-		return get_unmodifiable(block_size, "block_size");
+	uint64_t get_block_size() const {
+		return get_immutable(block_size);
 	}
 
 	/**
@@ -725,15 +724,15 @@ public:
 		if ( value > 2 )
 			value = 2;
 		uint8_t one_byte_value = value;
-		set_unmodifiable(compression_format, one_byte_value, "compression_format");
+		set_immutable(compression_format, one_byte_value);
 	}
 
 	/**
 	 * Get the compression format.
 	 * @return Compression format as uint8_t.
 	 */
-	uint8_t get_compression_format() {
-		return get_unmodifiable(compression_format, "compression_format");
+	uint8_t get_compression_format() const {
+		return get_immutable(compression_format);
 	}
 
 	/**
@@ -743,15 +742,15 @@ public:
 	void set_lanes(std::vector<uint16_t> value) {
 		std::sort( value.begin(), value.end() );
 		value.erase( std::unique( value.begin(), value.end() ), value.end() );
-		set_unmodifiable(lanes, value, "lanes");
+		set_immutable(lanes, value);
 	}
 
 	/**
 	 * Get the lanes to work on.
 	 * @return The lanes considered for alignment as vector of Integers.
 	 */
-	std::vector<uint16_t> get_lanes() {
-		return get_unmodifiable(lanes, "lanes", true);
+	std::vector<uint16_t> get_lanes() const {
+		return get_immutable(lanes, true);
 	}
 
 	/**
@@ -809,15 +808,15 @@ public:
 	void set_tiles(std::vector<uint16_t> value) {
 		std::sort( value.begin(), value.end() );
 		value.erase( std::unique( value.begin(), value.end() ), value.end() );
-		set_unmodifiable(tiles, value, "tiles");
+		set_immutable(tiles, value);
 	}
 
 	/**
 	 * Get the tiles to work on.
 	 * @return The tiles considered for alignment as vector of Integers.
 	 */
-	std::vector<uint16_t> get_tiles() {
-		return get_unmodifiable(tiles, "tiles", true);
+	std::vector<uint16_t> get_tiles() const {
+		return get_immutable(tiles, true);
 	}
 
 	/**
@@ -825,15 +824,15 @@ public:
 	 * @param value the path to the root directory as string
 	 */
 	void set_root(std::string value) {
-		set_unmodifiable(root, value, "root");
+		set_immutable(root, value);
 	}
 
 	/**
 	 * Get the root directory (i.e. the path of the BaseCalls directory)
 	 * @param value the path to the root directory as string
 	 */
-	std::string get_root() {
-		return get_unmodifiable(root, "root");
+	std::string get_root() const {
+		return get_immutable(root);
 	}
 
 	/**
@@ -841,15 +840,15 @@ public:
 	 * @param value Path to the index as string.
 	 */
 	void set_index_fname(std::string value) {
-		set_unmodifiable(index_fname, value, "index_fname");
+		set_immutable(index_fname, value);
 	}
 
 	/**
 	 * Get the path to the index (including the file prefix)
 	 * @return Path to the index as string.
 	 */
-	std::string get_index_fname() {
-		return get_unmodifiable(index_fname, "index_fname");
+	std::string get_index_fname() const {
+		return get_immutable(index_fname);
 	}
 
 	/**
@@ -857,15 +856,15 @@ public:
 	 * @param value The total number of cycles (must match the sum of cycles given by -r parameter)
 	 */
 	void set_cycles(CountType value) {
-		set_unmodifiable(cycles, value, "cycles");
+		set_immutable(cycles, value);
 	}
 
 	/**
 	 * Get the total number of cycles.
 	 * @return The total number of cycles
 	 */
-	CountType get_cycles() {
-		return get_unmodifiable(cycles, "cycles");
+	CountType get_cycles() const {
+		return get_immutable(cycles);
 	}
 
 	/**
@@ -873,15 +872,15 @@ public:
 	 * @param value The cycle to start computations
 	 */
 	void set_start_cycle(CountType value) {
-		set_unmodifiable(start_cycle, value, "start_cycle");
+		set_immutable(start_cycle, value);
 	}
 
 	/**
 	 * Get the cycle to start computations (used for --continue)
 	 * @return The cycle to start computations
 	 */
-	CountType get_start_cycle() {
-		CountType ret = get_unmodifiable(start_cycle, "start_cycle", true);
+	CountType get_start_cycle() const {
+		CountType ret = get_immutable(start_cycle, true);
 
 		// Value if not set.
 		if ( ret == 0 )
@@ -895,15 +894,15 @@ public:
 	 * @param value Path to the output directory (no need to exist).
 	 */
 	void set_out_dir(std::string value) {
-		set_unmodifiable(out_dir, value, "out_dir");
+		set_immutable(out_dir, value);
 	}
 
 	/**
 	 * Get the directory to write output files.
 	 * @return Path to the output directory
 	 */
-	std::string get_out_dir() {
-		return get_unmodifiable(out_dir, "out_dir");
+	std::string get_out_dir() const {
+		return get_immutable(out_dir);
 	}
 
 	/**
@@ -911,15 +910,15 @@ public:
 	 * @param value Number of threads.
 	 */
 	void set_num_threads(CountType value) {
-		set_unmodifiable(num_threads, value, "num_threads");
+		set_immutable(num_threads, value);
 	}
 
 	/**
 	 * Get the total number of threads.
 	 * @return Number of threads.
 	 */
-	CountType get_num_threads() {
-		return get_unmodifiable(num_threads, "num_threads");
+	CountType get_num_threads() const {
+		return get_immutable(num_threads);
 	}
 
 	/**
@@ -927,31 +926,31 @@ public:
 	 * @param value The number of output threads. This number of threads is also used for output if new alignment jobs would be available.
 	 */
 	void set_num_out_threads(CountType value) {
-		set_unmodifiable(num_out_threads, value, "num_out_threads");
+		set_immutable(num_out_threads, value);
 	}
 
 	/**
 	 * Get the number of threads used for output.
 	 * @return The number of output threads. This number of threads is also used for output if new alignment jobs would be available.
 	 */
-	CountType get_num_out_threads() {
-		return get_unmodifiable(num_out_threads, "num_out_threads");
+	CountType get_num_out_threads() const {
+		return get_immutable(num_out_threads);
 	}
 
 	/**
 	 * Get the sequence elements.
 	 * @return Vector of sequence elements. This includes read and barcode elements.
 	 */
-	std::vector<SequenceElement> get_seqs() {
-		return get_unmodifiable(seqs, "seqs", true);
+	std::vector<SequenceElement> get_seqs() const {
+		return get_immutable(seqs, true);
 	}
 
 	/**
 	 * Get the number of mates.
 	 * @return The number of mates.
 	 */
-	uint16_t get_mates() {
-		return get_unmodifiable(mates, "mates", true);
+	uint16_t get_mates() const {
+		return get_immutable(mates, true);
 	}
 
 	/**
@@ -959,15 +958,15 @@ public:
 	 * @param value The number of errors for each barcode as a vector of ints.
 	 */
 	void set_barcode_errors(std::vector<uint16_t> value) {
-		set_unmodifiable(barcode_errors, value, "barcode_errors");
+		set_immutable(barcode_errors, value);
 	}
 
 	/**
 	 * Get the number of errors allowed for each barcode.
 	 * @param value The number of errors for each barcode as a vector of ints.
 	 */
-	std::vector<uint16_t> get_barcode_errors() {
-		return get_unmodifiable(barcode_errors, "barcode_errors", true);
+	std::vector<uint16_t> get_barcode_errors() const {
+		return get_immutable(barcode_errors, true);
 	}
 
 	/**
@@ -975,17 +974,17 @@ public:
 	 * @param value true to write reads without a matching barcode, false to not write them
 	 */
 	void set_keep_all_barcodes(bool value) {
-		set_unmodifiable(keep_all_barcodes, value, "keep_all_barcodes");
+		set_immutable(keep_all_barcodes, value);
 	}
 
 	/**
 	 * Get whether reads without a matching barcode are written to an "undetermined" file.
 	 * @return true if reads without a matching barcode are written, false otherwise
 	 */
-	bool get_keep_all_barcodes() {
+	bool get_keep_all_barcodes() const {
 		if ( get_barcodeVector().size() == 0 )
 			return true;
-		return get_unmodifiable(keep_all_barcodes, "keep_all_barcodes");
+		return get_immutable(keep_all_barcodes);
 	}
 
 	/**
@@ -993,23 +992,23 @@ public:
 	 * @param value true to activate extended CIGAR format, false to use standard CIGAR.
 	 */
 	void set_extended_cigar(bool value) {
-		set_unmodifiable(extended_cigar, value, "extended_cigar");
+		set_immutable(extended_cigar, value);
 	}
 
 	/**
 	 * Check to use extended CIGAR format for alignment output.
 	 * @return true if extended CIGAR format is activated, false is standard CIGAR is used.
 	 */
-	bool get_extended_cigar() {
-		return get_unmodifiable(extended_cigar, "extended_cigar");
+	bool get_extended_cigar() const {
+		return get_immutable(extended_cigar);
 	}
 
 	/**
 	 * Check to keep all sequences (also those of unmapped reads)
 	 * @return true if all sequences are kept
 	 */
-	bool get_keep_all_sequences() {
-		return get_unmodifiable(keep_all_sequences, "keep-all-sequences");
+	bool get_keep_all_sequences() const {
+		return get_immutable(keep_all_sequences);
 	}
 
 	/**
@@ -1017,15 +1016,15 @@ public:
 	 * @param value true to keep all sequences, false otherwise
 	 */
 	void set_keep_all_sequences(bool value) {
-		set_unmodifiable(keep_all_sequences, value, "keep-all-sequences");
+		set_immutable(keep_all_sequences, value);
 	}
 
 	/**
 	 * Check to report unmapped reads
 	 * @return true if all sequences are kept
 	 */
-	bool get_report_unmapped() {
-		return get_unmodifiable(report_unmapped, "report-unmapped");
+	bool get_report_unmapped() const {
+		return get_immutable(report_unmapped);
 	}
 
 	/**
@@ -1033,7 +1032,7 @@ public:
 	 * @param value true to keep all sequences, false otherwise
 	 */
 	void set_report_unmapped(bool value) {
-		set_unmodifiable(report_unmapped, value, "report-unmapped");
+		set_immutable(report_unmapped, value);
 	}
 
 	////////// Scoring scheme  //////////
@@ -1043,8 +1042,8 @@ public:
 	 * @return Minimum score for an alignment.
 	 * @author Tobias Loka
 	 */
-	ScoreType get_min_as() {
-		return get_unmodifiable(min_as, "min_as");
+	ScoreType get_min_as() const {
+		return get_immutable(min_as);
 	}
 
 	/**
@@ -1053,7 +1052,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_min_as(ScoreType value) {
-		set_unmodifiable(min_as, value, "min_as");
+		set_immutable(min_as, value);
 	}
 
 	/**
@@ -1061,8 +1060,8 @@ public:
 	 * @return Maximum gap length.
 	 * @author Tobias Loka
 	 */
-	CountType get_max_gap_length() {
-		return get_unmodifiable(max_gap_length, "max_gap_length");
+	CountType get_max_gap_length() const {
+		return get_immutable(max_gap_length);
 	}
 
 	/**
@@ -1071,7 +1070,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_max_gap_length(CountType value) {
-		set_unmodifiable(max_gap_length, value, "max_gap_length");
+		set_immutable(max_gap_length, value);
 	}
 
 	/**
@@ -1079,8 +1078,8 @@ public:
 	 * @return Score for a match.
 	 * @author Tobias Loka
 	 */
-	CountType get_match_score() {
-		return get_unmodifiable(match_score, "match_score");
+	CountType get_match_score() const {
+		return get_immutable(match_score);
 	}
 
 	/**
@@ -1089,7 +1088,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_match_score(CountType value) {
-		set_unmodifiable(match_score, value, "match_score");
+		set_immutable(match_score, value);
 	}
 
 	/**
@@ -1097,8 +1096,8 @@ public:
 	 * @return Penalty for a mismatch.
 	 * @author Tobias Loka
 	 */
-	CountType get_mismatch_penalty() {
-		return get_unmodifiable(mismatch_penalty, "mismatch_penalty");
+	CountType get_mismatch_penalty() const {
+		return get_immutable(mismatch_penalty);
 	}
 
 	/**
@@ -1107,7 +1106,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_mismatch_penalty(CountType value) {
-		set_unmodifiable(mismatch_penalty, value, "mismatch_penalty");
+		set_immutable(mismatch_penalty, value);
 	}
 
 	/**
@@ -1115,8 +1114,8 @@ public:
 	 * @return Penalty for an insertion opening.
 	 * @author Tobias Loka
 	 */
-	CountType get_insertion_opening_penalty() {
-		return get_unmodifiable(insertion_opening_penalty, "insertion_opening_penalty");
+	CountType get_insertion_opening_penalty() const {
+		return get_immutable(insertion_opening_penalty);
 	}
 
 	/**
@@ -1125,7 +1124,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_insertion_opening_penalty(CountType value) {
-		set_unmodifiable(insertion_opening_penalty, value, "insertion_opening_penalty");
+		set_immutable(insertion_opening_penalty, value);
 	}
 
 	/**
@@ -1133,8 +1132,8 @@ public:
 	 * @return Penalty for a deletion opening.
 	 * @author Tobias Loka
 	 */
-	CountType get_deletion_opening_penalty() {
-		return get_unmodifiable(deletion_opening_penalty, "deletion_opening_penalty");
+	CountType get_deletion_opening_penalty() const {
+		return get_immutable(deletion_opening_penalty);
 	}
 
 	/**
@@ -1143,7 +1142,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_deletion_opening_penalty(CountType value) {
-		set_unmodifiable(deletion_opening_penalty, value, "deletion_opening_penalty");
+		set_immutable(deletion_opening_penalty, value);
 	}
 
 	/**
@@ -1151,8 +1150,8 @@ public:
 	 * @return Penalty for an insertion extension.
 	 * @author Tobias Loka
 	 */
-	CountType get_insertion_extension_penalty() {
-		return get_unmodifiable(insertion_extension_penalty, "insertion_extension_penalty");
+	CountType get_insertion_extension_penalty() const {
+		return get_immutable(insertion_extension_penalty);
 	}
 
 	/**
@@ -1161,7 +1160,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_insertion_extension_penalty(CountType value) {
-		set_unmodifiable(insertion_extension_penalty, value, "insertion_extension_penalty");
+		set_immutable(insertion_extension_penalty, value);
 	}
 
 	/**
@@ -1169,8 +1168,8 @@ public:
 	 * @return Penalty for a deletion extension.
 	 * @author Tobias Loka
 	 */
-	CountType get_deletion_extension_penalty() {
-		return get_unmodifiable(deletion_extension_penalty, "deletion_extension_penalty");
+	CountType get_deletion_extension_penalty() const {
+		return get_immutable(deletion_extension_penalty);
 	}
 
 	/**
@@ -1179,7 +1178,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_deletion_extension_penalty(CountType value) {
-		set_unmodifiable(deletion_extension_penalty, value, "deletion_extension_penalty");
+		set_immutable(deletion_extension_penalty, value);
 	}
 
 	/**
@@ -1187,8 +1186,8 @@ public:
 	 * @return Penalty for a softclip extension.
 	 * @author Tobias Loka
 	 */
-	float get_softclip_extension_penalty() {
-		return get_unmodifiable(softclip_extension_penalty, "softclip_extension_penalty");
+	float get_softclip_extension_penalty() const {
+		return get_immutable(softclip_extension_penalty);
 	}
 
 	/**
@@ -1197,7 +1196,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_softclip_extension_penalty(float value) {
-		set_unmodifiable(softclip_extension_penalty, value, "softclip_extension_penalty");
+		set_immutable(softclip_extension_penalty, value);
 	}
 
 	/**
@@ -1205,8 +1204,8 @@ public:
 	 * @return Penalty for a softclip opening.
 	 * @author Tobias Loka
 	 */
-	float get_softclip_opening_penalty() {
-		return get_unmodifiable(softclip_opening_penalty, "softclip_opening_penalty");
+	float get_softclip_opening_penalty() const {
+		return get_immutable(softclip_opening_penalty);
 	}
 
 	/**
@@ -1215,7 +1214,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_softclip_opening_penalty(float value) {
-		set_unmodifiable(softclip_opening_penalty, value, "softclip_opening_penalty");
+		set_immutable(softclip_opening_penalty, value);
 	}
 
 	/**
@@ -1223,8 +1222,8 @@ public:
 	 * @return Maximal softclip ratio.
 	 * @author Tobias Loka
 	 */
-	float get_max_softclip_ratio() {
-		return get_unmodifiable(max_softclip_ratio, "max_softclip_ratio");
+	float get_max_softclip_ratio() const {
+		return get_immutable(max_softclip_ratio);
 	}
 
 	/**
@@ -1233,7 +1232,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_max_softclip_ratio(float value) {
-		set_unmodifiable(max_softclip_ratio, value, "max_softclip_ratio");
+		set_immutable(max_softclip_ratio, value);
 	}
 
 
@@ -1243,8 +1242,8 @@ public:
 	 * @return The anchor length.
 	 * @author Tobias Loka
 	 */
-	CountType get_anchor_length() {
-		return get_unmodifiable(anchorLength, "anchorLength");
+	CountType get_anchor_length() const {
+		return get_immutable(anchorLength);
 	}
 
 	/**
@@ -1253,7 +1252,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_anchor_length( CountType value ) {
-		set_unmodifiable(anchorLength, value, "anchorLength");
+		set_immutable(anchorLength, value);
 	}
 
 	/**
@@ -1261,8 +1260,8 @@ public:
 	 * @return Frequency to tolerate more errors during the alignment algorithm.
 	 * @author Tobias Loka
 	 */
-	CountType get_error_rate() {
-		return get_unmodifiable(errorRate, "errorRate");
+	CountType get_error_rate() const {
+		return get_immutable(errorRate);
 	}
 
 	/**
@@ -1271,7 +1270,7 @@ public:
 	 * @author Tobias Loka
 	 */
 	void set_error_rate(CountType value) {
-		set_unmodifiable(errorRate, value, "errorRate");
+		set_immutable(errorRate, value);
 	}
 
 	/**
@@ -1279,8 +1278,8 @@ public:
 	 * @return The interval to create new seeds.
 	 * @author Tobias Loka
 	 */
-	CountType get_seeding_interval() {
-		return get_unmodifiable(seeding_interval, "seeding_interval");
+	CountType get_seeding_interval() const {
+		return get_immutable(seeding_interval);
 	}
 
 	/**
@@ -1293,15 +1292,15 @@ public:
 		// interval must be at least 1
 		value = value == 0 ? 1 : value;
 
-		set_unmodifiable(seeding_interval, value, "seeding_interval");
+		set_immutable(seeding_interval, value);
 	}
 
 	/**
 	 * Check if resorting of alignment files before writing output is activated.
 	 * @return true if resorting is activated, false otherwise
 	 */
-	bool get_force_resort() {
-		return get_unmodifiable(force_resort, "force_resort");
+	bool get_force_resort() const {
+		return get_immutable(force_resort);
 	}
 
 	/**
@@ -1309,7 +1308,7 @@ public:
 	 * @return true to activate resorting, false otherwise
 	 */
 	void set_force_resort(bool value) {
-		set_unmodifiable(force_resort, value, "force_resort");
+		set_immutable(force_resort, value);
 	}
 
 

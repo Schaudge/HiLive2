@@ -39,25 +39,25 @@ struct Seed {
 	 * @return CIGAR string in SeqAn format
 	 * TODO: give extended CIGAR information as a parameter instead of inside the function.
 	 */
-	seqan::String<seqan::CigarElement<> > returnSeqanCigarString();
+	seqan::String<seqan::CigarElement<> > returnSeqanCigarString() const;
 
 	/**
 	 * Get the alignment score of a seed (AS:i).
 	 * @return Alignment score.
 	 */
-	ScoreType get_as();
+	ScoreType get_as() const;
 
 	/**
 	 * Get the number of errors of a seed (NM:i).
 	 * @return Number of errors.
 	 */
-	CountType get_nm();
+	CountType get_nm() const;
 
 	/**
 	 * Get length of the front softclip.
 	 * @return Length of the front softclip.
 	 */
-	CountType get_softclip_length();
+	CountType get_softclip_length() const;
 
 	/**
 	 * Add a nucleotide to the MDZ vector.
@@ -69,13 +69,13 @@ struct Seed {
 	 * Get the String for the MD:Z tag.
 	 * @return The MDZ tag as string.
 	 */
-	std::string getMDZString();
+	std::string getMDZString() const;
 
 	/**
 	 * Get all positions for this seed.
 	 * @return A container containing the positions.
 	 */
-	std::vector<GenomePosType>  getPositions( ) {
+	std::vector<GenomePosType>  getPositions( ) const {
 		return getPositions( 0, MAX_NUM_POSITIONS );
 	}
 
@@ -84,7 +84,7 @@ struct Seed {
 	 * @param firstPosition Index of the first position to obtain.
 	 * @return A container containing the positions.
 	 */
-	std::vector<GenomePosType>  getPositions( CountType firstPosition ) {
+	std::vector<GenomePosType>  getPositions( CountType firstPosition ) const {
 		return getPositions( firstPosition, MAX_NUM_POSITIONS );
 	}
 
@@ -95,13 +95,13 @@ struct Seed {
 	 *        If the given index is higher than the last index, all positions until the last index are returned.
 	 * @return A container containing the positions.
 	 */
-	std::vector<GenomePosType>  getPositions( CountType firstPosition, CountType lastPosition );
+	std::vector<GenomePosType>  getPositions( CountType firstPosition, CountType lastPosition ) const;
 
 	/**
 	 * Get the number of positions where this seed aligns.
 	 * @return The number of positions for the seed.
 	 */
-	CountType getNumPositions() {
+	CountType getNumPositions() const {
 		return vDesc.range.i2 - vDesc.range.i1;
 	}
 
@@ -109,7 +109,7 @@ struct Seed {
 	 * Determine size of the serialized seed
 	 * @return size in bytes
 	 */
-	uint16_t serialize_size();
+	uint16_t serialize_size() const;
 
 	/**
 	 * Serialize the seed
@@ -127,7 +127,7 @@ struct Seed {
 	/**
 	 * [Debug] Print the seed to the command line.
 	 */
-	void cout();
+	void cout() const;
 };
 
 /** Data type of USeed. */
@@ -183,7 +183,6 @@ inline bool seed_comparison_by_as(const USeed a, const USeed b) {
 	return a->get_as() > b->get_as();
 }
 
-
 /**
  * Define '<'-operator for seeds.
  * Used for sorting by the range in the FM index.
@@ -194,37 +193,18 @@ inline bool seed_comparison_by_as(const USeed a, const USeed b) {
  */
 inline bool operator <(const Seed l, const Seed r) {
 
-	// Lower start position of the vertex range wins
-	if ( l.vDesc < r.vDesc )
-		return true;
-	else if ( l.vDesc != r.vDesc )
-		return false;
-
-	// If range equal:
-	else {
-
-		auto lCig = l.cigar_data.begin();
-		auto rCig = r.cigar_data.begin();
-
-		// Different offsets -> MATCH wins (this means, we don't have a softclip)
-		if ( lCig->offset != rCig->offset ) {
-			return ( lCig->offset != NO_MATCH );
-		}
-
-		// Equal offsets
-		else {
-
-			// both match or equal length -> higher score wins
-			if ( lCig->offset != NO_MATCH || lCig->length == rCig->length )
-				return l.max_as > r.max_as;
-
-			// both NO_MATCH and different length -> lower length wins
-			else
-				return lCig->length < rCig->length;
-		}
-
+	if ( l.vDesc != r.vDesc ) {
+		return l.vDesc < r.vDesc;
 	}
-	return false;
+	else {
+		if ( l.get_softclip_length() != r.get_softclip_length() ) {
+			return l.get_softclip_length() < r.get_softclip_length();
+		}
+		else {
+			return l.max_as > r.max_as;
+		}
+	}
+
 }
 
 
@@ -287,7 +267,6 @@ private:
 	 */
 	void getInsertionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds);
 
-
 	/**
 	 * Extend a seed by deletions
 	 * @param base_repr Binary representation of the current nucleotide
@@ -319,7 +298,6 @@ private:
 	void createSeeds(SeedVec & newSeeds);
 
 
-
 public:
 
 	/** Flag of the illumina read (1=valid) */
@@ -335,7 +313,7 @@ public:
 	 * Get the size of the serialized alignment
 	 * @return Size of the serialized alignment in bytes
 	 */
-	uint64_t serialize_size();
+	uint64_t serialize_size() const;
 
 	/**
 	 * Serialize the alignment
@@ -354,20 +332,20 @@ public:
 	 * Get read sequence as string (without barcode).
 	 * @return The read sequence
 	 */
-	std::string getSequenceString();
+	std::string getSequenceString() const;
 
 	/**
 	 * Convert and return sequence of the barcode. Multiple barcodes are concatenated (without delimiter).
 	 * @return The Barcode as string
 	 * @author Tobias Loka
 	 */
-	std::string getBarcodeString();
+	std::string getBarcodeString() const;
 
 	/**
 	 * Get base call quality of the read as string (without barcode).
 	 * @return The read qualities in PHRED33 syntax.
 	 */
-	std::string getQualityString();
+	std::string getQualityString() const;
 
 	/**
 	 * Check whether the barcode of this read fulfills the criteria of at least one user-defined barcode.
@@ -376,7 +354,7 @@ public:
 	 * Also return NO_MATCH, if demultiplexing is not activated.
 	 * @author 	Tobias Loka
 	 */
-	CountType getBarcodeIndex() ;
+	CountType getBarcodeIndex() const;
 
 	/**
 	 * Append one nucleotide to sequenceStoreVector
@@ -402,7 +380,7 @@ public:
 	void disable();
 
 	/** Check if this read is disabled. */
-	bool is_disabled();
+	bool is_disabled() const;
 
 	/**
 	 * Obtain the start position of the alignment with SAM specifications (most left position)
@@ -412,7 +390,7 @@ public:
 	 * @return The position in SAM specification
 	 * @author Tobias Loka
 	 */
-	PositionType get_SAM_start_pos(GenomePosType p, USeed & sd);
+	PositionType get_SAM_start_pos(GenomePosType p, USeed & sd) const;
 
 	/**
 	 * Sort the seeds by their alignment score.
@@ -434,9 +412,9 @@ public:
 	 * @return Vector containing the MAPQ values for each seed.
 	 * @author Tobias Loka
 	 */
-	std::vector<uint8_t> getMAPQs();
+	std::vector<uint8_t> getMAPQs() const;
 
-	void addReadInfoToRecord(seqan::BamAlignmentRecord & record);
+	void addReadInfoToRecord(seqan::BamAlignmentRecord & record) const;
 
 }; // END class ReadAlignment 
 

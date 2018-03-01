@@ -263,7 +263,7 @@ struct SequenceElement {
 	 * @return true, if SequenceElement is a barcode. False if not.
 	 * @author Tobias Loka
 	 */
-	bool isBarcode() { return (mate==0);}
+	bool isBarcode() const { return (mate==0);}
 };
 
 /**
@@ -290,7 +290,7 @@ const SequenceElement NULLSEQ = SequenceElement();
  * Exception specialization for Unmodifiable data types.
  * @author Tobias Loka
  */
-class unmodifiable_error : public std::logic_error
+class immutable_error : public std::logic_error
 {
 public:
 	using std::logic_error::logic_error;
@@ -302,12 +302,12 @@ public:
  * @author Tobias Loka
  */
 template <typename T>
-class Unmodifiable {
+class Immutable {
 
 private:
 
 	/** The unmodifiable object. */
-	T unmodifiable_object;
+	T immutable_object;
 
 	/** Flag to check if the object was already set once. */
 	bool setFlag = false;
@@ -315,15 +315,15 @@ private:
 public:
 
 	/** Constructor without setting the object (to only declare the object).*/
-	Unmodifiable(){	}
+	Immutable(){	}
 
 	/** Constructor with setting the object (to init the object).*/
-	Unmodifiable(T object) {
-		unmodifiable_object = object;
+	Immutable(T object) {
+		immutable_object = object;
 	}
 
-	/** Automatic cast to of the unmodifiable to the object type. */
-	operator T() { return unmodifiable_object; }
+	/** Automatic cast of the unmodifiable to the object type. */
+	operator T() { return get(); }
 
 	/**
 	 * Set the unmodifiable object (will only work once!).
@@ -333,10 +333,10 @@ public:
 	 */
 	void set(T object) {
 		if ( isSet() ) {
-			throw unmodifiable_error("Tried to modify unmodifiable object");
+			throw immutable_error("Tried to modify an immutable instance.");
 		}
 
-		unmodifiable_object = object;
+		immutable_object = object;
 		setFlag = true;
 	}
 
@@ -345,7 +345,7 @@ public:
 	 * @return true if the object was already set.
 	 * @author Tobias Loka
 	 */
-	bool isSet() {
+	bool isSet() const {
 		return setFlag;
 	}
 
@@ -357,36 +357,35 @@ public:
 	 * @return (copy/value of) the unmodifiable object
 	 * @author Tobias Loka
 	 */
-	T get(bool allow_unset = false ) {
+	T get(bool allow_unset = false ) const {
 		if ( ! isSet() && ! allow_unset) {
-			throw unmodifiable_error("Tried to access uninitialized object");
+			throw immutable_error("Tried to access the data of an unset immutable.");
 		}
 
-		return unmodifiable_object;
+		return immutable_object;
 	}
 
 };
 
 template<typename T>
-bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
+bool set_immutable(Immutable<T> & immutable, T value) {
 	  try {
-		  unmodifiable.set(value);
+		  immutable.set(value);
 	  }
-	  catch (unmodifiable_error& e) {
-//		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
-		  variable_name.length(); // TODO: just to remove warnings. Remove variable_name string when finished.
-		 return false ;
+	  catch (immutable_error& e) {
+		  std::cerr << "WARN: " << e.what() << std::endl;
+		  return false ;
 	  }
 	  return true;
 }
 
 template<typename T>
-T get_unmodifiable(Unmodifiable<T> unmodifiable, std::string variable_name, bool allow_unset = false) {
+T get_immutable(const Immutable<T> & immutable, bool allow_unset = false) {
 	  try {
-		  return unmodifiable.get(allow_unset);
+		  return immutable.get(allow_unset);
 	  }
-	  catch (unmodifiable_error& e) {
-		  std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
+	  catch (immutable_error& e) {
+		  std::cerr << "WARN: " << e.what() << std::endl;
 		  return T();
 	  }
 }
@@ -455,25 +454,6 @@ enum SAMFlag:uint16_t {
 	PCR_OR_OPTICAL_DUPL	= 1024,	// PCR or optical duplicate
 	SUPPL_ALIGNMENT		= 2048	// supplementary alignment
 };
-
-//enum ExtendedAlignmentMode:uint8_t {
-//	ALL					= 0,	// All alignments that were found
-//	ALL_BEST			= 1,	// All alignments with the best score
-//	BEST_N				= 2,	// At most N alignments with the best score
-//	N					= 3,	// The N best alignments (not all alignments need to have the best score)
-//	ANY_BEST			= 4,	// Any best alignment (equals BEST_N1)
-//	UNIQUE				= 5,	// Only alignments where no secondary alignment(s) exist
-//	UNIQUE_STRICT		= 6,	// Only alignments where no secondary alignment(s) exist for each single mate
-//	NONE				= 7,	// Report none of the alignments
-//
-//	// Modes to report alternative single-mate alignments when proper pairs exist
-//	ALL_SUPERIOR		= 10,	// Report all single mate alignments that are better than the proper pair alignment(s)
-//	ALL_BEST_SUPERIOR	= 11,	// Report all best single mate alignments that are better than the proper pair alignment(s)
-//	BEST_N_SUPERIOR		= 12,	// Report N of the best alignments that are better than the proper pair alignment(s)
-//	N_SUPERIOR			= 13,	// Report N alignments that are better than the proper pair alignment(s)
-//	ANY_BEST_SUPERIOR	= 14,	// Report any of the best alignments that is better than the proper pair alignment(s)
-//	ALL_CONSIDERED		= 15,	// Report all alignments that are considered for pairing.
-//};
 
 /**
  * Template to store a map of mutexes.
