@@ -1172,4 +1172,9 @@ std::vector<uint8_t> ReadAlignment::getMAPQs(){
 	return mapqs;
 }
 
+void ReadAlignment::addReadInfoToRecord(seqan::BamAlignmentRecord & record) {
+	record.seq = getSequenceString();
+	record.qual = getQualityString();
+}
+
 

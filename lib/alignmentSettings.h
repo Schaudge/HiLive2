@@ -49,8 +49,11 @@ private:
 	/** Output mode. */
 	Unmodifiable<AlignmentMode> mode;
 
-	/** Switch: store all sequences. */
+	/** Switch: store all sequences. */ // TODO: this setting seems to not be considered in the program.
 	Unmodifiable<bool> keep_all_sequences;
+
+	/** Switch: Report unmapped reads. */
+	Unmodifiable<bool> report_unmapped;
 
 
 	////////////////////////////////////
@@ -112,6 +115,8 @@ private:
 
 	/** Minimal quality for a base call to be valid. */
 	Unmodifiable<CountType> min_qual;
+
+	/** Sort the alignment files for output even if sorted files already exist.*/
 	Unmodifiable<bool> force_resort;
 
 	/** List of lanes to process. */
@@ -295,6 +300,7 @@ public:
 		xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
 		xml_out.add_child("settings.out.min_as", getXMLnode ( get_min_as()) );
 		xml_out.add_child("settings.out.keep_all_sequences", getXMLnode ( get_keep_all_sequences() ));
+		xml_out.add_child("settings.out.report_unmapped", getXMLnode ( get_report_unmapped() ));
 
 		// Technical settings
 		xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
@@ -1011,10 +1017,24 @@ public:
 	 * @param value true to keep all sequences, false otherwise
 	 */
 	void set_keep_all_sequences(bool value) {
-		set_unmodifiable(keep_all_sequences, value, "kepp-all-sequences");
+		set_unmodifiable(keep_all_sequences, value, "keep-all-sequences");
 	}
 
+	/**
+	 * Check to report unmapped reads
+	 * @return true if all sequences are kept
+	 */
+	bool get_report_unmapped() {
+		return get_unmodifiable(report_unmapped, "report-unmapped");
+	}
 
+	/**
+	 * Set to keep all sequences (also those of unmapped reads)
+	 * @param value true to keep all sequences, false otherwise
+	 */
+	void set_report_unmapped(bool value) {
+		set_unmodifiable(report_unmapped, value, "report-unmapped");
+	}
 
 	////////// Scoring scheme  //////////
 

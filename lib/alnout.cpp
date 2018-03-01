@@ -316,18 +316,46 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 		/////////////////////////////////////////////////////////////////////////////
 		for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
 
+			// Decrease the ReadAlignment cycle since it is automatically increased when loading the file TODO: this should be changed.
 			mateAlignments[mateAlignmentIndex]->cycle -= 1;
 
-			// Alignment disabled
-			if ( mateAlignments[mateAlignmentIndex]->is_disabled() )
-				continue;
+			// Init record with information about the read
+			seqan::BamAlignmentRecord mate_record;
+			mate_record.qName = readname.str();
+			mate_record.flag = 0;
 
-			// No Seeds
-			if ( mateAlignments[mateAlignmentIndex]->seeds.size() == 0 )
-				continue;
+			// Set correct segment (paired) flags for the record
+			if ( mateAlignments.size() > 1) { // if there are at least two mates already sequenced
 
-			// The segment can be recognized by the respective SAM flag.
-			// readname << "|r" << mateAlignmentIndex+1;
+				mate_record.flag = addSAMFlag(mate_record.flag, SAMFlag::MULT_SEG);
+				if (mateAlignmentIndex == 0) {
+					mate_record.flag |= addSAMFlag(mate_record.flag, SAMFlag::FIRST_SEG);
+				} else if (mateAlignmentIndex == mateAlignments.size()-1) {
+					mate_record.flag = addSAMFlag(mate_record.flag, SAMFlag::LAST_SEG);
+				} else {
+					mate_record.flag = addSAMFlag(mate_record.flag, SAMFlag::FIRST_SEG);
+					mate_record.flag = addSAMFlag(mate_record.flag, SAMFlag::LAST_SEG);
+				}
+
+			}
+
+			// Add read specific information to the BAM record
+			mateAlignments[mateAlignmentIndex]->addReadInfoToRecord(mate_record);
+
+			// Alignment disabled or no seeds
+			if ( mateAlignments[mateAlignmentIndex]->is_disabled() || mateAlignments[mateAlignmentIndex]->seeds.size() == 0 ) {
+
+				// Don't report disabled reads if their sequences are not kept.
+				if ( mateAlignments[mateAlignmentIndex]->is_disabled() && !globalAlignmentSettings.get_keep_all_sequences() )
+					continue;
+
+				// Report unmapped reads if activated
+				if ( globalAlignmentSettings.get_report_unmapped() ) {
+					mate_record.flag = addSAMFlag(mate_record.flag, SAMFlag::SEG_UNMAPPED);
+					mateRecords[mateAlignmentIndex].push_back(mate_record);
+				}
+				continue;
+			}
 
 			// Variables for output modes
 			ScoreType first_seed_score = 0;
@@ -338,11 +366,9 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 			unsigned printedMateAlignments = 0;
 
 			// Unique mode interruption
+			// TODO: Think about reporting of unmapped and non-unique reads if report-unmapped is activated
 			if ( mateAlignments[mateAlignmentIndex]->seeds.size() > 1 && globalAlignmentSettings.get_unique_hit_mode() )
-				continue; // TODO: handle if a single seed has more than one position, maybe just use FM index span
-
-			std::string seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
-			std::string qual = mateAlignments[mateAlignmentIndex]->getQualityString();
+				continue;
 
 			std::vector<uint8_t> mapqs = mateAlignments[mateAlignmentIndex]->getMAPQs();
 			auto mapqs_it = mapqs.begin();
@@ -403,9 +429,9 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 				std::vector<GenomePosType> pos_list;
 
 				if ( globalAlignmentSettings.get_any_best_hit_mode() )
-					pos_list = (*it)->getPositions(0, 1);
+					pos_list = (*it)->getPositions(0, 1); // retrieve only one position from the index
 				else
-					pos_list = (*it)->getPositions(0);
+					pos_list = (*it)->getPositions(); // retrieve all positions from the index
 
 				// handle all positions
 				for ( auto p = pos_list.begin(); p != pos_list.end(); ++p ) {
@@ -414,9 +440,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					if( globalAlignmentSettings.get_any_best_hit_mode() && printedMateAlignments >= 1 )
 						goto nextmate;
 
-					seqan::BamAlignmentRecord record;
-
-					record.qName = readname.str();
+					seqan::BamAlignmentRecord record = mate_record;
 
 					record.rID = CountType(p->gid / 2);
 
@@ -439,13 +463,8 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					if ( idx->isReverse(p->gid) )
 						seqan::reverse(record.cigar);
 
-					// flag and seq
-					record.flag = 0;
-					record.seq = seq;
-					record.qual = qual;
-
 					if ( printedMateAlignments > 0 ) { // if current seed is secondary alignment
-						record.flag |= 256;
+						record.flag = addSAMFlag(record.flag, SAMFlag::SEC_ALIGNMENT);
 						seqan::clear(record.seq);
 						seqan::clear(record.qual);
 					}
@@ -453,20 +472,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					if ( idx->isReverse(p->gid) ) { // if read matched reverse complementary
 						seqan::reverseComplement(record.seq);
 						seqan::reverse(record.qual);
-						record.flag |= 16;
-					}
-
-					if ( mateAlignments.size() > 1) { // if there are at least two mates already sequenced
-
-						record.flag |= 1;
-						if (mateAlignmentIndex == 0) {
-							record.flag |= 64;
-						} else if (mateAlignmentIndex == mateAlignments.size()-1) {
-							record.flag |= 128;
-						} else {
-							record.flag |= 192; // 64 + 128
-						}
-
+						record.flag = addSAMFlag(record.flag, SAMFlag::SEQ_RC);
 					}
 
 					// Dictionary for additional SAM tags
@@ -503,7 +509,13 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 				}
 			}
-			nextmate: {};
+			nextmate: {
+				// Report unmapped reads if activated
+				if ( mateRecords[mateAlignmentIndex].size()==0 && globalAlignmentSettings.get_report_unmapped() ) {
+					mate_record.flag = addSAMFlag(mate_record.flag, SAMFlag::SEG_UNMAPPED);
+					mateRecords[mateAlignmentIndex].push_back(mate_record);
+				}
+			};
 		}
 
 		// Set flags related to the next mate.
@@ -539,25 +551,34 @@ void AlnOut::setMateSAMFlags( std::vector<std::vector<seqan::BamAlignmentRecord>
 
 				CountType mateFlag = mateRecords[next][0].flag;
 
-				// first mate entry is reverse complemented
-				if ( hasSAMFlag( mateFlag, SAMFlag::SEQ_RC ) ) {
-					record_pointer.flag = addSAMFlag(record_pointer.flag, SAMFlag::NEXT_SEQ_RC);
-				}
-
-				// first mate entry is flagged as unmapped
-				if ( hasSAMFlag( mateFlag, SAMFlag::SEG_UNMAPPED ) ) {
-					record_pointer.flag = addSAMFlag(record_pointer.flag, SAMFlag::NEXT_SEG_UNMAPPED);
-				}
-
 				// set next mate rID
 				record_pointer.rNextId = mateRecords[next][0].rID;
 
 				// set next mate pos
 				record_pointer.pNext = mateRecords[next][0].beginPos;
 
-				// mate is unmapped
+				// other mate entry is reverse complemented
+				if ( hasSAMFlag( mateFlag, SAMFlag::SEQ_RC ) ) {
+					record_pointer.flag = addSAMFlag(record_pointer.flag, SAMFlag::NEXT_SEQ_RC);
+				}
+
+				// other mate entry is flagged as unmapped
+				if ( hasSAMFlag( mateFlag, SAMFlag::SEG_UNMAPPED ) ) {
+					record_pointer.flag = addSAMFlag(record_pointer.flag, SAMFlag::NEXT_SEG_UNMAPPED);
+
+					record_pointer.pNext = record_pointer.beginPos;
+					record_pointer.rNextId = record_pointer.rID;
+
+				// the current read is flagged as unmapped but the mate is not
+				} else if ( hasSAMFlag(record_pointer.flag, SAMFlag::SEG_UNMAPPED) ) {
+					record_pointer.beginPos = mateRecords[next][0].beginPos;
+					record_pointer.rID = mateRecords[next][0].rID;
+				}
+
+
+			// No record for the mate available (this implies, that it is unmapped)
 			} else {
-				record_pointer.flag |= SAMFlag::NEXT_SEG_UNMAPPED;
+				record_pointer.flag = addSAMFlag(record_pointer.flag, SAMFlag::NEXT_SEG_UNMAPPED);
 			}
 		}
 

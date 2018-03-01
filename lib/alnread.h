@@ -71,45 +71,36 @@ struct Seed {
 	 */
 	std::string getMDZString();
 
-//	/**
-//	 * Get the SAM records for a specified span of positions. The span is half-open: [0,lastPosition).
-//	 * @param index The index to obtain SAM entries for.
-//	 * @param lastPosition Index of the last position to obtain SAM entries from. If unset, get all positions.
-//	 * equals the expected number of elements in the returned vector.
-//	 * @return A std::vector containing the SAM records.
-//	 */
-//	std::vector<seqan::BamAlignmentRecord> getSAMrecords( KixRun* index, CountType lastPosition=MAX_NUM_POSITIONS ) {
-//		return getSAMrecords( index, 0, lastPosition);
-//	}
-//
-//	/**
-//	 * Get the SAM records for a specified span of positions. The span is half-open: [firstPosition,lastPosition).
-//	 * @param index The index to obtain SAM entries for.
-//	 * @param firstPosition Index of the first position to obtain SAM entries from.
-//	 * @param lastPosition Index of the last position to obtain SAM entries from. If unset, get all positions starting at firstPosition.
-//	 * @return A std::vector containing the SAM records.
-//	 */
-//	std::vector<seqan::BamAlignmentRecord> getSAMrecords( KixRun* index, CountType firstPosition, CountType lastPosition=MAX_NUM_POSITIONS );
+	/**
+	 * Get all positions for this seed.
+	 * @return A container containing the positions.
+	 */
+	std::vector<GenomePosType>  getPositions( ) {
+		return getPositions( 0, MAX_NUM_POSITIONS );
+	}
 
-//	/**
-//	 * Get the positions for this seed. The span is half-open: [0,lastPosition).
-//	 * @param index The index to obtain positions entries for.
-//	 * @param lastPosition Index of the last position to obtain positions from. If unset, get all positions.
-//	 * @return A container containing the positions.
-//	 */
-//	PositionPairListType getPositions( KixRun* index, CountType lastPosition=MAX_NUM_POSITIONS ) {
-//		return getPositions ( index, 0, lastPosition );
-//	}
+	/**
+	 * Get the positions for this seed. Returns all positions starting at a given index.
+	 * @param firstPosition Index of the first position to obtain.
+	 * @return A container containing the positions.
+	 */
+	std::vector<GenomePosType>  getPositions( CountType firstPosition ) {
+		return getPositions( firstPosition, MAX_NUM_POSITIONS );
+	}
 
 	/**
 	 * Get the positions for this seed. The span is half-open: [firstPosition,lastPosition).
-	 * @param index The index to obtain positions entries for.
 	 * @param firstPosition Index of the first position to obtain positions from.
-	 * @param lastPosition Index of the last position to obtain positions from. If unset, get all positions starting at firstPosition.
+	 * @param lastPosition Index of the last position to obtain positions from.
+	 *        If the given index is higher than the last index, all positions until the last index are returned.
 	 * @return A container containing the positions.
 	 */
-	std::vector<GenomePosType>  getPositions( CountType firstPosition, CountType lastPosition=MAX_NUM_POSITIONS );
+	std::vector<GenomePosType>  getPositions( CountType firstPosition, CountType lastPosition );
 
+	/**
+	 * Get the number of positions where this seed aligns.
+	 * @return The number of positions for the seed.
+	 */
 	CountType getNumPositions() {
 		return vDesc.range.i2 - vDesc.range.i1;
 	}
@@ -444,6 +435,8 @@ public:
 	 * @author Tobias Loka
 	 */
 	std::vector<uint8_t> getMAPQs();
+
+	void addReadInfoToRecord(seqan::BamAlignmentRecord & record);
 
 }; // END class ReadAlignment 
 
