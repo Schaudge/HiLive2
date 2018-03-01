@@ -438,6 +438,15 @@ enum AlignmentMode:char {
 };
 
 /**
+ * The output formats of HiLive.
+ */
+enum OutputFormat:uint8_t {
+	SAM		= 1,	// SAM format
+	BAM		= 2,	// BAM format
+	CRAM	= 3,	// CRAM format //TODO: not supported yet.
+};
+
+/**
  * SAM flags as defined in the specification.
  */
 enum SAMFlag:uint16_t {

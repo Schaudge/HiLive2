@@ -38,7 +38,7 @@ private:
 	Immutable<CountType> best_n;
 
 	/** Switch: Write BAM instead of SAM output. */
-	Immutable<bool> write_bam;
+	Immutable<OutputFormat> output_format;
 
 	/** Cycles for (intermediate) SAM/BAM output. */
 	Immutable<std::vector<uint16_t>> output_cycles;
@@ -295,7 +295,7 @@ public:
 		xml_out.add_child("settings.paths.index", getXMLnode ( get_index_fname() ));
 
 		// Output settings
-		xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
+//		xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
 		xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
 		xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
 		xml_out.add_child("settings.out.min_as", getXMLnode ( get_min_as()) );
@@ -478,10 +478,7 @@ public:
 		}
 		set_seqs(temp);
 		set_mates(mates);
-
-		if ( lenSum!=get_cycles() ) {
-			throw std::runtime_error("Sum of defined reads does not equal the given number of cycles.");
-		}
+		set_cycles(lenSum);
 
 	}
 
@@ -594,16 +591,21 @@ public:
 	 * Switch output format between SAM and BAM.
 	 * @param value true for BAM, false for SAM output
 	 */
-	void set_write_bam(bool value) {
-		set_immutable(write_bam, value);
+	void set_output_format(std::string value) {
+		if ( value == "SAM" || value == "S" )
+			set_immutable(output_format, OutputFormat::SAM);
+		else if ( value == "BAM" || value == "B")
+			set_immutable(output_format, OutputFormat::BAM);
+		else
+			throw std::runtime_error("Invalid output format: " + value + ".");
 	}
 
 	/**
 	 * Get setting of the output format (SAM or BAM)
 	 * @return true if BAM, false if SAM
 	 */
-	bool get_write_bam() const {
-		return get_immutable(write_bam);
+	OutputFormat get_output_format() const {
+		return get_immutable(output_format);
 	}
 
 	/**

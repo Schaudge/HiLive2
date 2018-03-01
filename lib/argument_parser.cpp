@@ -161,66 +161,62 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
 po::options_description HiLiveArgumentParser::general_options() {
-	po::options_description general("General");
+	po::options_description general("--- GENERAL OPTIONS ---");
 	general.add_options()
-	        		("help,h", "Print this help message and exit")
-					("license", "Print licensing information and exit")
-					("settings,s", po::value<std::string>(), "Load settings from file. If command line arguments are given additionally, they are prefered.")
-					("runinfo", po::value<std::string>(), "Path to runInfo.xml for parsing read and index lengths [Default (if activated): BC_DIR/../../RunInfo.xml]")
-					("continue", po::value<CountType>(), "Continue an interrupted HiLive run from a specified cycle. We strongly recommend to load the settings from the previous run using the -s option.");
-
+	    		  ("help", "Print this help message and exit")
+				  ("license", "Print licensing information and exit")
+				  ("config", po::value<std::string>(), "Load settings from file. If command line arguments are given additionally, they are prefered.")
+				  ("continue", po::value<CountType>(), "Continue an interrupted HiLive run from a specified cycle. We strongly recommend to load the settings from the previous run using the -s option.")
+				  ;
 	return general;
 }
 
-po::options_description HiLiveArgumentParser::positional_options() {
-	po::options_description parameters("Parameters");
-	parameters.add_options()
-	        		("BC_DIR", po::value<std::string>(), "Illumina BaseCalls directory")
-					("INDEX", po::value<std::string>(), "Path to k-mer index")
-					("CYCLES", po::value<CountType>(), "Number of cycles")
-					("OUTDIR", po::value<std::string>(), "Directory to store sam files in [Default: ./out");
-
-	return parameters;
+po::options_description HiLiveArgumentParser::sequencing_options() {
+	po::options_description sequencing("--- SEQUENCING OPTIONS ---");
+	sequencing.add_options()
+					("bcl-dir", po::value<std::string>(), "Illumina BaseCalls directory")
+					("runinfo", po::value<std::string>(), "Path to runInfo.xml for parsing read and index lengths [Default (if activated): BC_DIR/../../RunInfo.xml]")
+					("lanes", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
+					("tiles", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
+					("reads", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]")
+					("barcodes", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcode(s) of your sample(s), e.g. -b AGGATC -b CCCTTT [Default: Align all barcodes and report them as 'undetermined']")
+					;
+	return sequencing;
 }
 
-po::options_description HiLiveArgumentParser::io_options() {
-	po::options_description io_settings("IO settings");
-	io_settings.add_options()
-	        		("temp", po::value<std::string>(), "Temporary directory for the alignment files [Default: ./temp]")
-					("bam,B", po::bool_switch(), "Create BAM files instead of SAM files [Default: false]")
-					("output-cycles,O", po::value<std::vector<CountType>>()->multitoken()->composing(), "Cycles for alignment output. The respective temporary files are kept. [Default: last cycle]")
+po::options_description HiLiveArgumentParser::report_options() {
+	po::options_description report("--- REPORT OPTIONS ---");
+	report.add_options()
+					("out-dir", po::value<std::string>(), "Directory for output files [Default: ./out]")
+					("out-format", po::value<std::string>(), "Format of the output files. SAM and BAM format are currently supported [Default: BAM]")
+					("out-cycles", po::value<std::vector<CountType>>()->multitoken()->composing(), "Cycles for alignment output. The respective temporary files are kept. [Default: last cycle]")
+					("out-mode", po::value<std::string>(), "Output mode. [ALL|A]: Report all alignments; [BESTN#|N#]: Report alignments of the best # scores; "
+							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [ANYBEST|B]: Report one best alignment (default)")
+					("report-unmapped", po::bool_switch(), "Report unmapped reads [Default: false]")
 					("extended-cigar", po::bool_switch(), "Activate extended CIGAR format (= and X instead of only M) in output files [Default: false]")
-
-					("keep-files,k", po::value<std::vector<CountType>>()->multitoken()->composing(), "Keep intermediate alignment files for these cycles. The last cycle is always kept. [Default: None]")
-					("keep-all-files,K", po::bool_switch(), "Keep all intermediate alignment files [Default: false]")
-					("force-resort", po::bool_switch(), "If set, the align files are always sorted before output. Existing sorted align files are overwritten [Default: false]")
-					("lanes,l", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select lane [Default: all lanes]")
-					("tiles,t", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Select tile numbers [Default: all tiles]")
-					("reads,r", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate read lengths and type. Example: -r 101R 8B 8B 101R equals paired-end sequencing with 2x101bp reads and 2x8bp barcodes. Overwrites information of runInfo.xml. [Default: single end reads without barcodes]")
-					("keep-all-sequences", po::bool_switch(), "Keep sequences of all reads (needed for reporting unmapped reads) [Default: false]")
-					("report-unmapped", po::bool_switch(), "Report unmapped reads [Default: false]");
-	return io_settings;
+					("force-resort", po::bool_switch(), "If set, temporary files are always sorted before output. Existing sorted align files are overwritten [Default: false]")
+					;
+	return report;
 }
 
 po::options_description HiLiveArgumentParser::alignment_options() {
-	po::options_description alignment("Alignment settings");
+	po::options_description alignment("--- ALIGNMENT OPTIONS ---");
 	alignment.add_options()
-					("mode,m", po::value<std::string>(), "Output mode. [ALL|A]: Report all alignments; [BESTN#|N#]: Report alignments of the best # scores; "
-							"[ALLBEST|H]: Report all alignments with the best score (similar to N1); [ANYBEST|B]: Report one best alignment (default)")
-					("alignment-mode,M", po::value<std::string>(), "Alignment mode to balance speed and accuracy automatically. [fast|balanced|accurate] [Default: balanced]")
-
-					("min-quality", po::value<CountType>(), "Minimum allowed basecall quality [Default: 1]")
-					("anchor-length,a", po::value<CountType>(), "Set the anchor length manually [Default: 12]")
+					("index", po::value<std::string>(), "Path to the HiLive index.")
+					("align-mode", po::value<std::string>(), "Alignment mode to balance speed and accuracy automatically. [fast|balanced|accurate] [Default: balanced]")
+					("anchor-length", po::value<CountType>(), "Set the anchor length manually [Default: 12]")
 					("error-interval", po::value<CountType>(), "Set the interval to allow more errors (low=accurate; great=fast) [Default: anchor-length/2]")
 					("seeding-interval", po::value<CountType>(), "Set the interval to create new seeds (low=accurate; great=fast) [Default: error-interval]")
-					("barcodes,b", po::value< std::vector<std::string> >()->multitoken()->composing(), "Enumerate barcodes (must have same length) for demultiplexing, e.g. -b AGGATC -b CCCTTT [Default: no demultiplexing]")
-					("barcode-errors,E", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
-					("keep-all-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]");
+					("barcode-errors", po::value< std::vector<uint16_t> >()->multitoken()->composing(), "Enumerate the number of tolerated errors (only SNPs) for each barcode fragment, e.g. -E 2 2 [Default: 1 per fragment]")
+					("align-undetermined-barcodes", po::bool_switch()->default_value(false), "Align and output all barcodes [Default: false]")
+					("min-basecall-quality", po::value<CountType>(), "Minimum allowed basecall quality [Default: 1]")
+					("keep-invalid-sequences", po::bool_switch(), "Keep sequences of invalid reads, i.e. with unconsidered barcode or filtered by the sequencer (needed for reporting those unmapped reads) [Default: false]")
+					;
 	return alignment;
 }
 
 po::options_description HiLiveArgumentParser::scoring_options() {
-	po::options_description scoring("Scoring scheme");
+	po::options_description scoring("--- SCORING OPTIONS ---");
 	scoring.add_options()
 					("min-as", po::value<ScoreType>(), "Minimum alignment score [Default: Depends on score model]")
 					("match-score", po::value<CountType>(), "Score for a match [Default: 0]")
@@ -232,18 +228,23 @@ po::options_description HiLiveArgumentParser::scoring_options() {
 					("max-gap-length", po::value<CountType>(), "Maximal gap length. High influence on runtime depending on the scoring scheme [Default: 3]")
 					("softclip-opening-penalty", po::value<float>(), "Penalty for softclip opening (only relevant during output!) [Default: mismatch-penalty]")
 					("softclip-extension-penalty", po::value<float>(), "Penalty for softclip extension (only relevant during output!) [Default: mismatch-penalty/error-rate]")
-					("max-softclip-ratio", po::value<float>(), "Maximal relative length of the front softclip (only relevant during output!) [Default: 0.2]");
+					("max-softclip-ratio", po::value<float>(), "Maximal relative length of the front softclip (only relevant during output!) [Default: 0.2]")
+					;
 	return scoring;
 
 }
 
 po::options_description HiLiveArgumentParser::technical_options() {
-	 po::options_description technical("Technical settings");
+	 po::options_description technical("--- TECHNICAL OPTIONS ---");
 	 technical.add_options()
+	    	        ("temp-dir", po::value<std::string>(), "Temporary directory for the alignment files [Default: ./temp]")
+					("keep-files,k", po::value<std::vector<CountType>>()->multitoken()->composing(), "Keep intermediate alignment files for these cycles. The last cycle is always kept. [Default: None]")
+					("keep-all-files,K", po::bool_switch(), "Keep all intermediate alignment files [Default: false]")
 	        		("block-size", po::value<std::string>(), "Block size for the alignment input/output stream in Bytes. Append 'K' or 'M' to specify in Kilobytes or Megabytes, respectively (e.g. '--block-size 64M' for 64 Megabytes)")
 					("compression,c", po::value<uint16_t>(), "Compress alignment files. 0: no compression 1: Deflate (smaller) 2: LZ4 (faster; default)")
 					("num-threads,n", po::value<CountType>(), "Number of threads to spawn [Default: all available]")
-					("num-out-threads,N", po::value<CountType>(), "Maximum number of threads to use for output if threads are not idle [Default: half of -n]");
+					("num-out-threads,N", po::value<CountType>(), "Maximum number of threads to use for output if threads are not idle [Default: half of -n]")
+					;
 	 return technical;
 }
 
@@ -255,12 +256,11 @@ void HiLiveArgumentParser::init_help(po::options_description visible_options) {
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
 
-	help_message << "Usage: " << std::endl << "  hilive BC_DIR INDEX CYCLES OUTDIR [options]" << std::endl << std::endl;
-	help_message << "Required:" << std::endl;
-	help_message << "  BC_DIR                Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
-	help_message << "  INDEX                 Path to k-mer index file (*.kix)" << std::endl;
-	help_message << "  CYCLES                Total number of sequencing cycles" << std::endl;
-	help_message << "  OUTDIR                Output directory" << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive [options]" << std::endl << std::endl;
+	help_message << "REQUIRED OPTIONS:" << std::endl;
+	help_message << "  --bcl-dir                Illumina BaseCalls directory of the sequencing run to analyze" << std::endl;
+	help_message << "  --index                  Path to the HiLive index" << std::endl;
+	help_message << "  --reads                  Sequencing cycles specified for each mate" << std::endl;
 
 	help_message << visible_options;
 
@@ -315,7 +315,7 @@ void HiLiveArgumentParser::report() {
     if (globalAlignmentSettings.get_temp_dir() != "") {
         std::cout << "Temporary directory:      " << globalAlignmentSettings.get_temp_dir() << std::endl;
     }
-    if (!globalAlignmentSettings.get_write_bam())
+    if ( globalAlignmentSettings.get_output_format() == OutputFormat::SAM )
         std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
     else
         std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
@@ -419,19 +419,19 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
 	po::variables_map vm;
 
 	// Init all other options
-	po::options_description pos_opt = positional_options();
-	po::options_description io_opt = io_options();
+	po::options_description sequence_opt = sequencing_options();
+	po::options_description report_opt = report_options();
 	po::options_description align_opt = alignment_options();
 	po::options_description score_opt = scoring_options();
 	po::options_description tech_opt = technical_options();
 
 	// All command line options
     po::options_description cmdline_options;
-    cmdline_options.add(gen_opt).add(pos_opt).add(io_opt).add(align_opt).add(score_opt).add(tech_opt);
+    cmdline_options.add(gen_opt).add(sequence_opt).add(report_opt).add(align_opt).add(score_opt).add(tech_opt);
 
     // Options visible in the help
     po::options_description visible_options;
-    visible_options.add(gen_opt).add(io_opt).add(align_opt).add(score_opt).add(tech_opt);
+    visible_options.add(gen_opt).add(sequence_opt).add(report_opt).add(align_opt).add(score_opt).add(tech_opt);
 
     init_help(visible_options);
 
@@ -454,13 +454,15 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
         vm.notify();
 
         // Load input settings if exist
-        if ( vm.count("settings")) {
-        	if ( ! read_xml(input_settings, vm["settings"].as<std::string>()) ) {
-                std::cerr << "Input settings file not found: " << vm["settings"].as<std::string>() << std::endl;
-                return -1;
+        if ( vm.count("config")) {
+        	if ( file_exists(vm["config"].as<std::string>() ) ) {
+        		std::ifstream config_file(vm["config"].as<std::string>());
+        		po::store(po::parse_config_file(config_file, cmdline_options, false), input_settings);
+        	} else {
+        		throw file_not_exist_error(vm["config"].as<std::string>());
         	}
-        } else if ( isRequired("settings") ) {
-        	throw po::required_option("settings");
+        } else if ( isRequired("config") ) {
+        	throw po::required_option("config");
         }
 
         if ( vm.count("runinfo") ) {
@@ -479,18 +481,18 @@ int HiLiveArgumentParser::parseCommandLineArguments() {
     }
 
     po::positional_options_description p;
-    p.add("BC_DIR", 1);
-    p.add("INDEX", 1);
-    p.add("CYCLES", 1);
-    p.add("OUTDIR", 1);
+    p.add("bcl-dir", 1);
+    p.add("index", 1);
+    p.add("reads", 1);
 
     // Parse all command line arguments to cmd_settings
     try {
         // parse arguments
-        po::store(po::command_line_parser(argc, argv).options(cmdline_options).positional(p).run(), cmd_settings);
+        po::store(po::parse_command_line(argc, argv, cmdline_options), cmd_settings);
 
         // then check arguments
         po::notify(cmd_settings);
+        po::notify(input_settings);
     }
     catch ( po::required_option& e ) {
         std::cerr << "Missing Parameter: " << e.what() << std::endl;
@@ -528,10 +530,12 @@ bool HiLiveArgumentParser::set_options() {
 		}
 
 		// Set positional arguments
-		set_option<std::string>("BC_DIR", "settings.paths.root", "", &AlignmentSettings::set_root);
-		set_option<std::string>("INDEX", "settings.paths.index", "", &AlignmentSettings::set_index_fname);
-		set_option<CountType>("CYCLES", "settings.cycles", 0, &AlignmentSettings::set_cycles);
-		set_option<std::string>("OUTDIR", "settings.paths.out_dir", "./out", &AlignmentSettings::set_out_dir);
+		set_option<std::string>("bcl-dir", "settings.paths.root", "", &AlignmentSettings::set_root);
+
+		set_option<std::string>("index", "settings.paths.index", "", &AlignmentSettings::set_index_fname);
+
+		set_option<std::string>("out-dir", "settings.paths.out_dir", "./out", &AlignmentSettings::set_out_dir);
+
 
 		CountType default_anchor_length = set_mode();
 
@@ -541,15 +545,13 @@ bool HiLiveArgumentParser::set_options() {
 
 
 		// Set I/O options
-		set_option<std::string>("temp", "settings.paths.temp_dir", "./temp", &AlignmentSettings::set_temp_dir);
-		set_option<bool>("bam", "settings.out.bam", false, &AlignmentSettings::set_write_bam);
-		set_option<bool>("keep-all-sequences", "settings.out.keep_all_sequences", false, &AlignmentSettings::set_keep_all_sequences);
+		set_option<std::string>("temp-dir", "settings.paths.temp_dir", "./temp", &AlignmentSettings::set_temp_dir);
+		set_option<std::string>("out-format", "settings.out.bam", "BAM", &AlignmentSettings::set_output_format);
+		set_option<bool>("keep-invalid-sequences", "settings.out.keep_all_sequences", false, &AlignmentSettings::set_keep_all_sequences);
 		set_option<bool>("report-unmapped", "settings.out.report_unmapped", false, &AlignmentSettings::set_report_unmapped);
 
 		// Set read structure
-		std::vector<std::string> default_read_structure;
-		default_read_structure.push_back(std::to_string(globalAlignmentSettings.get_cycles()) + "R");
-		set_option<std::vector<std::string>>("reads", "settings.sequences", default_read_structure, &AlignmentSettings::set_read_structure);
+		set_option<std::vector<std::string>>("reads", "settings.sequences", std::vector<std::string>(), &AlignmentSettings::set_read_structure);
 
 		// Scoring scheme
 		set_option<CountType>("match-score", "settings.scores.match_score", 0, &AlignmentSettings::set_match_score);
@@ -562,6 +564,7 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<float>("softclip-opening-penalty", "settings.scores.softclip_opening_penalty", float(globalAlignmentSettings.get_mismatch_penalty()), &AlignmentSettings::set_softclip_opening_penalty);
 		set_option<float>("softclip-extension-penalty", "settings.scores.softclip_extension_penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_anchor_length(), &AlignmentSettings::set_softclip_extension_penalty);
 		set_option<float>("max-softclip-ratio", "settings.scores.max_softclip_ratio", .2f, &AlignmentSettings::set_max_softclip_ratio);
+
 
 		// Alignment options
 		std::vector<CountType> output_cycles = {globalAlignmentSettings.get_cycles()};
@@ -581,10 +584,11 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<std::vector<uint16_t>>("tiles", "settings.tiles", all_tiles(), &AlignmentSettings::set_tiles);
 		set_option<CountType>("seeding-interval", "settings.align.seeding_interval", globalAlignmentSettings.get_anchor_length()/2, &AlignmentSettings::set_seeding_interval);
 
+
 		set_option<bool>("force-resort", "settings.out.force-resort", false, &AlignmentSettings::set_force_resort);
 
-		set_option<std::string>("mode", "settings.mode", "ANYBEST", &AlignmentSettings::set_mode);
-		set_option<CountType>("min-quality", "settings.align.min_qual", 1, &AlignmentSettings::set_min_qual);
+		set_option<std::string>("out-mode", "settings.mode", "ANYBEST", &AlignmentSettings::set_mode);
+		set_option<CountType>("min-basecall-quality", "settings.align.min_qual", 1, &AlignmentSettings::set_min_qual);
 
 		std::vector<std::string> barcode_sequences_default;
 		set_option<std::vector<std::string>>("barcodes", "settings.barcodes.sequences", barcode_sequences_default, &AlignmentSettings::set_barcodes);
@@ -592,7 +596,7 @@ bool HiLiveArgumentParser::set_options() {
 		std::vector<CountType> barcode_errors_default = {2};
 		set_option<std::vector<CountType>>("barcode-errors", "settings.barcodes.errors", barcode_errors_default, &AlignmentSettings::set_barcode_errors);
 
-		set_option<bool>("keep-all-barcodes", "settings.barcodes.keep_all", false, &AlignmentSettings::set_keep_all_barcodes);
+		set_option<bool>("align-undetermined-barcodes", "settings.barcodes.keep_all", false, &AlignmentSettings::set_keep_all_barcodes);
 
 		// Set technical options
 		set_option<std::string>("block-size", "settings.technical.block_size", "64M", &AlignmentSettings::set_block_size);
@@ -693,7 +697,7 @@ void HiLiveOutArgumentParser::report() {
 	if (globalAlignmentSettings.get_temp_dir() != "") {
 	        std::cout << "Temporary directory:      " << globalAlignmentSettings.get_temp_dir() << std::endl;
 	}
-	if (!globalAlignmentSettings.get_write_bam())
+	if ( globalAlignmentSettings.get_output_format() == OutputFormat::SAM )
 		std::cout << "SAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;
 	else
 		std::cout << "BAM output directory:     " << globalAlignmentSettings.get_out_dir() << std::endl;

@@ -134,28 +134,28 @@ seqan::BamHeader getBamHeader() {
 
 std::string getTileBamTempFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
 	std::ostringstream fname;
-	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
 	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << ".temp" << file_suffix;
 	return fname.str();
 }
 
 std::string getTileBamFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
 	std::ostringstream fname;
-	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
 	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << file_suffix;
 	return fname.str();
 }
 
 std::string getBamTempFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
-	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
 	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << ".temp" << file_suffix;
 	return fname.str();
 }
 
 std::string getBamFileName(std::string barcode, CountType cycle) {
 	std::ostringstream fname;
-	std::string file_suffix = globalAlignmentSettings.get_write_bam() ? ".bam" : ".sam";
+	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
 	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << file_suffix;
 	return fname.str();
 }

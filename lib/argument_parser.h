@@ -32,7 +32,7 @@ protected:
 	boost::property_tree::ptree runInfo_settings;
 
 	/** Settings property tree obtained from an settings input file. */
-	boost::property_tree::ptree input_settings;
+	po::variables_map input_settings;
 
 	/** Bool describing whether an input settings file was specified. */
 	bool has_input_settings = false;
@@ -125,7 +125,6 @@ protected:
 		T value = default_value;
 		bool was_set = false;
 
-		boost::optional<T> isv = input_settings.get_optional<T>(settings_key);
 		boost::optional<T> rsv = runInfo_settings.get_optional<T>(settings_key);
 
 
@@ -136,8 +135,8 @@ protected:
 		}
 
 		// Settings file -> second priority
-		else if ( isv ) {
-			value = isv.get();
+		else if ( input_settings.count(vm_key) ) {
+			value = input_settings[vm_key].as<T>();
 			was_set = true;
 		}
 
@@ -163,17 +162,17 @@ protected:
 	void set_option_impl(std::string vm_key, std::string settings_key, bool default_value, void (AlignmentSettings::*function)(bool), bool required, bool *) {
 
 		bool value = default_value;
+
 		bool was_set = false;
 
-		boost::optional<bool> isv = input_settings.get_optional<bool>(settings_key);
 		boost::optional<bool> rsv = runInfo_settings.get_optional<bool>(settings_key);
 
-		if ( cmd_settings[vm_key].as<bool>() != default_value ) {
+		if ( cmd_settings.count(vm_key) && cmd_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
 
-		else if ( isv && isv.get() != default_value ) {
+		else if ( input_settings.count(vm_key) && input_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
@@ -182,7 +181,6 @@ protected:
 			value = !default_value;
 			was_set = true;
 		}
-
 
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
@@ -199,25 +197,18 @@ protected:
 		std::vector<T> value;
 		bool was_set = false;
 
-		auto sub_isv = input_settings.get_child_optional(settings_key);
 		auto sub_rsv = runInfo_settings.get_child_optional(settings_key);
 
 
 		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) ) {
-			if ( vm_key == "reads") {
-				std::cout << "USED PARAMETER" << std::endl;
-			}
 			value = cmd_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}
 
 		// Settings file -> third priority
-		else if ( sub_isv && sub_isv.get().count("el") ) {
-			for ( auto& v : sub_isv.get() ) {
-				if ( v.first == "el" )
-					value.push_back(v.second.get_value<T>());
-			}
+		else if ( input_settings.count(vm_key) ) {
+			value = input_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}
 
@@ -357,19 +348,9 @@ protected:
 	 */
 	po::options_description general_options();
 
-	/**
-	 * Positional options of HiLive.
-	 * @return Option descriptor containing all positional options that must be set by the user.
-	 * @author Martin Lindner
-	 */
-	po::options_description positional_options();
+	po::options_description sequencing_options();
 
-	/**
-	 * I/O options of HiLive.
-	 * @return Option descriptor containing all I/O options that can be set by the user.
-	 * @author Martin Lindner
-	 */
-	po::options_description io_options();
+	po::options_description report_options();
 
 	/**
 	 * Alignment options of HiLive.
@@ -413,7 +394,7 @@ protected:
 
 	bool set_options();
 
-	virtual void set_required_parameters() override { required_options = {"BC_DIR", "INDEX", "CYCLES"}; }
+	virtual void set_required_parameters() override { required_options = {"bcl-dir", "index", "reads"}; }
 
 	/**
 	 * Add mode defaults to the commandline parameters if not exist.
@@ -441,7 +422,7 @@ class HiLiveOutArgumentParser : public HiLiveArgumentParser {
 
 	void report() override;
 
-	void set_required_parameters() override { required_options = {"settings", "INDEX"}; };
+	void set_required_parameters() override { required_options = {"config", "index"}; };
 };
 
 //class HiLiveOutArgumentParser : public ArgumentParser {
