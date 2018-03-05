@@ -13,26 +13,28 @@ ArgumentParser::ArgumentParser(int argC, char const ** argV):argc(argC),argv(arg
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 
 po::options_description BuildIndexArgumentParser::general_options() {
-	po::options_description general("General");
+	po::options_description general("GENERAL OPTIONS");
 	general.add_options()
 	    		("help,h", "Print this help message and exit")
-				("license", "Print licensing information and exit");
+				("license,l", "Print licensing information and exit");
 	return general;
 }
 
 po::options_description BuildIndexArgumentParser::positional_options() {
-	po::options_description parameters("Required");
+	po::options_description parameters("REQUIRED OPTIONS");
 	parameters.add_options()
-	    		("INPUT", po::value<std::string>()->required(), "Reference genomes in (multi-) FASTA format.");
+	    		("input,i", po::value<std::string>()->required(), "Reference genome(s) in (multi-)FASTA format. [REQUIRED]")
+	    		("out-prefix,o", po::value<std::string>()->required(), "Output file prefix. Several files with the same prefix will be created. [REQUIRED]")
+				;
 	return parameters;
 }
 
 po::options_description BuildIndexArgumentParser::build_options() {
-	po::options_description options("Options");
+	po::options_description options("OTHER OPTIONS");
 	options.add_options()
-	    		("outfile,o", po::value<std::string>(), "Set output file name [Default: INPUT.kix]")
 				("do-not-convert-spaces", po::bool_switch(&do_not_convert_spaces)->default_value(false), "Do not convert all spaces in reference ids to underscores [Default: converting is on]")
-				("trim-after-space", po::bool_switch(&trim_ids)->default_value(false), "Trim all reference ids after first space [Default: false]");
+				("trim-after-space", po::bool_switch(&trim_ids)->default_value(false), "Trim all reference ids after first space [Default: false]")
+				;
 	return options;
 }
 
@@ -40,10 +42,13 @@ void BuildIndexArgumentParser::init_help(po::options_description visible_options
 
 	std::stringstream help_message;
 
-	help_message << "Copyright (c) 2015-2017, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
+	help_message << "Copyright (c) 2015-2018, Martin S. Lindner and the HiLive contributors. See CONTRIBUTORS for more info." << std::endl;
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
-	help_message << "Usage: " << std::endl << "  hilive-build INPUT [options]" << std::endl << std::endl;
+
+	help_message << "Usage: " << std::endl << "  hilive-build [options]" << std::endl << std::endl;
+	help_message << "Example command: " << std::endl << "  hilive-build --input hg19.fa --out-prefix ./index/hg19" << std::endl << std::endl;
+
 	help_message << "Required: " << std::endl;
 	help_message << "  INPUT                 Reference genomes in (multi-) FASTA format." << std::endl;
 
@@ -63,40 +68,12 @@ bool BuildIndexArgumentParser::set_positional_variables(po::variables_map vm) {
 		return false;
 	}
 
-	return true;
-}
-
-bool BuildIndexArgumentParser::set_build_variables(po::variables_map vm) {
-
-	// Name of the ouput .kix file
-	if (vm.count("outfile")) {
-		index_name = vm["outfile"].as<std::string>();
-	} else {
-		index_name = fasta_name + std::string(".fmix");
-	}
+	// File prefix of the index
+	index_name = vm["outfile"].as<std::string>();
 
 	return true;
 }
 
-void BuildIndexArgumentParser::report() {
-
-//	std::cout << "K-mer weight:        " << (uint16_t) globalAlignmentSettings.get_kmer_weight() << std::endl;
-//	std::cout << "K-mer span:          " << (uint16_t) globalAlignmentSettings.get_kmer_span() << std::endl;
-//	std::cout << "K-mer gap positions: ";
-//
-//	if ( globalAlignmentSettings.get_kmer_gaps().size() > 0 ) {
-//		for ( auto pos : globalAlignmentSettings.get_kmer_gaps() ) {
-//			if ( pos != *(globalAlignmentSettings.get_kmer_gaps().begin()) )
-//				std::cout << ",";
-//			std::cout << (uint16_t) pos;
-//		}
-//		std::cout << std::endl;
-//	} else {
-//		std::cout << "-" << std::endl;
-//	}
-//	std::cout << std::endl;
-
-}
 
 int BuildIndexArgumentParser::parseCommandLineArguments() {
 
@@ -112,14 +89,11 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 
 	init_help(visible_options);
 
-	po::positional_options_description p;
-	p.add("INPUT", 1);
-
 	po::variables_map vm;
 	try {
 		// parse arguments
 		po::store(po::command_line_parser(argc, argv).
-				options(cmdline_options).positional(p).run(), vm);
+				options(cmdline_options).run(), vm);
 		// first check if -h or --help was called
 		if (vm.count("help")) {
 			printHelp();
@@ -146,12 +120,6 @@ int BuildIndexArgumentParser::parseCommandLineArguments() {
 	  if ( !set_positional_variables(vm) ) {
 		  return -1;
 	  }
-
-	  if ( !set_build_variables(vm) ) {
-		  return -1;
-	  }
-
-	  report();
 
 	  return 0;
 }
@@ -682,12 +650,12 @@ void HiLiveOutArgumentParser::init_help(po::options_description visible_options)
 	help_message << "All rights reserved" << std::endl << std::endl;
 	help_message << "HiLive is open-source software. Check with --license for details." << std::endl << std::endl;
 
-	help_message << "Usage: " << std::endl << "  hilive-out --settings /path/to/settings/file [options]" << std::endl << std::endl;
-	help_message << "Required:" << std::endl;
-	help_message << "  settings              Path to a HiLive settings file (by default, the file is in the temp directory of the respective run)" << std::endl;
+	help_message << "Usage: " << std::endl << "  hilive-out --config /path/to/settings/file [options]" << std::endl << std::endl;
+	help_message << "REQUIRED OPTIONS:" << std::endl;
+	help_message << "  --config              Path to a HiLive config file (in general, this should be 'hilive_config.ini' which is created in the temp directory of the respective run)" << std::endl;
 	help_message << std::endl << "All parameters can be set as for the HiLive main program." << std::endl;
 	help_message << "By default, only output files for the last cycle are produced." << std::endl;
-	help_message << "Use the --output-cycles parameter to declare different cycle numbers (will only work if --keep-files was activated for the respective HiLive run)" << std::endl;
+	help_message << "Use the --out-cycles parameter to declare different cycle numbers (will only work if --keep-files or --out-cycles was activated for the cycle when running HiLive)" << std::endl;
 
 	help_message << visible_options;
 

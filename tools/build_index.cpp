@@ -18,8 +18,8 @@ mutex_map<std::string> fileLocks;
 int main(int argc, const char* argv[]) {
 
 	// Program start output.
-	std::cout << std::endl << "------" << std::endl << "HiLive Index Builder v" << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
-			" - Build Index for Realtime Alignment of Illumina Reads" << std::endl << "------" << std::endl << std::endl;
+	std::cout << std::endl << "________________________________________________________________________________" << std::endl << std::endl << "HiLive Index Builder v" << HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
+			" - Build Index for Realtime Alignment of Illumina Reads" << std::endl << "________________________________________________________________________________" << std::endl << std::endl;
 
 	// Init argument parser
 	BuildIndexArgumentParser argumentParser(argc, argv);

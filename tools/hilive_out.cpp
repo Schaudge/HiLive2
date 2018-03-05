@@ -23,8 +23,8 @@ mutex_map<std::string> fileLocks;
 int main(int argc, const char* argv[]) {
 
 	// Program start output
-	std::cout << std::endl << "------" << std::endl << "HiLive Output Tool v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
-			" - Output of Realtime Alignments of Illumina Reads" << std::endl << "------" << std::endl<< std::endl;
+	std::cout << std::endl << "__________________________________________________________________________" << std::endl << std::endl << "HiLive Output Tool v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
+			" - Output of Realtime Alignments of Illumina Reads" << std::endl << "__________________________________________________________________________" << std::endl<< std::endl;
 
 	// Parse the command line arguments
     HiLiveOutArgumentParser argumentParser(argc, argv);

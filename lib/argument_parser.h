@@ -257,10 +257,6 @@ public:
  */
 class BuildIndexArgumentParser : public ArgumentParser {
 
-	uint16_t kmer_weight;
-
-	std::vector<unsigned> gap_positions = {};
-
 	/**
 	 * Use the constructor of the inherited ArgumentParser class.
 	 */
@@ -295,17 +291,9 @@ class BuildIndexArgumentParser : public ArgumentParser {
 	 */
 	bool set_positional_variables(po::variables_map vm);
 
-	/**
-	 * Set all variables for the build arguments.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_build_variables(po::variables_map vm);
-
-	void report() override;
-
 	void init_help(po::options_description visible_options) override;
+
+	virtual void report() override{};
 
 public:
 
@@ -314,9 +302,6 @@ public:
 
 	// name of the input fasta file
 	std::string fasta_name;
-
-	// trimming parameter
-	unsigned trim;
 
 	// do_not_convert_spaces_switch
 	bool do_not_convert_spaces;
