@@ -108,53 +108,32 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
 bool read_xml(boost::property_tree::ptree & xml_in, std::string xml_fname);
 
 /**
- * Write a property tree to an XML file.
- * @param xml_out Property tree that contains the data.
- * @param xml_fname Name of the output file.
+ * Write a property tree to an ini file.
+ * @param ini_out Property tree that contains the data.
+ * @param ini_fname Name of the output file.
  * @return true on success
  * @author Tobias Loka
  */
-bool write_xml(boost::property_tree::ptree & xml_out, std::string xml_fname);
+bool write_ini(boost::property_tree::ptree & ini_out, std::string ini_fname);
 
 /**
- * Convert a variable of a non-vector type to a property tree.
- * @param variable The variable to convert.
- * @return The property tree for the input variable
- * @author Tobias Loka
- * TODO: check if the exception handling makes sense.
+ * Add a value of type T to a given property tree.
+ * @param ptree Reference to a given property tree.
+ * @param value The value that will be added to the property tree.
+ * @return True, if the value was successfully added to the property tree. False otherwise.
  */
-/** Convert a variable to an XML node. T must be a data type that can be cast to a string-like output format. */
-template<typename T> boost::property_tree::ptree getXMLnode (T variable) {
+template<typename T> bool putConfigNode (boost::property_tree::ptree & ptree, std::string key, T value) {
 
-	boost::property_tree::ptree node;
+	bool success = true;
 
 	try {
-		node.put("", variable);
+		ptree.put(key, value);
 	} catch ( const std::exception &ex ) {
-		std::cerr << "Failed to convert variable to XML output format." << std::endl;
+		std::cerr << "WARN: Failed to convert value to config output format." << std::endl;
+		success = false;
 	}
 
-	return node;
-
-}
-
-/**
- * Convert a variable of a vector type to a property tree.
- * The subnodes have key "el".
- * @param vector The vector to convert.
- * @return The property tree for the input variable
- * @author Tobias Loka
- */
-/** Convert a vector to an XML node. T must be a data type that can be cast to a string-like output format. */
-template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<T> vector) {
-
-  	boost::property_tree::ptree node;
-
-  	for ( auto el = vector.begin(); el != vector.end(); ++el ) {
-  		node.add_child("el", getXMLnode ( *el ));
-  	}
-
-  	return node;
+	return success;
 
 }
 
@@ -162,6 +141,49 @@ template<typename T> boost::property_tree::ptree getXMLnode_vector (std::vector<
 /////////////////////////////////
 ////////// Other stuff //////////
 /////////////////////////////////
+
+/**
+ * Convert a string of delimited values to a vector of a desired data type.
+ * The string is split at every occurence of one of the delimiter defined in delim_list.
+ * T will be created by streaming from a stringstream, thus >> must be defined for T.
+ * @param values The values as string delimited by characters included in delim_list
+ * @param delim_list List of delimiting characters [default: definitions.h --> split_chars]
+ * @return Vector of the desired type for which >> must be defined (e.g. this holds for strings and numeric values)
+ */
+template<typename T> std::vector<T> to_vector ( std::string values, std::string delim_list=split_chars ) {
+
+	std::vector<std::string> str_vector;
+	std::vector<T> T_vector;
+
+	boost::split(str_vector, values, [&delim_list](char c){return delim_list.find(c)!=delim_list.npos;});
+	for ( auto & el : str_vector ) {
+		if ( el.size() == 0 )
+			continue;
+		T next_el;
+		std::stringstream ss(el);
+		ss >> next_el;
+		T_vector.push_back(next_el);
+	}
+
+	return T_vector;
+}
+
+/**
+ * Convert a vector of a desired data type to a string of delimited values.
+ * The string will be created by streaming objects of type T to a stringstream, thus << must be defined for T.
+ * @param vector The vector of values of type T
+ * @param delim Character which will be used as delimiter in the resulting string [default: ',']
+ * @return String with delimited values of original type T.
+ */
+template<typename T> std::string to_string ( std::vector<T> vector, char delim = ',' ) {
+	std::stringstream ss;
+	for ( auto el=vector.begin(); el!=vector.end(); ++el ) {
+		ss << (*el);
+		if ( el != --vector.end() )
+			ss << delim;
+	}
+	return ss.str();
+}
 
 /**
  * Get a number as a std::string with N digits (e.g., 6 -> "006" for N=3).

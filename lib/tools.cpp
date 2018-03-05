@@ -27,14 +27,14 @@ std::string unhash(HashIntoType myHash, unsigned hashLen)
 
 std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl) {
   std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/C" << cl << ".1/s_"<< ln <<"_" << tl << ".bcl";
+  path_stream << globalAlignmentSettings.get_root() << "/L" << to_N_digits(ln,3) << "/C" << cl << ".1/s_"<< ln <<"_" << tl << ".bcl";
   return path_stream.str();
 }
 
 std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt){
   std::ostringstream path_stream;
   std::string base = globalAlignmentSettings.get_temp_dir() != "" ? globalAlignmentSettings.get_temp_dir() : globalAlignmentSettings.get_root();
-  path_stream << base << "/L00" << ln << "/s_"<< ln << "_" << tl << "." << mt << "."<< cl << ".align";
+  path_stream << base << "/L" << to_N_digits(ln,3) << "/s_"<< ln << "_" << tl << "." << mt << "."<< cl << ".align";
   return path_stream.str();
 }
 
@@ -77,20 +77,20 @@ uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 
 std::string filter_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "/L00" << ln << "/s_"<< ln << "_" << tl << ".filter";
+  path_stream << globalAlignmentSettings.get_root() << "/L" << to_N_digits(ln,3) << "/s_"<< ln << "_" << tl << ".filter";
   return path_stream.str();
 }
 
 std::string position_name(uint16_t ln, uint16_t tl) {
   std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "../L00" << ln << "/s_"<< ln << "_" << tl << ".clocs";
+  path_stream << globalAlignmentSettings.get_root() << "../L" << to_N_digits(ln,3) << "/s_"<< ln << "_" << tl << ".clocs";
   return path_stream.str();
 }
 
 std::string get_settings_name() {
 	std::ostringstream path_stream;
 	std::string base = globalAlignmentSettings.get_temp_dir() != "" ? globalAlignmentSettings.get_temp_dir() : globalAlignmentSettings.get_root();
-	path_stream << base << "/hilive_settings.xml";
+	path_stream << base << "/hilive_config.ini";
 	return path_stream.str();
 }
 
@@ -135,14 +135,14 @@ seqan::BamHeader getBamHeader() {
 std::string getTileBamTempFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
 	std::ostringstream fname;
 	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
-	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << ".temp" << file_suffix;
+	fname << globalAlignmentSettings.get_temp_dir() << "/L" << to_N_digits(ln,3) << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << ".temp" << file_suffix;
 	return fname.str();
 }
 
 std::string getTileBamFileName(CountType ln, CountType tl, std::string barcode, CountType cycle) {
 	std::ostringstream fname;
 	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
-	fname << globalAlignmentSettings.get_temp_dir() << "/L00" << ln << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << file_suffix;
+	fname << globalAlignmentSettings.get_temp_dir() << "/L" << to_N_digits(ln,3) << "/s_" << std::to_string(ln) << "_" << std::to_string(tl) << "." << std::to_string(cycle) << "." << barcode << file_suffix;
 	return fname.str();
 }
 

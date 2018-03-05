@@ -29,9 +29,11 @@
 #include <unordered_map>
 #include <boost/filesystem.hpp>
 #include <boost/property_tree/xml_parser.hpp>
+#include <boost/property_tree/ini_parser.hpp>
 #include <boost/property_tree/ptree.hpp>
 #include <boost/optional/optional.hpp>
 #include <boost/foreach.hpp>
+#include <boost/algorithm/string.hpp>
 #include <seqan/basic.h>
 #include <seqan/sequence.h>
 #include <seqan/bam_io.h>

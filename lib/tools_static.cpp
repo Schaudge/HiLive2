@@ -148,12 +148,12 @@ bool read_xml(boost::property_tree::ptree & xml_in, std::string xml_fname) {
 
 }
 
-bool write_xml(boost::property_tree::ptree & xml_out, std::string xml_fname) {
+bool write_ini(boost::property_tree::ptree & ini_out, std::string ini_fname) {
 
 	try {
-		boost::property_tree::write_xml( xml_fname, xml_out );
+		boost::property_tree::write_ini( ini_fname, ini_out );
 	} catch ( const std::exception &ex ) {
-		std::cerr << "Error writing xml file " << xml_fname << ": " << std::endl << ex.what() << std::endl;
+		std::cerr << "Error writing config file " << ini_fname << ": " << std::endl << ex.what() << std::endl;
 		return false;
 	}
 

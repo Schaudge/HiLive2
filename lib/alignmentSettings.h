@@ -175,7 +175,7 @@ private:
 	 * @return Vector with one string for each barcode. Subsequences are delimited with a "-" character.
 	 * @author Tobias Loka
 	 */
-	std::vector<std::string> xmlParse_barcodeVector() {
+	std::vector<std::string> configParse_barcodeVector() {
 		std::vector<std::string> bc_strings;
 		for ( CountType i = 0; i < get_barcodeVector().size(); i++ ) {
 			bc_strings.push_back( get_barcodeString(i) );
@@ -188,7 +188,7 @@ private:
 	 * @return Vector with one string for each element in format [0-9]*[BR]
 	 * @author Tobias Loka
 	 */
-	std::vector<std::string> xmlParse_seqs() {
+	std::vector<std::string> configParse_seqs() {
 		std::vector<std::string> seq_vector;
 		for ( auto el : get_seqs() ) {
 			std::string seq_string;
@@ -197,6 +197,23 @@ private:
 			seq_vector.push_back(seq_string);
 		}
 		return seq_vector;
+	}
+
+	std::string configParse_outFormat() {
+		switch ( get_output_format() ) {
+		case OutputFormat::SAM:
+			return "SAM";
+			break;
+		default:
+			return "BAM";
+		}
+	}
+
+	std::string configParse_outputMode() {
+		std::string mode = std::string(1, char(get_mode())); // output mode begin
+		if ( get_mode() == AlignmentMode::BESTN )
+			mode += std::to_string(get_best_n());
+		return mode;
 	}
 
 	/**
@@ -269,65 +286,58 @@ public:
 	 */
 	boost::property_tree::ptree to_ptree() {
 
-		boost::property_tree::ptree xml_out;
+		boost::property_tree::ptree ptree;
 
-		// General settings
-		xml_out.add_child("settings.lanes", getXMLnode_vector ( get_lanes() ));
-		xml_out.add_child("settings.tiles", getXMLnode_vector ( get_tiles() ));
-		xml_out.add_child("settings.cycles", getXMLnode ( get_cycles() ));
-		xml_out.add_child("settings.sequences", getXMLnode_vector ( xmlParse_seqs() ));
+		// Sequencing options
+		putConfigNode ( ptree, "bcl-dir", get_root() );
+		putConfigNode ( ptree, "lanes", to_string( get_lanes() ) );
+		putConfigNode ( ptree, "tiles", to_string( get_tiles() ) );
+		putConfigNode ( ptree, "reads", to_string( configParse_seqs() ) );
+		putConfigNode ( ptree, "barcodes", to_string( configParse_barcodeVector() ) );
 
-		// Barcode settings
-		xml_out.add_child("settings.barcodes.sequences", getXMLnode_vector( xmlParse_barcodeVector() ));
-		xml_out.add_child("settings.barcodes.errors", getXMLnode_vector ( get_barcode_errors() ));
-		xml_out.add_child("settings.barcodes.keep_all", getXMLnode ( get_keep_all_barcodes() ));
+		// Report options
+		putConfigNode ( ptree, "out-dir", get_out_dir() );
+		putConfigNode( ptree, "out-format", configParse_outFormat() );
+		putConfigNode ( ptree, "out-cycles", to_string( get_output_cycles() ) );
+		putConfigNode ( ptree, "out-mode", configParse_outputMode() ); // output mode end // TODO: write as function
+		putConfigNode ( ptree, "report-unmapped", get_report_unmapped() );
+		putConfigNode ( ptree, "extended-cigar", get_extended_cigar() );
+		putConfigNode ( ptree, "force-resort", get_force_resort() );
+		putConfigNode ( ptree, "max-softclip-ratio", get_max_softclip_ratio() );
 
-		// Alignment mode
-		std::string mode = std::string(1, char(get_mode()));
-		if ( get_mode() == AlignmentMode::BESTN )
-			mode += std::to_string(get_best_n());
-		xml_out.add_child("settings.mode", getXMLnode ( mode ));
+		// Alignment options
+		putConfigNode( ptree, "index",  get_index_fname() );
+		// Align mode not needed since the implied parameters are stored.
+		putConfigNode( ptree, "anchor-length",  get_anchor_length() );
+		putConfigNode( ptree, "error-interval",  get_error_rate() );
+		putConfigNode( ptree, "seeding-interval",  get_seeding_interval() );
+		putConfigNode ( ptree, "barcode-errors", to_string( get_barcode_errors() ) );
+		putConfigNode( ptree, "align-undetermined-barcodes",  get_keep_all_barcodes() );
+		putConfigNode( ptree, "min-basecall-quality", get_min_qual() );
+		putConfigNode( ptree, "keep-invalid-sequences",  get_keep_all_sequences() );
 
-		// Paths
-		xml_out.add_child("settings.paths.temp_dir", getXMLnode ( get_temp_dir() ));
-		xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir() ));
-		xml_out.add_child("settings.paths.root", getXMLnode ( get_root() ));
-		xml_out.add_child("settings.paths.index", getXMLnode ( get_index_fname() ));
+		// Scoring options
+		putConfigNode( ptree, "min-as",  get_min_as() );
+		putConfigNode( ptree, "match-score",  get_match_score() );
+		putConfigNode( ptree, "mismatch-penalty",  get_mismatch_penalty() );
+		putConfigNode( ptree, "insertion-opening-penalty",  get_insertion_opening_penalty() );
+		putConfigNode( ptree, "insertion-extension-penalty",  get_insertion_extension_penalty() );
+		putConfigNode( ptree, "deletion-opening-penalty",  get_deletion_opening_penalty() );
+		putConfigNode( ptree, "deletion-extension-penalty",  get_deletion_extension_penalty() );
+		putConfigNode( ptree, "max-gap-length",  get_max_gap_length() );
+		putConfigNode( ptree, "softclip-opening-penalty",  get_softclip_opening_penalty() );
+		putConfigNode( ptree, "softclip-extension-penalty",  get_softclip_extension_penalty() );
 
-		// Output settings
-//		xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
-		xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
-		xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
-		xml_out.add_child("settings.out.min_as", getXMLnode ( get_min_as()) );
-		xml_out.add_child("settings.out.keep_all_sequences", getXMLnode ( get_keep_all_sequences() ));
-		xml_out.add_child("settings.out.report_unmapped", getXMLnode ( get_report_unmapped() ));
+		// Technical options
+		putConfigNode( ptree, "temp-dir",  get_temp_dir() );
+		putConfigNode ( ptree, "keep-files", to_string( get_keep_aln_files() ) );
+		// Keep all files not necessary ==> stored as keep-files
+		putConfigNode( ptree, "block-size",  get_block_size() );
+		putConfigNode( ptree, "compression",  get_compression_format() );
+		putConfigNode( ptree, "num-threads",  get_num_threads() );
+		putConfigNode( ptree, "num-out-threads",  get_num_out_threads() );
 
-		// Technical settings
-		xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
-		xml_out.add_child("settings.technical.num_out_threads", getXMLnode ( get_num_out_threads() ));
-		xml_out.add_child("settings.technical.keep_aln_files", getXMLnode_vector ( get_keep_aln_files() ));
-		xml_out.add_child("settings.technical.block_size", getXMLnode ( get_block_size() ));
-		xml_out.add_child("settings.technical.compression_format", getXMLnode ( get_compression_format() ));
-
-		// Scoring scheme
-		xml_out.add_child("settings.scores.match_score", getXMLnode ( get_match_score() ));
-		xml_out.add_child("settings.scores.mismatch_penalty", getXMLnode ( get_mismatch_penalty() ));
-		xml_out.add_child("settings.scores.insertion_opening_penalty", getXMLnode ( get_insertion_opening_penalty() ));
-		xml_out.add_child("settings.scores.insertion_extension_penalty", getXMLnode ( get_insertion_extension_penalty() ));
-		xml_out.add_child("settings.scores.deletion_opening_penalty", getXMLnode ( get_deletion_opening_penalty() ));
-		xml_out.add_child("settings.scores.deletion_extension_penalty", getXMLnode ( get_deletion_extension_penalty() ));
-		xml_out.add_child("settings.scores.max_gap_length", getXMLnode ( get_max_gap_length() ));
-		xml_out.add_child("settings.scores.softclip_opening_penalty", getXMLnode ( get_softclip_opening_penalty() ));
-		xml_out.add_child("settings.scores.softclip_extension_penalty", getXMLnode ( get_softclip_extension_penalty() ));
-		xml_out.add_child("settings.scores.max_softclip_ratio", getXMLnode ( get_max_softclip_ratio() ));
-
-		// Alignment algorithm settings
-		xml_out.add_child("settings.align.min_qual", getXMLnode (get_min_qual() ));
-		xml_out.add_child("settings.align.anchor", getXMLnode ( get_anchor_length() ));
-		xml_out.add_child("settings.align.error_interval", getXMLnode ( get_error_rate() ));
-		xml_out.add_child("settings.align.seeding_interval", getXMLnode ( get_seeding_interval() ));
-
-		return xml_out;
+		return ptree;
 	}
 
 	/**
@@ -482,6 +492,11 @@ public:
 
 	}
 
+	void set_read_structure ( std::string read_argument ) {
+		auto vector = to_vector<std::string>( read_argument );
+		set_read_structure ( vector );
+	}
+
 	/**
 	 * Get a SequenceElement object from the seqs vector by using the id
 	 * @param id The id of the SequenceElement.
@@ -625,6 +640,11 @@ public:
 		set_immutable(output_cycles, the_cycles);
 	}
 
+	void set_output_cycles(std::string value) {
+		auto vector = to_vector<uint16_t>(value);
+		set_output_cycles(vector);
+	}
+
 	/**
 	 * Get the cycles to write output.
 	 * @return Output cycles as a vector of Integers as given as user input.
@@ -651,6 +671,11 @@ public:
 	 */
 	void set_keep_aln_files(std::vector<uint16_t> value) {
 		set_immutable(keep_aln_files, value);
+	}
+
+	void set_keep_aln_files(std::string value) {
+		auto vector = to_vector<uint16_t>(value);
+		set_keep_aln_files(vector);
 	}
 
 	/**
@@ -747,6 +772,12 @@ public:
 		set_immutable(lanes, value);
 	}
 
+	void set_lanes(std::string value) {
+
+		auto lanes = to_vector<uint16_t>(value);
+		set_lanes(lanes);
+	}
+
 	/**
 	 * Get the lanes to work on.
 	 * @return The lanes considered for alignment as vector of Integers.
@@ -811,6 +842,11 @@ public:
 		std::sort( value.begin(), value.end() );
 		value.erase( std::unique( value.begin(), value.end() ), value.end() );
 		set_immutable(tiles, value);
+	}
+
+	void set_tiles(std::string value) {
+		auto tiles = to_vector<uint16_t>(value);
+		set_tiles(tiles);
 	}
 
 	/**
@@ -961,6 +997,11 @@ public:
 	 */
 	void set_barcode_errors(std::vector<uint16_t> value) {
 		set_immutable(barcode_errors, value);
+	}
+
+	void set_barcode_errors(std::string value) {
+		auto barcode_errors = to_vector<uint16_t>(value);
+		set_barcode_errors(barcode_errors);
 	}
 
 	/**

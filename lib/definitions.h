@@ -48,6 +48,7 @@
  * Supported nucleotides.
  */
 const std::string seq_chars = "ACGTacgt";
+const std::string split_chars = " ,:;&|";
 
 
 ////////////////////////////////////////
@@ -329,6 +330,7 @@ public:
 	 * Set the unmodifiable object (will only work once!).
 	 * @param object The object to be copied to this unmodifiable data type.
 	 * @return true if setting was successful
+	 * @throws immutable_error if the value was already set.
 	 * @author Tobias Loka
 	 */
 	void set(T object) {

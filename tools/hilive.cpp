@@ -177,8 +177,8 @@ int main(int argc, const char* argv[]) {
     time_t t_start = time(NULL);
 
     // Program start output
-	std::cout << std::endl << "------" << std::endl << "HiLive v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
-			" - Realtime Alignment of Illumina Reads" << std::endl << "------" << std::endl<< std::endl;
+	std::cout << std::endl << "__________________________________________________" << std::endl << std::endl << "HiLive v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
+			" - Realtime Alignment of Illumina Reads" << std::endl << "__________________________________________________" << std::endl<< std::endl;
 
     // Parse command line arguments
     HiLiveArgumentParser argumentParser(argc, argv);
@@ -204,7 +204,7 @@ int main(int argc, const char* argv[]) {
 
   	// Write the alignment settings to an XML file
   	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
-  	if ( ! write_xml(xml_out, get_settings_name()) )
+  	if ( ! write_ini(xml_out, get_settings_name()) )
   		exit(EXIT_FAILURE);
 
     // Create the overall agenda
