@@ -23,10 +23,17 @@
  * @param j Second position to compare
  * @return true, if first position is "smaller" than second position.
  */
-bool gp_compare (GenomePosType i,GenomePosType j);
+inline bool gp_compare (GenomePosType i,GenomePosType j) {
+	if ( i.pos == j.pos )
+		return i.gid < j.gid;
+	return (i.pos < j.pos);
+}
 
-
-bool compare_records_by_pos(const seqan::BamAlignmentRecord & l, const seqan::BamAlignmentRecord & r);
+inline bool compare_records_by_pos(const seqan::BamAlignmentRecord & l, const seqan::BamAlignmentRecord & r) {
+	if ( l.rID == r.rID )
+		return l.beginPos < r.beginPos;
+	return l.rID < r.rID;
+}
 
 /////////////////////////////////////
 ////////// Type convertion //////////
@@ -39,7 +46,36 @@ bool compare_records_by_pos(const seqan::BamAlignmentRecord & l, const seqan::Ba
  * @param elems The target vector.
  * @author Tobias Loka
  */
-void split(const std::string &s, char delim, std::vector<std::string> &elems);
+inline void split(const std::string &s, char delim, std::vector<std::string> &elems) {
+    std::stringstream ss;
+    ss.str(s);
+    std::string item;
+    while (std::getline(ss, item, delim)) {
+        elems.push_back(item);
+    }
+}
+
+template<
+	typename T,
+	typename=typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+> Operations get_operation( T operation ) {
+	switch ( operation ) {
+	case MATCH:
+		return MATCH;
+		break;
+	case NO_MATCH:
+		return NO_MATCH;
+		break;
+	case DELETION:
+		return DELETION;
+		break;
+	case INSERTION:
+		return INSERTION;
+		break;
+	default:
+		return MATCH;
+	}
+}
 
 
 ///////////////////////////////////
@@ -52,21 +88,39 @@ void split(const std::string &s, char delim, std::vector<std::string> &elems);
  * @param fname Name of the file.
  * @return Size of the file.
  */
-std::ifstream::pos_type get_filesize(const std::string &fname);
+inline std::ifstream::pos_type get_filesize(const std::string &fname)
+{
+  std::ifstream in(fname, std::ios::binary | std::ios::ate);
+  return in.tellg();
+}
 
 /**
  * Check if a given path is a directory.
  * @param path of interest.
  * @return true, if the given path is a directory.
  */
-bool is_directory(const std::string &path);
+inline bool is_directory(const std::string &path) {
+  if ( boost::filesystem::exists(path) ) {
+    if ( boost::filesystem::is_directory(path) ) {
+      return true;
+    }
+    else {
+      return false;
+    }
+  }
+  else {
+    return false;
+  }
+}
 
 /**
  * Check if a given path is a file.
  * @param Path of interest.
  * @return true, if the given path is a file.
  */
-bool file_exists(const std::string &fname);
+inline bool file_exists(const std::string &fname) {
+	return boost::filesystem::exists(fname);
+}
 
 /**
  * Convert a relative to an absolute path.
@@ -75,8 +129,10 @@ bool file_exists(const std::string &fname);
  * @author Tobias Loka
  * TODO: Not tested and used yet.
  */
-std::string absolute_path(std::string fname);
-
+inline std::string absolute_path(std::string fname) {
+	boost::filesystem::path input_path(fname);
+	return boost::filesystem::canonical(fname).string();
+}
 
 /**
  * Read a binary file and stores its content in a char vector.
@@ -92,6 +148,13 @@ std::vector<char> read_binary_file(const std::string &fname);
  * @return Number of written bytes.
  */
 uint64_t write_binary_file(const std::string &fname, const std::vector<char> & data);
+
+/**
+ * Get the suffix for a specified file format.
+ * @param format The desired file format.
+ * @return File suffix as string (e.g., ".bam" for BAM format)
+ */
+std::string get_file_suffix ( OutputFormat format );
 
 
 ////////////////////////////////////////////////
@@ -235,7 +298,6 @@ template<typename T, typename = typename std::enable_if<std::is_arithmetic<T>::v
 uint32_t num_reads_from_bcl(std::string bcl);
 
 /**
-<<<<<<< HEAD
  * Trim from start (in place).
  * @param s String to be trimmed.
  * @author Tobias Loka
@@ -272,9 +334,88 @@ static inline void trim(std::string &s) {
  * @param tileCount The tile count.
  * @return A vector of tile numbers.
  */
-std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, CountType swathCount, CountType tileCount );
+inline std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, CountType swathCount, CountType tileCount ) {
+	std::vector<uint16_t> tiles_vec;
+	for (uint16_t surf = 1; surf <= surfaceCount; surf++)
+		for (uint16_t swath = 1; swath <= swathCount; swath++)
+			for (uint16_t tile = 1; tile <= tileCount; tile++)
+				tiles_vec.push_back(surf*1000 + swath*100 + tile);
+	return tiles_vec;
+}
 
-CountType prob2mapq(float prob, float max_prob = 0.99993f);
+/**
+ * Convert the highest tile number to a vector of tiles under the assumption that all combinations of surface, swath and tile are used.
+ * @param max_tile Maximum tile number.
+ * @return Vector of all tiles that are included in the surface count, swath count and tile count defined by the maximum of the given input.
+ */
+inline std::vector<CountType> maxTile_to_tiles ( CountType max_tile ) {
+	return flowcell_layout_to_tile_numbers( max_tile/1000, (max_tile%1000)/100, max_tile % 100 );
+}
+
+inline CountType prob2mapq(float prob, float max_prob = 0.99993f) {
+	// Catch negative values and save computation time for value <0.1 that always have a MAPQ of 0
+	if ( prob <= 0.1f)
+		return 0;
+
+	// Save computation time for several values up to 0.5
+	if ( prob <= 0.29f)
+		return 1;
+	if ( prob <= 0.435f )
+		return 2;
+	if ( prob <= 0.55f )
+		return 3;
+
+	// Otherwise calculate the correct value
+	return ( float( (-10.0f) * std::log10( 1.0f - std::min(max_prob, prob ))) + 0.5f);
+}
+
+
+/**
+ * Set the value of an immutable variable to a value without throwing an exception.
+ * @param immutable The immutable to change the value.
+ * @param value The new value for the immutable.
+ * @return true, if the value could be set. False otherwise (e.g., if the immutable value was already set before).
+ */
+template<typename T>
+bool set_immutable(Immutable<T> & immutable, T value) {
+	  try {
+		  immutable.set(value);
+	  }
+	  catch (immutable_error& e) {
+		  std::cerr << "WARN: " << e.what() << std::endl;
+		  return false ;
+	  }
+	  return true;
+}
+
+/**
+ * Get the value of an immutable variable without throwing an exception.
+ * If the value was not set, the default initialization value of type T will be returned.
+ * @param immutable The immutable variable.
+ * @return Value of the immutable variable. Default initialization value of T if the value of the immutable variable was not set yet.
+ */
+template<typename T>
+T get_immutable(const Immutable<T> & immutable) {
+	  try {
+		  return immutable.get();
+	  }
+	  catch (immutable_error& e) {
+		  std::cerr << "WARN: " << e.what() << std::endl;
+		  return T();
+	  }
+}
+
+/**
+ * Convert a base call quality value to the respective char in PHRED syntax.
+ * This function considers the settings of full quality or 2-bit quality in the globalAlignmentSettings.
+ * @param bc_qual The base call quality as stored in HiLive.
+ * @return PHRED char ( "!" - "I" )
+ */
+inline char to_phred_quality ( uint8_t bc_qual ) {
+	char phred_score = '!';
+	phred_score += bc_qual;
+	return phred_score;
+}
 
 #endif /* TOOLS_STATIC_H */
 

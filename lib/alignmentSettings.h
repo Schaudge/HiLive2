@@ -394,7 +394,7 @@ public:
 	 * @return Barcodes as a 2-dimensional vector of strings.
 	 */
 	std::vector<std::vector<std::string> > get_barcodeVector() const {
-		return get_immutable(barcodeVector, true);
+		return get_immutable(barcodeVector);
 	}
 
 	/**
@@ -581,7 +581,7 @@ public:
 	 * @return Number of "best" scores to print alignments for
 	 */
 	CountType get_best_n() const {
-		return get_immutable(best_n, true);
+		return get_immutable(best_n);
 	}
 
 	/**
@@ -650,7 +650,7 @@ public:
 	 * @return Output cycles as a vector of Integers as given as user input.
 	 */
 	std::vector<uint16_t> get_output_cycles() const {
-		return get_immutable(output_cycles, true);
+		return get_immutable(output_cycles);
 	}
 
 	/**
@@ -676,6 +676,12 @@ public:
 	void set_keep_aln_files(std::string value) {
 		auto vector = to_vector<uint16_t>(value);
 		set_keep_aln_files(vector);
+	}
+
+	void set_keep_all_aln_files() {
+		std::vector<CountType>keep_all_files (get_cycles());
+		std::iota(keep_all_files.begin(), keep_all_files.end(), 1);
+		set_keep_aln_files(keep_all_files);
 	}
 
 	/**
@@ -783,7 +789,7 @@ public:
 	 * @return The lanes considered for alignment as vector of Integers.
 	 */
 	std::vector<uint16_t> get_lanes() const {
-		return get_immutable(lanes, true);
+		return get_immutable(lanes);
 	}
 
 	/**
@@ -849,12 +855,16 @@ public:
 		set_tiles(tiles);
 	}
 
+	void set_max_tile( CountType value ) {
+		set_tiles ( maxTile_to_tiles( value ) );
+	}
+
 	/**
 	 * Get the tiles to work on.
 	 * @return The tiles considered for alignment as vector of Integers.
 	 */
 	std::vector<uint16_t> get_tiles() const {
-		return get_immutable(tiles, true);
+		return get_immutable(tiles);
 	}
 
 	/**
@@ -918,7 +928,7 @@ public:
 	 * @return The cycle to start computations
 	 */
 	CountType get_start_cycle() const {
-		CountType ret = get_immutable(start_cycle, true);
+		CountType ret = get_immutable(start_cycle);
 
 		// Value if not set.
 		if ( ret == 0 )
@@ -980,7 +990,7 @@ public:
 	 * @return Vector of sequence elements. This includes read and barcode elements.
 	 */
 	std::vector<SequenceElement> get_seqs() const {
-		return get_immutable(seqs, true);
+		return get_immutable(seqs);
 	}
 
 	/**
@@ -988,7 +998,7 @@ public:
 	 * @return The number of mates.
 	 */
 	uint16_t get_mates() const {
-		return get_immutable(mates, true);
+		return get_immutable(mates);
 	}
 
 	/**
@@ -1009,7 +1019,7 @@ public:
 	 * @param value The number of errors for each barcode as a vector of ints.
 	 */
 	std::vector<uint16_t> get_barcode_errors() const {
-		return get_immutable(barcode_errors, true);
+		return get_immutable(barcode_errors);
 	}
 
 	/**

@@ -29,10 +29,10 @@ protected:
 	po::variables_map cmd_settings;
 
 	/** Settings property tree obtained from the runInfo. */
-	boost::property_tree::ptree runInfo_settings;
+	po::variables_map runInfo_settings;
 
 	/** Settings property tree obtained from an settings input file. */
-	po::variables_map input_settings;
+	po::variables_map config_file_settings;
 
 	/** Bool describing whether an input settings file was specified. */
 	bool has_input_settings = false;
@@ -113,20 +113,17 @@ protected:
 	 * @param required true, if the option must be set by the user (from one of the input sources)
 	 * @author Tobias Loka
 	 */
-	template<class T> void set_option(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T)) {
-		set_option_impl(vm_key, settings_key, default_value, function, isRequired(vm_key), static_cast<T*>(0));
+	template<class T> void set_option(std::string vm_key, T default_value, void (AlignmentSettings::*function)(T)) {
+		set_option_impl(vm_key, default_value, function, isRequired(vm_key), static_cast<T*>(0));
 	}
 
 	/**
 	 * General implementation of set_option(...).
 	 */
-	template<class T> void set_option_impl(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T), bool required, T*) {
+	template<class T> void set_option_impl(std::string vm_key, T default_value, void (AlignmentSettings::*function)(T), bool required, T*) {
 
 		T value = default_value;
 		bool was_set = false;
-
-		boost::optional<T> rsv = runInfo_settings.get_optional<T>(settings_key);
-
 
 		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) ) {
@@ -135,18 +132,18 @@ protected:
 		}
 
 		// Settings file -> second priority
-		else if ( input_settings.count(vm_key) ) {
-			value = input_settings[vm_key].as<T>();
+		else if ( config_file_settings.count(vm_key) ) {
+			value = config_file_settings[vm_key].as<T>();
 			was_set = true;
 		}
 
 		// RunInfo file -> third priority
-		else if ( rsv ) {
-			value = rsv.get();
+		else if ( runInfo_settings.count(vm_key) ) {
+			value = runInfo_settings[vm_key].as<T>();
 			was_set = true;
 		}
 
-		// Throw exception if unset
+		// Throw exception if required but unset
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
 
@@ -159,29 +156,31 @@ protected:
 	/**
 	 * Overload of set_option_impl for bool data type.
 	 */
-	void set_option_impl(std::string vm_key, std::string settings_key, bool default_value, void (AlignmentSettings::*function)(bool), bool required, bool *) {
+	void set_option_impl(std::string vm_key, bool default_value, void (AlignmentSettings::*function)(bool), bool required, bool *) {
 
 		bool value = default_value;
 
 		bool was_set = false;
 
-		boost::optional<bool> rsv = runInfo_settings.get_optional<bool>(settings_key);
-
+		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) && cmd_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
 
-		else if ( input_settings.count(vm_key) && input_settings[vm_key].as<bool>() != default_value ) {
+		// Settings file -> second priority
+		else if ( config_file_settings.count(vm_key) && config_file_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
 
-		else if ( rsv && rsv.get() != default_value ) {
+		// RunInfo file -> third priority
+		else if ( runInfo_settings.count(vm_key) && runInfo_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
 
+		// Throw exception if required but unset
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
 
@@ -192,13 +191,10 @@ protected:
 	}
 
 	/** Overload of set_option_impl for std::vector data types. */
-	template<class T> void set_option_impl(std::string vm_key, std::string settings_key, std::vector<T> default_value, void (AlignmentSettings::*function)(std::vector<T>), bool required, std::vector<T> *) {
+	template<class T> void set_option_impl(std::string vm_key, std::vector<T> default_value, void (AlignmentSettings::*function)(std::vector<T>), bool required, std::vector<T> *) {
 
 		std::vector<T> value;
 		bool was_set = false;
-
-		auto sub_rsv = runInfo_settings.get_child_optional(settings_key);
-
 
 		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) ) {
@@ -206,22 +202,19 @@ protected:
 			was_set = true;
 		}
 
-		// Settings file -> third priority
-		else if ( input_settings.count(vm_key) ) {
-			value = input_settings[vm_key].as<std::vector<T>>();
+		// Settings file -> second priority
+		else if ( config_file_settings.count(vm_key) ) {
+			value = config_file_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}
 
-		// RunInfo file -> second priority
-		else if ( sub_rsv && sub_rsv.get().count("el") ) {
-			for ( auto& v : sub_rsv.get() ) {
-				if ( v.first == "el" )
-					value.push_back(v.second.get_value<T>());
-			}
+		// RunInfo file -> third priority
+		else if ( runInfo_settings.count(vm_key) ) {
+			value = runInfo_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}
 
-		// Throw exception if unset
+		// Throw exception if required but unset
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
 
@@ -233,6 +226,15 @@ protected:
 		auto binded_function = std::bind(function, &globalAlignmentSettings, std::placeholders::_1);
 		binded_function(value);
 	}
+
+	/**
+	 * Check the occurence of parameters setting the same value(s) in the alignment settings.
+	 * Parameters set on the command line will have priority over config file settings.
+	 * If parameters are set on the same input level, the parameter on an smaller position of the input vector will be returned.
+	 * @param parameters A vector of parameters to prioritize.
+	 * @return The parameter that should be used to set the respective values in the alignment settings.
+	 */
+	std::string select_prioritized_parameter( std::vector<std::string> parameters );
 
 public:
 

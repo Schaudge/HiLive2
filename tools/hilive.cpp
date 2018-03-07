@@ -70,10 +70,10 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
     while ( !surrender ) {
 
     	{ // scope for block guard
-    		atomic_block_guard<CountType> block( writing_threads );
+    		atomic_increment_guard<CountType> block( writing_threads );
 
     		// Start an output task if output threads and tasks available.
-    		if ( block.get_blocked_value() <= globalAlignmentSettings.get_num_out_threads() ) {
+    		if ( block.get_incremented_value() <= globalAlignmentSettings.get_num_out_threads() ) {
     			Task written_task = writeNextTaskToBam( alnouts );
     			if ( written_task != NO_TASK ) {
     				continue;
@@ -154,7 +154,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
         // Thread is idle --> Also use it for output if the maximum number of output threads is exceeded.
         else {
 
-    		atomic_block_guard<CountType> block( writing_threads );
+    		atomic_increment_guard<CountType> block( writing_threads );
         	writeNextTaskToBam( alnouts );
 
         }
@@ -204,7 +204,7 @@ int main(int argc, const char* argv[]) {
 
   	// Write the alignment settings to an XML file
   	boost::property_tree::ptree xml_out = globalAlignmentSettings.to_ptree();
-  	if ( ! write_ini(xml_out, get_settings_name()) )
+  	if ( ! write_ini(xml_out, get_config_fname()) )
   		exit(EXIT_FAILURE);
 
     // Create the overall agenda

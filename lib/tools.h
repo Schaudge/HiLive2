@@ -14,22 +14,9 @@
 /* DONT ADD ANY INCLUDES */
 
 
-///////////////////////////////////
-////////// K-mer Hashing //////////
-///////////////////////////////////
-
-/**
- * Calculate the sequence from a hash value.
- * @param myHash The input hash value.
- * @param hashLen Length (weight) of the hashed sequence.
- * @return The unhashed sequence.
- */
-std::string unhash(HashIntoType myHash, unsigned hashLen);
-
-
-////////////////////////////////////////////
-////////// File name construction //////////
-////////////////////////////////////////////
+//////////////////////////////////////
+////////// Build file names //////////
+//////////////////////////////////////
 
 /**
  * Get the name of a bcl file.
@@ -38,7 +25,11 @@ std::string unhash(HashIntoType myHash, unsigned hashLen);
  * @param cl The sequencing cycle.
  * @return Path to the bcl file.
  */
-std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl);
+inline std::string get_bcl_fname(uint16_t ln, uint16_t tl, uint16_t cl) {
+  std::ostringstream path_stream;
+  path_stream << globalAlignmentSettings.get_root() << "/L" << to_N_digits(ln,3) << "/C" << cl << ".1/s_"<< ln <<"_" << tl << ".bcl";
+  return path_stream.str();
+}
 
 /**
  * Get the name of an alignment file.
@@ -48,44 +39,55 @@ std::string bcl_name(uint16_t ln, uint16_t tl, uint16_t cl);
  * @param mt The mate number.
  * @return Path to the alignment file.
  */
-std::string alignment_name(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt);
-
+inline std::string get_align_fname(uint16_t ln, uint16_t tl, uint16_t cl, uint16_t mt){
+  std::ostringstream path_stream;
+  std::string base = globalAlignmentSettings.get_temp_dir() != "" ? globalAlignmentSettings.get_temp_dir() : globalAlignmentSettings.get_root();
+  path_stream << base << "/L" << to_N_digits(ln,3) << "/s_"<< ln << "_" << tl << "." << mt << "."<< cl << ".align";
+  return path_stream.str();
+}
 /**
  * Get the name of a filter file.
  * @param ln The lane number.
  * @param tl The tile number.
  * @return Path to the filter file.
  */
-std::string filter_name(uint16_t ln, uint16_t tl);
-
+inline std::string get_filter_fname(uint16_t ln, uint16_t tl) {
+  std::ostringstream path_stream;
+  path_stream << globalAlignmentSettings.get_root() << "/L" << to_N_digits(ln,3) << "/s_"<< ln << "_" << tl << ".filter";
+  return path_stream.str();
+}
 /**
  * Get the name of a clocs file.
  * @param ln The lane number.
  * @param tl The tile number.
  * @return Path to the clocs file.
  */
-std::string position_name(uint16_t ln, uint16_t tl);
-
+inline std::string get_clocs_fname(uint16_t ln, uint16_t tl) {
+  std::ostringstream path_stream;
+  path_stream << globalAlignmentSettings.get_root() << "../L" << to_N_digits(ln,3) << "/s_"<< ln << "_" << tl << ".clocs";
+  return path_stream.str();
+}
 /**
  * Get the name of the settings file.
  * @return Path to the settings file.
  */
-std::string get_settings_name();
-
-/**
- * Get the name of the output log file.
- * @return Path to the output log file.
- */
-std::string get_out_log_name();
-
+inline std::string get_config_fname() {
+	std::ostringstream path_stream;
+	path_stream << globalAlignmentSettings.get_temp_dir() << "/hilive_config.ini";
+	return path_stream.str();
+}
 /** Get the current sequencing cycle using the current alignment cycle and read number.
  * @param cycle The read cycle.
  * @param seq_id The sequence id (:= id of the respective element in globalAlignmentSettings::seqs)
  * @return The sequencing cycle.
  * @author Tobias Loka
  */
-uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id=1);
-
+inline uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id) {
+	uint16_t seq_cycle = cycle;
+	for ( int i = 0; i < seq_id; i++ )
+		seq_cycle += globalAlignmentSettings.getSeqById(i).length;
+	return seq_cycle;
+}
 /**
  * Get the cycle of a mate for a given sequencing cycle.
  * When the mate is completely finished in the given cycle, return its total sequence length.
@@ -94,15 +96,38 @@ uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id=1);
  * @return Cycle of the mate in the given sequencing cycle.
  * @author Tobias Loka
  */
-uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle );
+inline uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 
+	// Invalid mate
+	if ( mate_number == 0 || mate_number > globalAlignmentSettings.get_mates() )
+		return 0;
+
+	// Iterate through all sequence elements (including barcodes)
+	for ( CountType id = 0; id < globalAlignmentSettings.get_seqs().size(); id++ ) {
+
+		// Current sequence element
+		SequenceElement seq = globalAlignmentSettings.getSeqById(id);
+
+		// Seq is mate of interest
+		if ( seq.mate == mate_number )
+			return ( seq.length > seq_cycle ? seq_cycle : seq.length );
+
+		// Not enough cycles left to reach mate of interest
+		else if ( seq.length >= seq_cycle )
+			return 0;
+
+		// Reduce number of cycles by the Seq length
+		else
+			seq_cycle -= seq.length;
+
+	}
+
+	// Should not be reached
+	return 0;
+}
 ////////////////////////////////////
 ////////// SAM/BAM output //////////
 ////////////////////////////////////
-
-std::string getTileBamTempFileName(CountType ln, CountType tl, std::string barcode, CountType cycle);
-std::string getTileBamFileName(CountType ln, CountType tl, std::string barcode, CountType cycle);
-
 
 /**
  * Get the header for a SAM/BAM output file.
@@ -118,7 +143,12 @@ seqan::BamHeader getBamHeader();
  * @return Name of the temporary output file for writing.
  * @author Tobias Loka
  */
-std::string getBamTempFileName(std::string barcode, CountType cycle);
+inline std::string getBamTempFileName(std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << ".temp" << file_suffix;
+	return fname.str();
+}
 
 /**
  * Final name of a SAM/BAM file.
@@ -127,8 +157,12 @@ std::string getBamTempFileName(std::string barcode, CountType cycle);
  * @return Name of the final output file.
  * @author Tobias Loka
  */
-std::string getBamFileName(std::string barcode, CountType cycle);
-
+inline std::string getBamFileName(std::string barcode, CountType cycle) {
+	std::ostringstream fname;
+	std::string file_suffix = globalAlignmentSettings.get_output_format() == OutputFormat::BAM ? ".bam" : ".sam";
+	fname << globalAlignmentSettings.get_out_dir() << "/hilive_out_" << "cycle" << std::to_string(cycle) << "_" << barcode << file_suffix;
+	return fname.str();
+}
 /** Reverse a MD:Z tag for reverse alignments. */
 std::string reverse_mdz(std::string mdz);
 
@@ -137,36 +171,80 @@ std::string reverse_mdz(std::string mdz);
 ////////// Scoring //////////
 /////////////////////////////
 
-uint16_t getMinSingleErrorPenalty();
+inline uint16_t getMinSingleErrorPenalty() {
 
-uint16_t getMaxSingleErrorPenalty();
+	// Mismatch: +1 mismatch, -1 match
+	uint16_t mismatch_penalty = globalAlignmentSettings.get_mismatch_penalty() + globalAlignmentSettings.get_match_score();
 
-ScoreType getMaxPossibleScore( CountType cycles );
+	// Deletion: +1 deletion, maximum number of matches can still be reached
+	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty() + globalAlignmentSettings.get_deletion_extension_penalty();
 
-uint16_t getMinSoftclipPenalty( CountType softclip_length );
+	// Insertion: +1 insertion, -1 match
+	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_insertion_extension_penalty() + globalAlignmentSettings.get_match_score();
 
-ScoreType getMinCycleScore( CountType cycle, CountType read_length );
+	return std::min(mismatch_penalty, std::min(insertion_penalty, deletion_penalty));
+}
 
-/**
- * Copy a file while locking them in the global fileLocks.
- */
-int atomic_rename( const char *oldname, const char *newname );
+inline uint16_t getMaxSingleErrorPenalty() {
+
+	// Mismatch: +1 mismatch, -1 match
+	uint16_t mismatch_penalty = globalAlignmentSettings.get_mismatch_penalty() + globalAlignmentSettings.get_match_score();
+
+	// Deletion: +1 deletion, maximum number of matches can still be reached
+	uint16_t deletion_penalty = globalAlignmentSettings.get_deletion_opening_penalty() + globalAlignmentSettings.get_deletion_extension_penalty();
+
+	// Insertion: +1 insertion, -1 match
+	uint16_t insertion_penalty = globalAlignmentSettings.get_insertion_opening_penalty() + globalAlignmentSettings.get_insertion_extension_penalty() + globalAlignmentSettings.get_match_score();
+
+	return std::max(mismatch_penalty, std::max(insertion_penalty, deletion_penalty));
+}
+
+inline ScoreType getMaxPossibleScore( CountType cycles ) {
+	return cycles * globalAlignmentSettings.get_match_score();
+}
+
+inline CountType getMinSoftclipPenalty( CountType softclip_length ) {
+	return ceil( float(softclip_length) / globalAlignmentSettings.get_anchor_length() ) * getMinSingleErrorPenalty();
+}
+
+inline ScoreType getMinCycleScore( CountType cycle, CountType read_length ) {
+
+	if ( cycle < globalAlignmentSettings.get_anchor_length() )
+		return globalAlignmentSettings.get_min_as();
+
+	ScoreType maxScore = getMaxPossibleScore(read_length);
+	ScoreType minCycleScore = maxScore - ( ceil((cycle - globalAlignmentSettings.get_anchor_length()) / float(globalAlignmentSettings.get_error_rate())) * getMinSingleErrorPenalty() );
+	return std::max(minCycleScore, globalAlignmentSettings.get_min_as());
+}
 
 /////////////////////////////////
 ////////// Other stuff //////////
 /////////////////////////////////
 
 /**
- * Convert a base call quality value to the respective char in PHRED syntax.
- * This function considers the settings of full quality or 2-bit quality in the globalAlignmentSettings.
- * @param bc_qual The base call quality as stored in HiLive.
- * @return PHRED char ( "!" - "I" )
+ * Copy a file while locking them in the global fileLocks.
  */
-char to_phred_quality ( uint8_t bc_qual );
+int atomic_rename( const char *oldname, const char *newname );
 
 /**
  * Check if a cycle is a seeding cycle.
  */
-bool isSeedingCycle(CountType cycle);
+inline bool isSeedingCycle(CountType cycle) {
+
+	// Don't seed cycles smaller than the anchor length
+	if ( cycle < globalAlignmentSettings.get_anchor_length() )
+		return false;
+
+	// Create seeds when reaching the anchor length for the first time
+	if ( cycle == globalAlignmentSettings.get_anchor_length() )
+		return true;
+
+	// Create seeds every seeding_interval cycle after the first anchor
+	if ( ( cycle - globalAlignmentSettings.get_anchor_length() ) % globalAlignmentSettings.get_seeding_interval() == 0 )
+		return true;
+
+	return false;
+
+}
 
 #endif /* TOOLS_H */

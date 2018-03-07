@@ -9,6 +9,46 @@
 #include <seqan/index.h>
 
 
+/**
+ * FM-Index Config.
+ */
+typedef seqan::FastFMIndexConfig<void, uint64_t,2 ,1> FMIConfig;
+
+/**
+ * FM-Index data type.
+ */
+typedef seqan::Index<seqan::StringSet<seqan::DnaString>, seqan::FMIndex<void, FMIConfig> > FMIndex;
+
+/**
+ * Iterator to go through the FM index structure.
+ */
+typedef seqan::Iterator<FMIndex, seqan::TopDown<> >::Type FMTopDownIterator;
+
+/**
+ * Data type to find a store a node in the FM index.
+ */
+typedef seqan::Iter<FMIndex,seqan::VSTree<seqan::TopDown<seqan::Preorder>>>::TVertexDesc FMVertexDescriptor;
+
+inline bool operator==(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	return l.range == r.range;
+}
+
+inline bool operator<(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	if ( l.range.i1 == r.range.i1)
+		return l.range.i2 < r.range.i2;
+	return l.range.i1 < r.range.i1;
+}
+
+inline bool operator>(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	if ( l.range.i1 == r.range.i1)
+		return l.range.i2 > r.range.i2;
+	return l.range.i1 > r.range.i1;
+}
+
+inline bool operator!=(const FMVertexDescriptor l, FMVertexDescriptor r) {
+	return !(l==r);
+}
+
 
 //-------------------------------------------------------------------//
 //------  The k-mer index builder: KixBuild -------------------------//
@@ -30,7 +70,7 @@ class KixBuild {
 	int create_index( const std::string &fname, const std::string &iname, bool convert_spaces, bool trim_ids);
 
 	/** Names of the sequences in the index. */
-	StringListType seq_names;
+	std::vector<std::string> seq_names;
 
 	/** Lengths of the sequences in the index. */
 	std::vector<uint32_t> seq_lengths;
@@ -142,7 +182,7 @@ class KixRun {
 	 * Get the sequence names list
 	 * @return The complete list of sequence names
 	 */
-	StringListType & getSeqNames(){ return seq_names; };
+	std::vector<std::string> & getSeqNames(){ return seq_names; };
 
 	/**
 	 * Get the sequence lengths vector
@@ -169,7 +209,7 @@ class KixRun {
  private:
 
 	/** Names of the sequences in the index. */
-	StringListType seq_names;
+	std::vector<std::string> seq_names;
 
 	/** Lengths of the sequences in the index. */
 	std::vector<uint32_t> seq_lengths;

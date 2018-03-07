@@ -109,8 +109,8 @@ bool AlnOut::add_task( Task t, ItemStatus status ) {
 bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite ) {
 
 
-	std::string in_fname = alignment_name(ln, tl, cycle, mate);
-	std::string out_fname = alignment_name(ln, tl, cycle, mate) + ".sorted";
+	std::string in_fname = get_align_fname(ln, tl, cycle, mate);
+	std::string out_fname = get_align_fname(ln, tl, cycle, mate) + ".sorted";
 
 	// Stop if sorted file already exist
 	if ( file_exists( out_fname ) && !overwrite )
@@ -164,7 +164,7 @@ CountType AlnOut::openiAlnStream( CountType lane, CountType tile, CountType mate
 		return 3;
 
 	// Open sorted alignment file
-	std::string alignment_fname = alignment_name(lane, tile, mateCycle, mate) + ".sorted";
+	std::string alignment_fname = get_align_fname(lane, tile, mateCycle, mate) + ".sorted";
 
 	// Check if sorted file exist
 	if ( !file_exists(alignment_fname) ) {
@@ -262,7 +262,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 	////////////////////////////////////////////////////
 
 	// set the filter file
-	std::string filter_fname = filter_name(lane, tile);
+	std::string filter_fname = get_filter_fname(lane, tile);
 	FilterParser filters;
 	if (file_exists(filter_fname)) {
 		filters.open(filter_fname);

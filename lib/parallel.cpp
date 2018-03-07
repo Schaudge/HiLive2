@@ -142,7 +142,7 @@ void Agenda::update_status () {
 
 			// if there is one, check if there is a BCL file available
 			if ((first_unfinished != items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == WAITING)) {
-				std::string this_fname = bcl_name(lanes[ln_id], tiles[tl_id], first_unfinished+1);
+				std::string this_fname = get_bcl_fname(lanes[ln_id], tiles[tl_id], first_unfinished+1);
 				// only change the status if the file exists
 				if ( file_exists(this_fname) ) {
 					// TODO: probably find a way to check if the machine currently writes to that file

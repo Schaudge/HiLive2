@@ -12,7 +12,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() const {
 	for (CigarVector::const_iterator it = cigar_data.begin(); it != cigar_data.end(); ++it) {
 
 		// Alignment begins with NO_MATCH => Softclip
-		if (it == cigar_data.begin() && (*it).offset==NO_MATCH) {
+		if (it == cigar_data.begin() && (*it).operation==NO_MATCH) {
 			cigarElem.operation='S';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
@@ -20,7 +20,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() const {
 		}
 
 		// Mismatch => Alignment match
-		if ((*it).offset==NO_MATCH) {
+		if ((*it).operation==NO_MATCH) {
 			cigarElem.operation= extended_cigar ? 'X' : 'M';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
@@ -28,7 +28,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() const {
 		}
 
 		// Deletion
-		else if((*it).offset==DELETION) {
+		else if((*it).operation==DELETION) {
 			cigarElem.operation='D';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
@@ -36,7 +36,7 @@ seqan::String<seqan::CigarElement<> > Seed::returnSeqanCigarString() const {
 		}
 
 		// Insertion
-		else if((*it).offset==INSERTION) {
+		else if((*it).operation==INSERTION) {
 			cigarElem.operation='I';
 			cigarElem.count=(*it).length;
 			seqan::appendValue(seqanCigarString, cigarElem);
@@ -72,17 +72,17 @@ void Seed::cout() const {
 	std::cout << "CIGAR: ";
 	for ( auto el : this->cigar_data ) {
 		std::cout << el.length;
-		if ( el.offset == NO_MATCH ) {
+		if ( el.operation == NO_MATCH ) {
 			std::cout << "X ";
 		}
-		else if ( el.offset == INSERTION ) {
+		else if ( el.operation == INSERTION ) {
 			std::cout << "I ";
 		}
-		else if ( el.offset == DELETION ) {
+		else if ( el.operation == DELETION ) {
 			std::cout << "D ";
 		}
 		else {
-			std::cout << "M(" << el.offset << ") ";
+			std::cout << "M(" << el.operation << ") ";
 		}
 	}
 	std::cout << std::endl << "------ SEED END ------" << std::endl;
@@ -149,14 +149,7 @@ std::vector<char> Seed::serialize() {
 	  // Serialize the CIGAR elements information
 	  CountType serialized_value = it->length;
 	  serialized_value = (serialized_value << 2);
-
-	  // MATCH = 0; does not have to be handled
-	  if (it->offset == NO_MATCH)
-		  serialized_value |= CountType(3);
-	  else if (it->offset == DELETION)
-		  serialized_value |= CountType(2);
-	  else if (it->offset == INSERTION)
-		  serialized_value |= CountType(1);
+	  serialized_value |= it->operation;
 
 	  memcpy(d,&(serialized_value),sizeof(CountType));
 	  d += sizeof(CountType);
@@ -200,27 +193,16 @@ uint16_t Seed::deserialize(char* d) {
   cigar_data.clear();
   for (uint8_t i = 0; i < cigar_len; ++i) {
 
-    CigarElement cig;
-
     // Deserialize CIGAR element
     CountType serialized_value;
     memcpy(&(serialized_value),d+bytes,sizeof(CountType));
     bytes += sizeof(CountType);
 
-    DiffType offset_value = (serialized_value & CountType(3));
+    Operations operation = get_operation(serialized_value & CountType(two_bit_mask));
+    CountType length = (serialized_value >> 2);
 
-    // Store offset
-    if (offset_value == 3)
-    	cig.offset = NO_MATCH;
-    else if (offset_value == 2)
-    	cig.offset = DELETION;
-    else if (offset_value == 1)
-    	cig.offset = INSERTION;
-    else
-    	cig.offset = 0;
-
-    // Store length
-    cig.length = (serialized_value >> 2);
+    // Create CigarElement
+    CigarElement cig ( length, operation );
 
     // Add to CIGAR vector
     cigar_data.emplace_back(cig);
@@ -256,7 +238,7 @@ ScoreType Seed::get_as() const {
 		if ( cigar_it->length == 0 )
 			continue;
 
-		switch ( cigar_it->offset ) {
+		switch ( cigar_it->operation ) {
 
 		case NO_MATCH:
 
@@ -308,7 +290,7 @@ CountType Seed::get_nm() const {
 
 	// Don't count mismatches at front or end of the CIGAR string
 	for ( auto el = ++(cigar_data.begin()); el != cigar_data.end(); ++el )
-		nm += el->offset >= DELETION ? el->length : 0;
+		nm += el->operation != MATCH ? el->length : 0;
 
 	return nm;
 }
@@ -317,7 +299,7 @@ CountType Seed::get_softclip_length() const {
 	if ( cigar_data.size() == 0 )
 		return 0;
 
-	CountType sc_length = cigar_data.front().offset == NO_MATCH ? cigar_data.front().length : 0;
+	CountType sc_length = cigar_data.front().operation == NO_MATCH ? cigar_data.front().length : 0;
 	return sc_length;
 }
 
@@ -343,10 +325,10 @@ std::string Seed::getMDZString() const {
 	for ( auto el = cigar_data.begin(); el != cigar_data.end(); ++el ) {
 
 		// Softclip --> not included in MD:Z
-		if ( el == cigar_data.begin() && el->offset == NO_MATCH )
+		if ( el == cigar_data.begin() && el->operation == NO_MATCH )
 			continue;
 
-		switch ( el->offset ) {
+		switch ( el->operation ) {
 
 		// DELETION or NO_MATCH: Add previous match length and nucleotides for the current region.
 		case DELETION:
@@ -591,7 +573,7 @@ uint64_t ReadAlignment::deserialize(char* d) {
 std::string ReadAlignment::getSequenceString() const {
 
 	std::string seq = "";
-	uint8_t two_bit_mask = 3;
+	seq.reserve( sequenceLen );
 
 	// iterate through all sequence bytes
 	for (unsigned i = 0; i<sequenceLen; i++ ) {
@@ -614,7 +596,7 @@ std::string ReadAlignment::getSequenceString() const {
 std::string ReadAlignment::getBarcodeString() const {
 
 	std::string seq = "";
-	uint8_t two_bit_mask = 3;
+	seq.reserve( sequenceLen );
 
 	// iterate through all sequence bytes
 	for (unsigned i = 0; i<barcodeLen; i++ ) {
@@ -636,6 +618,7 @@ std::string ReadAlignment::getBarcodeString() const {
 std::string ReadAlignment::getQualityString() const {
 
 	std::string qual = "";
+	qual.reserve( sequenceLen );
 
 	// iterate through all sequence bytes
 	for (unsigned i = 0; i<sequenceLen; i++ ) {
@@ -700,8 +683,8 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, SeedVec & n
 				s->mdz_length = origin->mdz_length;
 
 				// Insert MATCH region if necessary
-				if ( s->cigar_data.back().offset >= DELETION )
-					s->cigar_data.emplace_back(0, 0); // TODO: add offset of previous match regions (if not deprecated)
+				if ( s->cigar_data.back().operation != MATCH )
+					s->cigar_data.emplace_back(0, MATCH); // TODO: add offset of previous match regions (if not deprecated)
 
 				s->cigar_data.back().length += 1; // Increase match region length
 
@@ -719,10 +702,10 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, SeedVec & n
 					continue;
 
 				// DON'T FINISH DELETION AND INSERTION REGIONS BY NO_MATCH!!!
-				if ( origin->cigar_data.back().offset == DELETION )
+				if ( origin->cigar_data.back().operation == DELETION )
 					continue;
 
-				if ( origin->cigar_data.back().offset == INSERTION )
+				if ( origin->cigar_data.back().operation == INSERTION )
 					continue;
 
 				// copy data from origin seed
@@ -733,8 +716,8 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, SeedVec & n
 				s->max_as = new_max_as;
 				s->mdz_length = origin->mdz_length;
 
-				// Insert MATCH region if necessary
-				if ( s->cigar_data.back().offset != NO_MATCH )
+				// Insert NO_MATCH region if necessary
+				if ( s->cigar_data.back().operation != NO_MATCH )
 					s->cigar_data.emplace_back(0, NO_MATCH);
 
 				s->cigar_data.back().length += 1; // Increase match region length
@@ -752,11 +735,11 @@ void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, SeedVec & n
 void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
 
 	// Don't handle insertions after deletions.
-	if ( origin->cigar_data.back().offset == DELETION )
+	if ( origin->cigar_data.back().operation == DELETION )
 		return;
 
 	// Don't handle if insertion region is getting too long
-	if ( origin->cigar_data.back().offset == INSERTION && origin->cigar_data.back().length > globalAlignmentSettings.get_max_gap_length())
+	if ( origin->cigar_data.back().operation == INSERTION && origin->cigar_data.back().length > globalAlignmentSettings.get_max_gap_length())
 		return;
 
 	// If all occurences of the seed match the current base, insertion is not required.
@@ -768,11 +751,11 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, SeedVec
 	}
 
 	// handle all non-deletion regions
-	if ( origin->cigar_data.back().offset != DELETION ) {
+	if ( origin->cigar_data.back().operation != DELETION ) {
 
 		// Compute new maximal alignment score when having an insertion
 		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_extension_penalty() - globalAlignmentSettings.get_match_score();
-		if ( origin->cigar_data.back().offset != INSERTION)
+		if ( origin->cigar_data.back().operation != INSERTION)
 			new_max_as -= globalAlignmentSettings.get_insertion_opening_penalty();
 
 		// Extend insertion region as long as number of errors is allowed.
@@ -789,7 +772,7 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, SeedVec
 			s->max_as = new_max_as; // Increase number of errors
 
 			// Insert INSERTION region if necessary
-			if ( s->cigar_data.back().offset != INSERTION )
+			if ( s->cigar_data.back().operation != INSERTION )
 				s->cigar_data.emplace_back(0, INSERTION);
 
 			s->cigar_data.back().length += 1; // Increase insertion length
@@ -802,7 +785,7 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, SeedVec
 void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
 
 	// Don't handle insertion regions
-	if ( origin->cigar_data.back().offset == INSERTION )
+	if ( origin->cigar_data.back().operation == INSERTION )
 		return;
 
 	// iterate through possible bases
@@ -845,7 +828,7 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec 
 		return;
 
 	// Only handle deletion regions
-	if ( origin->cigar_data.back().offset != DELETION )
+	if ( origin->cigar_data.back().operation != DELETION )
 		return;
 
 	// iterate through possible bases
@@ -868,7 +851,7 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec 
 					s->mdz_nucleotides = origin->mdz_nucleotides;
 					s->max_as = origin->max_as ;
 
-					s->cigar_data.emplace_back(1, 0); // init MATCH region
+					s->cigar_data.emplace_back(1, MATCH); // init MATCH region
 					newSeeds.emplace_back(s);
 
 				}
@@ -916,7 +899,7 @@ void ReadAlignment::createSeeds(SeedVec & newSeeds) {
 		seed->max_as = max_as;
 		if ( cycle != globalAlignmentSettings.get_anchor_length() )
 			seed->cigar_data.emplace_back( ( cycle - globalAlignmentSettings.get_anchor_length()) , NO_MATCH ); // add softclip
-		seed->cigar_data.emplace_back(globalAlignmentSettings.get_anchor_length(), 0);
+		seed->cigar_data.emplace_back(globalAlignmentSettings.get_anchor_length(), MATCH);
 		seed->vDesc = it.vDesc;
 		newSeeds.emplace_back(seed);
 	}
@@ -1067,7 +1050,7 @@ PositionType ReadAlignment::get_SAM_start_pos(GenomePosType p, USeed & sd) const
 
 		CountType cigLen = 0;
 		for ( auto el = sd->cigar_data.begin(); el != sd->cigar_data.end(); ++el ) {
-			if ( el->offset != INSERTION ) {
+			if ( el->operation != INSERTION ) {
 				cigLen += el->length;
 			}
 		}

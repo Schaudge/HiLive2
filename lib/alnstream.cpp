@@ -454,30 +454,6 @@ void iAlnStream::funlock() {
 //------  The StreamedAlignment class  ------------------------------//
 //-------------------------------------------------------------------//
 
-std::string StreamedAlignment::get_bcl_file(uint16_t cycle, uint16_t mate) {
-  std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/C" << getSeqCycle(cycle, mate) << ".1/s_"<< lane <<"_" << tile << ".bcl";
-  return path_stream.str();
-}
-
-
-std::string StreamedAlignment::get_alignment_file(uint16_t cycle, uint16_t mate, std::string base){
-  if (base == "") {
-    base = globalAlignmentSettings.get_root();
-  }
-  std::ostringstream path_stream;
-  path_stream << base << "/L00" << lane << "/s_"<< lane << "_" << tile << "." << mate << "."<< cycle << ".align";
-  return path_stream.str();
-}
-
-
-std::string StreamedAlignment::get_filter_file() {
-  std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/s_"<< lane << "_" << tile << ".filter";
-  return path_stream.str();
-}
-
-
 void StreamedAlignment::create_directories() {
   std::ostringstream path_stream;
   if (globalAlignmentSettings.get_temp_dir() == "") {
@@ -492,12 +468,12 @@ void StreamedAlignment::create_directories() {
   boost::filesystem::create_directories(globalAlignmentSettings.get_out_dir());
 }
 
-
 void StreamedAlignment::init_alignment(uint16_t mate) {
-	std::string out_fname = get_alignment_file(0, mate, globalAlignmentSettings.get_temp_dir());
+
+	std::string out_fname = get_align_fname(lane, tile, 0, mate);
 
   // get the number of reads in this tile by looking in the first bcl file
-  std::string first_cycle = get_bcl_file(1, 0);
+  std::string first_cycle = get_bcl_fname(lane, tile, 1);
 
   // extract the number of reads
   uint32_t num_reads = num_reads_from_bcl(first_cycle);
@@ -518,15 +494,14 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
   }
 } 
 
-
 uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate) {
 
   // 1. Open the input file
   //-----------------------
 
-  std::string in_fname = get_alignment_file(cycle-1, mate, globalAlignmentSettings.get_temp_dir());
-  std::string bcl_fname = get_bcl_file(cycle, read_no);
-  std::string filter_fname = get_filter_file();
+  std::string in_fname = get_align_fname(lane, tile, cycle-1, mate);
+  std::string bcl_fname = get_bcl_fname(lane, tile, getSeqCycle(cycle, read_no));
+  std::string filter_fname = get_filter_fname(lane, tile);
 
   iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 
@@ -543,7 +518,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   // 2. Open output stream
   //----------------------------------------------------------
 
-  std::string out_fname = get_alignment_file(cycle, mate, globalAlignmentSettings.get_temp_dir());
+  std::string out_fname = get_align_fname(lane, tile, cycle, mate);
   oAlnStream output (lane, tile, cycle, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
 
@@ -625,9 +600,9 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	// 1. Open the input file
 	//-----------------------
 
-	std::string in_fname = get_alignment_file(read_cycle, mate, globalAlignmentSettings.get_temp_dir());
-	std::string bcl_fname = get_bcl_file(bc_cycle, read_no);
-	std::string filter_fname = get_filter_file();
+	  std::string in_fname = get_align_fname(lane, tile, read_cycle, mate);
+	  std::string bcl_fname = get_bcl_fname(lane, tile, getSeqCycle(bc_cycle, read_no));
+	  std::string filter_fname = get_filter_fname(lane, tile);
 
 	  iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 	  input.open(in_fname);

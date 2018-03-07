@@ -1,70 +1,8 @@
 #include "tools_static.h"
 
-
-/////////////////////////////////
-////////// Comparators //////////
-/////////////////////////////////
-
-bool gp_compare (GenomePosType i,GenomePosType j) {
-	if ( i.pos == j.pos )
-		return i.gid < j.gid;
-	return (i.pos < j.pos);
-}
-
-bool compare_records_by_pos(const seqan::BamAlignmentRecord & l, const seqan::BamAlignmentRecord & r) {
-	if ( l.rID == r.rID )
-		return l.beginPos < r.beginPos;
-	return l.rID < r.rID;
-}
-
-
-/////////////////////////////////////
-////////// Type convertion //////////
-/////////////////////////////////////
-
-void split(const std::string &s, char delim, std::vector<std::string> &elems) {
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
-}
-
-
 ///////////////////////////////////
 ////////// File handling //////////
 ///////////////////////////////////
-
-std::ifstream::pos_type get_filesize(const std::string &fname)
-{
-  std::ifstream in(fname, std::ios::binary | std::ios::ate);
-  return in.tellg();
-}
-
-bool is_directory(const std::string &path) {
-  if ( boost::filesystem::exists(path) ) {
-    if ( boost::filesystem::is_directory(path) ) {
-      return true;
-    }
-    else {
-      return false;
-    }
-  }
-  else {
-    return false;
-  }
-}
-
-bool file_exists(const std::string &fname) {
-  return boost::filesystem::exists(fname);
-
-}
-
-std::string absolute_path(std::string fname) {
-	boost::filesystem::path input_path(fname);
-	return boost::filesystem::canonical(fname).string();
-}
 
 std::vector<char> read_binary_file(const std::string &fname) {
 
@@ -123,6 +61,23 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
   }
 
   return written;
+}
+
+std::string get_file_suffix ( OutputFormat format ) {
+	switch ( format ) {
+	case OutputFormat::SAM:
+		return ".sam";
+		break;
+	case OutputFormat::BAM:
+		return ".bam";
+		break;
+	case OutputFormat::CRAM:
+		return ".cram";
+		break;
+	default:
+		return ".txt";
+		break;
+	}
 }
 
 
@@ -188,30 +143,4 @@ uint32_t num_reads_from_bcl(std::string bcl) {
   fclose (ifile);
 
   return num_reads;
-}
-
-std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, CountType swathCount, CountType tileCount ) {
-	std::vector<uint16_t> tiles_vec;
-	for (uint16_t surf = 1; surf <= surfaceCount; surf++)
-		for (uint16_t swath = 1; swath <= swathCount; swath++)
-			for (uint16_t tile = 1; tile <= tileCount; tile++)
-				tiles_vec.push_back(surf*1000 + swath*100 + tile);
-	return tiles_vec;
-}
-
-CountType prob2mapq(float prob, float max_prob) {
-	// Catch negative values and save computation time for value <0.1 that always have a MAPQ of 0
-	if ( prob <= 0.1f)
-		return 0;
-
-	// Save computation time for several values up to 0.5
-	if ( prob <= 0.29f)
-		return 1;
-	if ( prob <= 0.435f )
-		return 2;
-	if ( prob <= 0.55f )
-		return 3;
-
-	// Otherwise calculate the correct value
-	return ( float( (-10.0f) * std::log10( 1.0f - std::min(max_prob, prob ))) + 0.5f);
 }

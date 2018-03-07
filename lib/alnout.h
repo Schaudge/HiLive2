@@ -126,7 +126,7 @@ public:
 	 * @param seq_names Names of all sequences in the database
 	 * @param seq_length Lengths of all sequences in the database
 	 */
-	void set_context(StringListType & seq_names, std::vector<uint32_t> & seq_lengths) {
+	void set_context(std::vector<std::string> & seq_names, std::vector<uint32_t> & seq_lengths) {
 		seqan::NameStoreCache<seqan::StringSet<seqan::CharString> > rnc(refNames);
 		refNamesCache = rnc;
 		seqan::BamIOContext<seqan::StringSet<seqan::CharString> > cxt(refNames, refNamesCache);

@@ -230,29 +230,6 @@ class StreamedAlignment {
   /** Total read length. */
   CountType rlen;
 
-  /**
-   * Get the path to the bcl file of a given cycle.
-   * @param cycle The current read cycle.
-   * @param mate Number of the current mate.
-   * @return Path to the bcl file.
-   */
-  std::string get_bcl_file(uint16_t cycle, uint16_t mate);
-
-  /**
-   * Get the path to the align file.
-   * @param cycle The current read cycle.
-   * @param mate Number of the current mate.
-   * @param base Base of the path to the align files.
-   * @return Path to the align file.
-   */
-  std::string get_alignment_file(uint16_t cycle, uint16_t mate, std::string base = "");
-
-  /**
-   * Get the path to the filter file.
-   * @return Path to the filter file.
-   */
-  std::string get_filter_file();
-
  public:
 
   /**

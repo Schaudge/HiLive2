@@ -165,12 +165,12 @@ inline bool seed_comparison_by_as(const USeed a, const USeed b) {
 	if (a->get_as() == b->get_as()) {
 
 		// prefer no front softclip
-		if ( a->cigar_data.front().offset != b->cigar_data.front().offset ) {
-			return ( a->cigar_data.front().offset != NO_MATCH );
+		if ( a->cigar_data.front().operation != b->cigar_data.front().operation ) {
+			return ( a->cigar_data.front().operation != NO_MATCH );
 		}
 
 		// prefer shorter front softclip
-		if ( a->cigar_data.front().offset == NO_MATCH && b->cigar_data.front().offset == NO_MATCH) {
+		if ( a->cigar_data.front().operation == NO_MATCH && b->cigar_data.front().operation == NO_MATCH) {
 			if ( a->cigar_data.front().length != b->cigar_data.front().length) {
 				return ( a->cigar_data.front().length < b->cigar_data.front().length );
 			}
