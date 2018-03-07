@@ -5,8 +5,8 @@ cmake_minimum_required (VERSION 2.8)
 project (HiLive)
 
 # Set the version number 
-add_definitions(-DHiLive_VERSION_MAJOR=1)
-add_definitions(-DHiLive_VERSION_MINOR=1)
+add_definitions(-DHiLive_VERSION_MAJOR=2)
+add_definitions(-DHiLive_VERSION_MINOR=0)
 
 # Set flags for compilation
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++14 -O0")
