@@ -311,23 +311,13 @@ void HiLiveArgumentParser::report() {
     std::cout << "Read lengths:             ";
     std::string barcode_suffix;
     for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
-    	std::cout << globalAlignmentSettings.getSeqById(read).length;
-    	barcode_suffix = globalAlignmentSettings.getSeqById(read).isBarcode() ? "B" : "R";
+    	std::cout << globalAlignmentSettings.get_seq_by_id(read).length;
+    	barcode_suffix = globalAlignmentSettings.get_seq_by_id(read).isBarcode() ? "B" : "R";
     	std::cout << barcode_suffix << " ";
     }
     std::cout << std::endl;
     std::cout << "Min. alignment score:     " << globalAlignmentSettings.get_min_as() << std::endl;
-    if (globalAlignmentSettings.get_any_best_hit_mode())
-        std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
-    else if (globalAlignmentSettings.get_all_best_hit_mode())
-        std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
-    else if (globalAlignmentSettings.get_all_best_n_scores_mode())
-        std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
-    else if (globalAlignmentSettings.get_unique_hit_mode())
-        std::cout << "Mapping mode:             Unique-Hits-Mode" << std::endl;
-    else
-        std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
-
+    std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode()) << std::endl;
     std::cout << "Anchor length:            " << globalAlignmentSettings.get_anchor_length() << std::endl;
 
 	if ( globalAlignmentSettings.get_start_cycle() > 1 ) {
@@ -369,7 +359,7 @@ bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
 					sequences.push_back(sequence);
 				}
 
-				runInfo_settings.insert(std::make_pair("reads", boost::program_options::variable_value(to_string(sequences), false)));
+				runInfo_settings.insert(std::make_pair("reads", boost::program_options::variable_value(join(sequences), false)));
 
 	            if (ptree_Run.count("FlowcellLayout")!=0) {
 
@@ -378,14 +368,14 @@ bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
 	            	// Get the lanes
 	            	std::vector<uint16_t> lanes_vec(ptree_FlowcellLayout.get<unsigned>("<xmlattr>.LaneCount"));
 	            	std::iota(lanes_vec.begin(), lanes_vec.end(), 1);
-	            	runInfo_settings.insert(std::make_pair("lanes", boost::program_options::variable_value(to_string(lanes_vec), false)));
+	            	runInfo_settings.insert(std::make_pair("lanes", boost::program_options::variable_value(join(lanes_vec), false)));
 
 	            	// Get the tiles
 	            	std::vector<uint16_t> tiles_vec = flowcell_layout_to_tile_numbers(
 	            			ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SurfaceCount"),
 							ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SwathCount"),
 							ptree_FlowcellLayout.get<unsigned>("<xmlattr>.TileCount") );
-	            	runInfo_settings.insert(std::make_pair("tiles", boost::program_options::variable_value(to_string(tiles_vec), false)));
+	            	runInfo_settings.insert(std::make_pair("tiles", boost::program_options::variable_value(join(tiles_vec), false)));
 	            }
 			}
 		}
@@ -512,10 +502,10 @@ bool HiLiveArgumentParser::set_options() {
 		// SEQUENCING OPTIONS
 		set_option<std::string>("bcl-dir", "", &AlignmentSettings::set_root);
 
-		set_option<std::string>("lanes", to_string(all_lanes()), &AlignmentSettings::set_lanes);
+		set_option<std::string>("lanes", join(all_lanes()), &AlignmentSettings::set_lanes);
 
 		if ( select_prioritized_parameter( {"tiles", "max-tile"} ) == "tiles" )
-			set_option<std::string>("tiles", to_string(all_tiles()), &AlignmentSettings::set_tiles);
+			set_option<std::string>("tiles", join(all_tiles()), &AlignmentSettings::set_tiles);
 		else
 			set_option<CountType>("max-tile", 2316, &AlignmentSettings::set_max_tile);
 
@@ -583,7 +573,7 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<float>("softclip-extension-penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_anchor_length(), &AlignmentSettings::set_softclip_extension_penalty);
 
 		// 3% error rate by default
-		ScoreType min_as_default = getMaxPossibleScore(globalAlignmentSettings.getSeqByMate(1).length) - ( float(globalAlignmentSettings.getSeqByMate(1).length / 100.0f) * 3.0f * getMaxSingleErrorPenalty());
+		ScoreType min_as_default = getMaxPossibleScore(globalAlignmentSettings.get_seq_by_mate(1).length) - ( float(globalAlignmentSettings.get_seq_by_mate(1).length / 100.0f) * 3.0f * getMaxSingleErrorPenalty());
 		set_option<ScoreType>("min-as", min_as_default, &AlignmentSettings::set_min_as);
 
 
@@ -705,22 +695,13 @@ void HiLiveOutArgumentParser::report() {
 	std::cout << "Total Read lengths:       ";
 	std::string barcode_suffix;
 	for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
-		std::cout << globalAlignmentSettings.getSeqById(read).length;
-		barcode_suffix = globalAlignmentSettings.getSeqById(read).isBarcode() ? "B" : "R";
+		std::cout << globalAlignmentSettings.get_seq_by_id(read).length;
+		barcode_suffix = globalAlignmentSettings.get_seq_by_id(read).isBarcode() ? "B" : "R";
 		std::cout << barcode_suffix << " ";
 	}
 	std::cout << std::endl;
 	std::cout << "Min. Alignment Score:     " << globalAlignmentSettings.get_min_as() << std::endl;
-	if (globalAlignmentSettings.get_any_best_hit_mode())
-		std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
-	else if (globalAlignmentSettings.get_all_best_hit_mode())
-		std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
-	else if (globalAlignmentSettings.get_all_best_n_scores_mode())
-		std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
-    else if (globalAlignmentSettings.get_unique_hit_mode())
-        std::cout << "Mapping mode:             Unique-Hits-Mode" << std::endl;
-	else
-		std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
+	std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode()) << std::endl;
 	std::cout << "Output Cycles:            ";
 	for ( auto cycle : globalAlignmentSettings.get_output_cycles() ) {
 		std::cout << cycle << " ";

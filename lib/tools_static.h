@@ -29,30 +29,62 @@ inline bool gp_compare (GenomePosType i,GenomePosType j) {
 	return (i.pos < j.pos);
 }
 
+/**
+ * Compare BamAlignmentRecords (from SeqAn library) by their position.
+ * Primary field is the reference ID (rID), secondary field is the position (beginPos).
+ * @param l First record.
+ * @param r Second record.
+ * @return true, if l has a lower positions than r.
+ */
 inline bool compare_records_by_pos(const seqan::BamAlignmentRecord & l, const seqan::BamAlignmentRecord & r) {
 	if ( l.rID == r.rID )
 		return l.beginPos < r.beginPos;
 	return l.rID < r.rID;
 }
 
+
 /////////////////////////////////////
 ////////// Type convertion //////////
 /////////////////////////////////////
 
 /**
+ * Convert a vector of a desired data type to a string of delimited values.
+ * The string will be created by streaming objects of type T to a stringstream, thus << must be defined for T.
+ * @param vector The vector of values of type T
+ * @param delim Character which will be used as delimiter in the resulting string [default: ',']
+ * @return String with delimited values of original type T.
+ */
+template<typename T> std::string join ( std::vector<T> vector, char delim = ',' ) {
+	std::stringstream ss;
+	for ( auto el=vector.begin(); el!=vector.end(); ++el ) {
+		ss << (*el);
+		if ( el != --vector.end() )
+			ss << delim;
+	}
+	return ss.str();
+}
+
+/**
  * Split a std::string to a std::vector<std::string>.
- * @param s Reference to the input string.
- * @param delim A split delimiter.
- * @param elems The target vector.
+ * @param target Reference to the target vector to store the split values.
+ * @param s The input string.
+ * @param delim_list A list of split delimiters.
  * @author Tobias Loka
  */
-inline void split(const std::string &s, char delim, std::vector<std::string> &elems) {
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
+template <
+	typename T
+> void split ( std::vector<T> &target, const std::string &s, std::string delim_list = split_chars ) {
+	std::size_t prev = 0, pos;
+	std::string next_value;
+	while ( prev < std::string::npos ) {
+		pos = s.find_first_of(delim_list, prev);
+		if ( pos > prev ) {
+			next_value = s.substr(prev, pos-prev);
+			if ( ! next_value.empty() )
+				target.push_back( boost::lexical_cast<T>( s.substr(prev, pos-prev)));
+		}
+		prev = pos == std::string::npos ? std::string::npos : pos+1;
+	}
 }
 
 template<
@@ -81,7 +113,6 @@ template<
 ///////////////////////////////////
 ////////// File handling //////////
 ///////////////////////////////////
-
 
 /**
  * Get total size of a file (in bytes)
@@ -127,11 +158,11 @@ inline bool file_exists(const std::string &fname) {
  * @param fname Input path.
  * @return Absolute path to fname.
  * @author Tobias Loka
- * TODO: Not tested and used yet.
  */
 inline std::string absolute_path(std::string fname) {
 	boost::filesystem::path input_path(fname);
-	return boost::filesystem::canonical(fname).string();
+	// TODO: Change to boost::filesystem::weakly_canonical for boost version >1_60
+	return boost::filesystem::absolute(fname).string();
 }
 
 /**
@@ -206,57 +237,15 @@ template<typename T> bool putConfigNode (boost::property_tree::ptree & ptree, st
 /////////////////////////////////
 
 /**
- * Convert a string of delimited values to a vector of a desired data type.
- * The string is split at every occurence of one of the delimiter defined in delim_list.
- * T will be created by streaming from a stringstream, thus >> must be defined for T.
- * @param values The values as string delimited by characters included in delim_list
- * @param delim_list List of delimiting characters [default: definitions.h --> split_chars]
- * @return Vector of the desired type for which >> must be defined (e.g. this holds for strings and numeric values)
- */
-template<typename T> std::vector<T> to_vector ( std::string values, std::string delim_list=split_chars ) {
-
-	std::vector<std::string> str_vector;
-	std::vector<T> T_vector;
-
-	boost::split(str_vector, values, [&delim_list](char c){return delim_list.find(c)!=delim_list.npos;});
-	for ( auto & el : str_vector ) {
-		if ( el.size() == 0 )
-			continue;
-		T next_el;
-		std::stringstream ss(el);
-		ss >> next_el;
-		T_vector.push_back(next_el);
-	}
-
-	return T_vector;
-}
-
-/**
- * Convert a vector of a desired data type to a string of delimited values.
- * The string will be created by streaming objects of type T to a stringstream, thus << must be defined for T.
- * @param vector The vector of values of type T
- * @param delim Character which will be used as delimiter in the resulting string [default: ',']
- * @return String with delimited values of original type T.
- */
-template<typename T> std::string to_string ( std::vector<T> vector, char delim = ',' ) {
-	std::stringstream ss;
-	for ( auto el=vector.begin(); el!=vector.end(); ++el ) {
-		ss << (*el);
-		if ( el != --vector.end() )
-			ss << delim;
-	}
-	return ss.str();
-}
-
-/**
  * Get a number as a std::string with N digits (e.g., 6 -> "006" for N=3).
  * @param value The number to be formatted.
  * @param N The number of digits.
+ * @param fill_char Character to fill with (e.g., 6 -> ",,1" for fill_char=',') [default='0']
  * @return The formatted number as std::string.
  */
-template<typename T, typename=typename std::enable_if<std::is_arithmetic<T>::value, T>::type> std::string to_N_digits ( T value, CountType N ) {
+template<typename T, typename=typename std::enable_if<std::is_arithmetic<T>::value, T>::type> std::string to_N_digits ( T value, CountType N, char fill_char = '0' ) {
 	std::stringstream ss;
-	ss << std::setw(N) << std::setfill('0') << value;
+	ss << std::setw(N) << std::setfill(fill_char) << value;
 	return ss.str();
 }
 
@@ -352,23 +341,71 @@ inline std::vector<CountType> maxTile_to_tiles ( CountType max_tile ) {
 	return flowcell_layout_to_tile_numbers( max_tile/1000, (max_tile%1000)/100, max_tile % 100 );
 }
 
+/**
+ * Compute a MAPQ value from a given probability.
+ * @param prob Probability to convert.
+ * @param max_prob Maximal probability. This is necessary to have an upper boundary for the MAPQ. The default is 0.99993f, resulting in a MAPQ of 42.
+ * @return The MAPQ value for the given probability.
+ */
 inline CountType prob2mapq(float prob, float max_prob = 0.99993f) {
+
 	// Catch negative values and save computation time for value <0.1 that always have a MAPQ of 0
 	if ( prob <= 0.1f)
 		return 0;
-
 	// Save computation time for several values up to 0.5
-	if ( prob <= 0.29f)
+	else if ( prob <= 0.29f)
 		return 1;
-	if ( prob <= 0.435f )
+	else if ( prob <= 0.435f )
 		return 2;
-	if ( prob <= 0.55f )
+	else if ( prob <= 0.55f )
 		return 3;
 
 	// Otherwise calculate the correct value
 	return ( float( (-10.0f) * std::log10( 1.0f - std::min(max_prob, prob ))) + 0.5f);
 }
 
+/**
+ * Convert the output format to std::string.
+ * @param format The output format to convert.
+ * @return String of the output format.
+ */
+inline std::string to_string ( OutputFormat format ) {
+	switch ( format ) {
+	case BAM:
+		return "BAM";
+	case SAM:
+		return "SAM";
+	case CRAM:
+		return "CRAM";
+	default:
+		return "BAM";
+	}
+}
+
+/**
+ * Convert the alignment mode to std::string.
+ * @param mode The alignment mode to convert.
+ * @param bestn The bestn value [default: 0]
+ * @return String of the alignment mode.
+ */
+inline std::string to_string ( AlignmentMode mode, CountType bestn = 0 ) {
+	switch ( mode ) {
+	case ANYBEST:
+		return "ANYBEST";
+	case ALLBEST:
+		return "ALLBEST";
+	case ALL:
+		return "ALL";
+	case UNIQUE:
+		return "UNIQUE";
+	case UNKNOWN:
+		return "UNKNOWN";
+	case BESTN:
+		return "BESTN" + bestn;
+	default:
+		return "ANYBEST";
+	}
+}
 
 /**
  * Set the value of an immutable variable to a value without throwing an exception.
@@ -415,6 +452,25 @@ inline char to_phred_quality ( uint8_t bc_qual ) {
 	char phred_score = '!';
 	phred_score += bc_qual;
 	return phred_score;
+}
+
+/**
+ * Create a vector containing all lanes for Illumina HiSeq (1-8)
+ * @return Vector containing all lanes for Illumina HiSeq.
+ */
+inline std::vector<uint16_t> all_lanes() {
+  std::vector<uint16_t> ln;
+  for (uint16_t l=0; l < 8; l++)
+    ln.push_back(l+1);
+  return ln;
+}
+
+/**
+ * Create a vector containing all tiles for Illumina HiSeq (1101-2316)
+ * @return Vector containing all tiles for Illumina HiSeq.
+ */
+inline std::vector<uint16_t> all_tiles() {
+  return maxTile_to_tiles(2316);
 }
 
 #endif /* TOOLS_STATIC_H */

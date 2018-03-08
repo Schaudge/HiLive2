@@ -587,7 +587,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   // 7. Delete old alignment file, if requested
   //-------------------------------------------
 
-  if ( ! ( globalAlignmentSettings.is_keep_aln_files_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1) || globalAlignmentSettings.is_output_cycle(getSeqCycle(cycle, globalAlignmentSettings.getSeqByMate(mate).id)-1)) ) {
+  if ( ! ( globalAlignmentSettings.is_keep_aln_files_cycle(getSeqCycle(cycle, globalAlignmentSettings.get_seq_by_mate(mate).id)-1) || globalAlignmentSettings.is_output_cycle(getSeqCycle(cycle, globalAlignmentSettings.get_seq_by_mate(mate).id)-1)) ) {
     std::remove(in_fname.c_str());
   }
 

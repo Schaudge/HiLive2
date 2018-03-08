@@ -129,17 +129,38 @@ class Agenda {
   std::vector<uint16_t> lanes;
   std::vector<uint16_t> tiles;
 
- public:
+public:
   // initialize agenda with read length only (all lanes, all tiles)
-  Agenda (uint16_t rl);
+  Agenda (uint16_t rl) : Agenda (rl, all_lanes()) {};
 
   // initialize agenda with read length and lanes (all tiles)
-  Agenda (uint16_t rl, std::vector<uint16_t> ln);
+  Agenda (uint16_t rl, std::vector<uint16_t> ln) : Agenda (rl, ln, all_tiles()) {};
 
   // initialize agenda with read length, lanes and tiles
-  Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl);
+  Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) : Agenda (rl, ln, tl, 1) {};
 
-  Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, CountType start_cycle);
+  Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, CountType start_cycle) : rlen(rl), lanes(ln), tiles(tl) {
+	  // set up the agenda
+	  items.clear();
+	  for (uint16_t ln_id = 0; ln_id < lanes.size(); ln_id++) {
+		  std::vector<std::vector<ItemStatus> > lane_status;
+		  for (uint16_t tl_id = 0; tl_id < tiles.size(); tl_id++) {
+
+			  // Status for finished cycles if "--continue" was used.
+			  std::vector<ItemStatus> tile_status (start_cycle-1, FINISHED);
+
+			  // Waiting cycles
+			  std::vector<ItemStatus> waiting_status (rlen-(start_cycle-1), WAITING);
+
+			  // Merge vectors
+			  tile_status.insert(tile_status.end(), waiting_status.begin(), waiting_status.end());
+
+			  // Push back
+			  lane_status.push_back(tile_status);
+		  }
+		  items.push_back(lane_status);
+	  }
+  }
 
 
   // check for BCL files and update item status
