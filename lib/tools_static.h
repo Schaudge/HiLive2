@@ -80,8 +80,14 @@ template <
 		pos = s.find_first_of(delim_list, prev);
 		if ( pos > prev ) {
 			next_value = s.substr(prev, pos-prev);
-			if ( ! next_value.empty() )
-				target.push_back( boost::lexical_cast<T>( s.substr(prev, pos-prev)));
+			if ( ! next_value.empty() ) {
+				try {
+					target.push_back( boost::lexical_cast<T>( s.substr(prev, pos-prev)));
+				}
+				catch (boost::bad_lexical_cast & ex) {
+					std::cerr << "WARN: Ignored invalid value during string splitting: " << s.substr(prev, pos-prev) << "(" << ex.what() << ")" << std::endl;
+				}
+			}
 		}
 		prev = pos == std::string::npos ? std::string::npos : pos+1;
 	}

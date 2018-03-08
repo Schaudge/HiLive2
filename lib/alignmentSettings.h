@@ -13,6 +13,19 @@ class AlignmentSettings {
 
 private:
 
+	//////////////////////////////
+	////////// Run Info //////////
+	//////////////////////////////
+
+	/** Unique ID of the run. */
+	Immutable<std::string> run_id;
+
+	/** Unique ID of the flowcell. */
+	Immutable<std::string> flowcell_id;
+
+	/** Unique ID of the instrument. */
+	Immutable<std::string> instrument_id;
+
 	///////////////////////////////////////
 	////////// Technical options //////////
 	///////////////////////////////////////
@@ -286,6 +299,9 @@ public:
 		putConfigNode ( ptree, "tiles", join( get_tiles() ) );
 		putConfigNode ( ptree, "reads", join( seqs_to_string_vector() ) );
 		putConfigNode ( ptree, "barcodes", join( barcodes_to_string_vector() ) );
+		putConfigNode ( ptree, "run-id", get_run_id() );
+		putConfigNode ( ptree, "flowcell-id", get_flowcell_id() );
+		putConfigNode ( ptree, "instrument-id", get_instrument_id() );
 
 		// Report options
 		putConfigNode ( ptree, "out-dir", get_out_dir() );
@@ -402,6 +418,16 @@ public:
 
 		set_barcode_vector(barcodeVector);
 
+	}
+
+	/**
+	 * Create the internal barcode structure.
+	 * @param barcodeArg A comma-separated string (dual barcodes being split by a "-" char).
+	 */
+	void set_barcodes ( std::string barcodeArg ) {
+		std::vector<std::string> barcodes;
+		split( barcodes, barcodeArg );
+		set_barcodes( barcodes );
 	}
 
 	/**
@@ -582,6 +608,22 @@ public:
 	}
 
 	/**
+	 * Get the flowcell ID.
+	 * @return The flowcell ID.
+	 */
+	std::string get_flowcell_id() {
+		return get_immutable(flowcell_id);
+	}
+
+	/**
+	 * Set the flowcell ID.
+	 * @param value The flowcell ID.
+	 */
+	void set_flowcell_id(std::string value) {
+		set_immutable(flowcell_id, value);
+	}
+
+	/**
 	 * Check if resorting of alignment files before writing output is activated.
 	 * @return true if resorting is activated, false otherwise
 	 */
@@ -611,6 +653,22 @@ public:
 	 */
 	void set_index_fname(std::string value) {
 		set_immutable(index_fname, value);
+	}
+
+	/**
+	 * Get the flowcell ID.
+	 * @return The flowcell ID.
+	 */
+	std::string get_instrument_id() {
+		return get_immutable(instrument_id);
+	}
+
+	/**
+	 * Set the flowcell ID.
+	 * @param value The flowcell ID.
+	 */
+	void set_instrument_id(std::string value) {
+		set_immutable(instrument_id, value);
 	}
 
 	/**
@@ -1021,6 +1079,22 @@ public:
 	 */
 	void set_root(std::string value) {
 		set_immutable(root, value);
+	}
+
+	/**
+	 * Get the flowcell ID.
+	 * @return The flowcell ID.
+	 */
+	std::string get_run_id() {
+		return get_immutable(run_id);
+	}
+
+	/**
+	 * Set the flowcell ID.
+	 * @param value The flowcell ID.
+	 */
+	void set_run_id(std::string value) {
+		set_immutable(run_id, value);
 	}
 
 	/**
