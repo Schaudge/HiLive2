@@ -4,8 +4,10 @@
 #include "../lib/headers.h"
 
 class AlignmentSettings;
+class KixRun;
 
 extern AlignmentSettings globalAlignmentSettings;
+extern KixRun* idx;
 
 extern mutex_map<std::string> fileLocks;
 

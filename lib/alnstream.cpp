@@ -5,6 +5,7 @@
 //------  The output Alignment Stream class  ------------------------//
 //-------------------------------------------------------------------//
 
+
 oAlnStream::oAlnStream(uint16_t ln, uint16_t tl, uint16_t cl, CountType rl, uint32_t nr, uint64_t bs, uint8_t fmt):
   lane(ln), tile(tl), cycle(cl), rlen(rl), num_reads(nr), num_written(0), buffer(bs,0), buf_size(bs), buf_pos(0), format(fmt), fstream(NULL), zfstream(Z_NULL), fname(""), flocked(false) {}
 
@@ -114,6 +115,7 @@ uint64_t oAlnStream::open(std::string f_name) {
 
 
 uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
+
   if ( (!fstream && (format == 0 || format == 2)) || (zfstream == Z_NULL && format == 1) ){
     throw std::runtime_error("Could not write alignment to file. File handle not valid.");
   }
@@ -139,14 +141,13 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
     memcpy(buffer.data()+buf_pos,temp.data(),first_part);
 
     // write out buffer
-    uint64_t written = 0;
     switch (format) {
-    case 0: written = fwrite(buffer.data(), 1, buffer.size(), fstream); break;
-    case 1: written = gzwrite(zfstream, buffer.data(), buffer.size()); break;
-    case 2: written = lz4write(buffer.data(), buffer.size()); break;
+
+    case 0: fwrite(buffer.data(), 1, buffer.size(), fstream); break;
+    case 1: gzwrite(zfstream, buffer.data(), buffer.size()); break;
+    case 2: lz4write(buffer.data(), buffer.size()); break;
+
     }
-    if(written != buf_size)
-      throw std::runtime_error("Could not write out buffer 1 in oAlnStream::write_alignment.");
 
     // copy remaining data
     memcpy(buffer.data(),temp.data()+first_part,sizeof(uint32_t)-first_part);
@@ -163,14 +164,13 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
 
     // write buffer to disk if full
     if(buf_pos >= buf_size){
-      uint64_t written = 0;
       switch (format) {
-      case 0: written = fwrite(buffer.data(), 1, buffer.size(), fstream); break;
-      case 1: written = gzwrite(zfstream, buffer.data(), buffer.size()); break;
-      case 2: written = lz4write(buffer.data(), buffer.size()); break;
+
+      case 0: fwrite(buffer.data(), 1, buffer.size(), fstream); break;
+      case 1: gzwrite(zfstream, buffer.data(), buffer.size()); break;
+      case 2: lz4write(buffer.data(), buffer.size()); break;
+
       }
-      if(written != buf_size)
-        throw std::runtime_error("Could not write out buffer 2 in oAlnStream::write_alignment.");
       buf_pos = 0;
     }
   }
@@ -184,14 +184,13 @@ uint64_t oAlnStream::write_alignment(ReadAlignment * al) {
 bool oAlnStream::close() {
   if ( ((format == 0 || format == 2) && fstream) || (format == 1 && zfstream != Z_NULL) ) {
     // write remaining buffer content to file
-    uint64_t written = 0;
     switch (format) {
-    case 0: written = fwrite(buffer.data(), 1, buf_pos, fstream); break;
-    case 1: written = gzwrite(zfstream, buffer.data(), buf_pos); break;
-    case 2: written = lz4write(buffer.data(), buf_pos); break;
+
+    case 0: fwrite(buffer.data(), 1, buf_pos, fstream); break;
+    case 1: gzwrite(zfstream, buffer.data(), buf_pos); break;
+    case 2: lz4write(buffer.data(), buf_pos); break;
+
     }
-    if(written != buf_pos)
-      throw std::runtime_error("Could not write out buffer in oAlnStream::close.");
     buf_pos = 0;
     if (num_written == num_reads) {
       switch (format) {
@@ -212,7 +211,6 @@ bool oAlnStream::close() {
   }
 }
 
-
 void oAlnStream::flock() {
 	fileLocks.lock(fname);
 	flocked = true;
@@ -225,16 +223,11 @@ void oAlnStream::funlock() {
 	}
 }
 
-
-
-
 //-------------------------------------------------------------------//
 //------  The input Alignment Stream class  -------------------------//
 //-------------------------------------------------------------------//
 
-iAlnStream::iAlnStream(uint64_t bs, uint8_t fmt):
-  lane(0), tile(0), cycle(0), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), fstream(NULL), zfstream(Z_NULL), fname(""), flocked(false) {}
-
+iAlnStream::iAlnStream(uint64_t bs, uint8_t fmt):lane(0), tile(0), cycle(0), rlen(0), num_reads(0), num_loaded(0), buffer(bs,0), buf_size(bs), buf_pos(bs), format(fmt), fstream(NULL), zfstream(Z_NULL), fname(""), flocked(false) {}
 
 iAlnStream::~iAlnStream() {
 	funlock();
@@ -336,7 +329,6 @@ uint64_t iAlnStream::open(std::string f_name) {
 	return bytes;
 }
 
-
 ReadAlignment* iAlnStream::get_alignment() {
 
   if ( (format==0 && !fstream) || (format==1 && zfstream == Z_NULL) ){
@@ -348,6 +340,7 @@ ReadAlignment* iAlnStream::get_alignment() {
 
   // first, get the size of the serialized alignment (uint32_t = 4 bytes)
   uint32_t al_size = 0;
+
   if (buf_pos+sizeof(uint32_t) <= buf_size) {
     // directly copy if all 4 bytes are in the buffer (should be almost always the case)
     memcpy(&al_size,buffer.data()+buf_pos,sizeof(uint32_t));
@@ -362,13 +355,14 @@ ReadAlignment* iAlnStream::get_alignment() {
     // load new buffer
     switch (format) {
     case 0:
+
       fread(buffer.data(),1,buf_size,fstream);
       break;
     case 1:
       gzread(zfstream,buffer.data(),buf_size);
       break;
     case 2:
-      lz4read_block();    
+      lz4read_block();
       break;
     }
 
@@ -391,22 +385,24 @@ ReadAlignment* iAlnStream::get_alignment() {
     if(buf_pos >= buf_size){
       switch (format) {
       case 0:
+
         fread(buffer.data(),1,buf_size,fstream);
         break;
       case 1:
         gzread(zfstream,buffer.data(),buf_size);
         break;
       case 2:
-        lz4read_block();    
-        break;
+	lz4read_block();
+	break;
       }
       buf_pos = 0;
     }
+
   }
 
-  // finally, deserialize the alignment
-  ReadAlignment* ra = new ReadAlignment();
-  ra->set_total_cycles(rlen);
+  // finally, deserialize the alignment. Set total number of cycles to rlen and increase cycle number by 1.
+  ReadAlignment* ra = new ReadAlignment(rlen, cycle+1);
+
   ra->deserialize(data.data());
 
   num_loaded++;
@@ -458,30 +454,6 @@ void iAlnStream::funlock() {
 //------  The StreamedAlignment class  ------------------------------//
 //-------------------------------------------------------------------//
 
-std::string StreamedAlignment::get_bcl_file(uint16_t cycle, uint16_t mate) {
-  std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/C" << getSeqCycle(cycle, mate) << ".1/s_"<< lane <<"_" << tile << ".bcl";
-  return path_stream.str();
-}
-
-
-std::string StreamedAlignment::get_alignment_file(uint16_t cycle, uint16_t mate, std::string base){
-  if (base == "") {
-    base = globalAlignmentSettings.get_root();
-  }
-  std::ostringstream path_stream;
-  path_stream << base << "/L00" << lane << "/s_"<< lane << "_" << tile << "." << mate << "."<< cycle << ".align";
-  return path_stream.str();
-}
-
-
-std::string StreamedAlignment::get_filter_file() {
-  std::ostringstream path_stream;
-  path_stream << globalAlignmentSettings.get_root() << "/L00" << lane << "/s_"<< lane << "_" << tile << ".filter";
-  return path_stream.str();
-}
-
-
 void StreamedAlignment::create_directories() {
   std::ostringstream path_stream;
   if (globalAlignmentSettings.get_temp_dir() == "") {
@@ -496,12 +468,12 @@ void StreamedAlignment::create_directories() {
   boost::filesystem::create_directories(globalAlignmentSettings.get_out_dir());
 }
 
-
 void StreamedAlignment::init_alignment(uint16_t mate) {
-	std::string out_fname = get_alignment_file(0, mate, globalAlignmentSettings.get_temp_dir());
+
+	std::string out_fname = get_align_fname(lane, tile, 0, mate);
 
   // get the number of reads in this tile by looking in the first bcl file
-  std::string first_cycle = get_bcl_file(1, 0);
+  std::string first_cycle = get_bcl_fname(lane, tile, 1);
 
   // extract the number of reads
   uint32_t num_reads = num_reads_from_bcl(first_cycle);
@@ -512,8 +484,7 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
 
   // write empty read alignments for each read
   for (uint32_t i = 0; i < num_reads; ++i) {
-    ReadAlignment * ra = new ReadAlignment();
-    ra->set_total_cycles(rlen);
+    ReadAlignment * ra = new ReadAlignment(rlen, 0);
     output.write_alignment(ra);
     delete ra;
   }
@@ -523,15 +494,14 @@ void StreamedAlignment::init_alignment(uint16_t mate) {
   }
 } 
 
-
-uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate, KixRun* index) {
+uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, uint16_t mate) {
 
   // 1. Open the input file
   //-----------------------
 
-  std::string in_fname = get_alignment_file(cycle-1, mate, globalAlignmentSettings.get_temp_dir());
-  std::string bcl_fname = get_bcl_file(cycle, read_no);
-  std::string filter_fname = get_filter_file();
+  std::string in_fname = get_align_fname(lane, tile, cycle-1, mate);
+  std::string bcl_fname = get_bcl_fname(lane, tile, getSeqCycle(cycle, read_no));
+  std::string filter_fname = get_filter_fname(lane, tile);
 
   iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 
@@ -548,7 +518,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   // 2. Open output stream
   //----------------------------------------------------------
 
-  std::string out_fname = get_alignment_file(cycle, mate, globalAlignmentSettings.get_temp_dir());
+  std::string out_fname = get_align_fname(lane, tile, cycle, mate);
   oAlnStream output (lane, tile, cycle, rlen, num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
   output.open(out_fname);
 
@@ -581,17 +551,12 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
   uint64_t num_seeds = 0;
   for (uint64_t i = 0; i < num_reads; ++i) {
 
-//	  iAlnStream input2( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
-//	  input2.open(in_fname);
-
-	  bool testRead = false;
-
     ReadAlignment* ra = input.get_alignment();
 
     if (filters.size() > 0 && filters.has_next()) {
       // filter file was found -> apply filter
       if(filters.next()) {
-        ra->extend_alignment(basecalls.next(), index, testRead);
+        ra->extend_alignment(basecalls.next());
         num_seeds += ra->seeds.size();
       }
       else {
@@ -599,9 +564,10 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
         ra->disable();
       }
     }
+
     // filter file was not found -> treat every alignment as valid
     else {
-      ra->extend_alignment(basecalls.next(), index, testRead);
+      ra->extend_alignment(basecalls.next());
       num_seeds += ra->seeds.size();
     }
 
@@ -634,9 +600,9 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 	// 1. Open the input file
 	//-----------------------
 
-	std::string in_fname = get_alignment_file(read_cycle, mate, globalAlignmentSettings.get_temp_dir());
-	std::string bcl_fname = get_bcl_file(bc_cycle, read_no);
-	std::string filter_fname = get_filter_file();
+	  std::string in_fname = get_align_fname(lane, tile, read_cycle, mate);
+	  std::string bcl_fname = get_bcl_fname(lane, tile, getSeqCycle(bc_cycle, read_no));
+	  std::string filter_fname = get_filter_fname(lane, tile);
 
 	  iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 	  input.open(in_fname);
@@ -699,472 +665,4 @@ StreamedAlignment& StreamedAlignment::operator=(const StreamedAlignment& other) 
   rlen = other.rlen;
 
   return *this;
-}
-
-
-
-
-//-------------------------------------------------------------------//
-//------  Streamed SAM generation -----------------------------------//
-//-------------------------------------------------------------------//
-
-AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType cycl, KixRun* idx ) : cycle(cycl),index(idx) {
-
-	// Fill list of specified barcodes
-	for ( unsigned i = 0; i < globalAlignmentSettings.get_barcodeVector().size(); i++ ) {
-		barcodes.push_back(globalAlignmentSettings.get_barcodeString(i));
-	}
-
-	// Get the finished cycles and minimal as:i score for each mate
-	for ( CountType mate = 1; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
-		CountType mateCycle = getMateCycle( mate, cycle );
-		mateCycles.push_back( mateCycle );
-		min_as_scores.push_back( mateCycle * globalAlignmentSettings.get_min_as_ratio() );
-	}
-
-	// Add a waiting task for all lanes and tiles.
-	for ( auto ln : lns ) {
-		for ( auto tl : tls ) {
-			add_task(Task(ln,tl,cycle), WAITING);
-		}
-	}
-
-};
-
-
-AlnOut::~AlnOut() {
-	if ( !is_finalized() && !finalize() ) {
-		std::cerr << "Could not finish output for cycle " << cycle << "." << std::endl;
-	}
-}
-
-
-void AlnOut::init() {
-
-	std::lock_guard<std::mutex> lock(if_lock);
-
-	if ( initialized )
-		return;
-
-	// Init the bamIOContext (the same object can be used for all output streams)
-	bfos.set_context(index->seq_names, index->seq_lengths);
-
-	// Init the header (the same object can be used for all output streams)
-	seqan::BamHeader header = getBamHeader();
-
-	// Init output stream for each barcode (plus undetermined if keep_all_barcodes is set)
-	for ( unsigned barcode=0; barcode < (barcodes.size() + 1); barcode ++) {
-		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
-
-			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
-
-			// Open file in Bam output stream and write the header
-			bfos.emplace_back( getBamTempFileName(barcode_string, cycle).c_str() );
-			bfos[barcode].writeHeader(header);
-
-		}
-	}
-
-	initialized = true;
-}
-
-
-bool AlnOut::set_task_status( Task t, ItemStatus status ) {
-	std::lock_guard<std::mutex> lock(tasks_lock);
-	if ( tasks.find(t) == tasks.end() )
-		return false;
-	tasks[t] = status;
-	return true;
-}
-
-
-bool AlnOut::set_task_status_from_to( Task t, ItemStatus oldStatus, ItemStatus newStatus ) {
-	std::lock_guard<std::mutex> lock(tasks_lock);
-	if ( tasks.find(t) == tasks.end() )
-		return false;
-	if ( tasks[t] == oldStatus ) {
-		tasks[t] = newStatus;
-		return true;
-	}
-	return false;
-}
-
-
-Task AlnOut::get_next( ItemStatus getStatus, ItemStatus setToStatus ) {
-	std::lock_guard<std::mutex> lock(tasks_lock);
-	for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
-		if ( it->second == getStatus ) {
-			tasks[it->first] = setToStatus;
-			return it->first;
-		}
-	}
-	return NO_TASK;
-}
-
-
-bool AlnOut::add_task( Task t, ItemStatus status ) {
-	std::lock_guard<std::mutex> lock(tasks_lock);
-	if ( tasks.find(t) != tasks.end() )
-		return false;
-	tasks[t] = status;
-	return true;
-}
-
-
-bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cycle, bool overwrite ) {
-
-
-	std::string in_fname = alignment_name(ln, tl, cycle, mate);
-	std::string out_fname = alignment_name(ln, tl, cycle, mate) + ".sorted";
-
-	// Stop if sorted file already exist
-	if ( file_exists( out_fname ) && !overwrite )
-		return true;
-
-	iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
-
-	input.open(in_fname);
-
-	assert(input.get_cycle() == cycle);
-	assert(input.get_lane() == ln);
-	assert(input.get_tile() == tl);
-
-	uint32_t num_reads = input.get_num_reads();
-
-	oAlnStream output(ln, tl, cycle, input.get_rlen(), num_reads, globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format());
-	output.open(out_fname);
-
-	for ( uint32_t i = 0; i < num_reads; i++ ) {
-
-		try {
-			ReadAlignment * ra = input.get_alignment();
-			ra->sort_seeds_by_errors();
-			output.write_alignment(ra);
-			delete ra;
-		} catch (const std::exception & ex) {
-			return false;
-		}
-
-	}
-
-	if (!(input.close() && output.close()))
-		return false;
-
-	return true;
-
-}
-
-
-void AlnOut::write_tile_to_bam ( Task t ) {
-
-	if ( !is_initialized() )
-		init();
-
-	try {
-		__write_tile_to_bam__ (t);
-		set_task_status( t, FINISHED );
-	} catch ( const std::exception& e) {
-		set_task_status( t, FAILED );
-		std::cerr << "Writing of task " << t << " failed: " << e.what() << std::endl;
-	}
-}
-
-
-void AlnOut::__write_tile_to_bam__ ( Task t) {
-
-	std::vector<std::lock_guard<std::mutex>> locks;
-
-	CountType lane = t.lane;
-	CountType tile = t.tile;
-
-	////////////////////////////////////////////////////
-	//  Main loop //////////////////////////////////////
-	////////////////////////////////////////////////////
-
-	// set the filter file
-	std::string filter_fname = filter_name(lane, tile);
-	FilterParser filters;
-	if (file_exists(filter_fname)) {
-		filters.open(filter_fname);
-	}
-
-
-	// set the alignment files
-	std::vector<iAlnStream*> alignmentFiles;
-	unsigned numberOfAlignments = 0;
-	for (unsigned mateIndex = 1; mateIndex <= mateCycles.size(); mateIndex++) {
-
-		if ( globalAlignmentSettings.getSeqByMate(mateIndex) == NULLSEQ )
-			return;
-
-		CountType mateCycle = mateCycles[mateIndex-1];
-
-		if ( !sort_tile( lane, tile, mateIndex, mateCycle, globalAlignmentSettings.get_force_resort()) ) {
-			std::cout << "Couldn't sort" << std::endl;
-			continue;
-		}
-
-		// Open sorted alignment file
-		std::string alignment_fname = alignment_name(lane, tile, mateCycle, mateIndex) + ".sorted";
-		if ( !file_exists(alignment_fname) ) {
-			continue;
-		}
-
-		iAlnStream* input = new iAlnStream( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
-		input->open(alignment_fname);
-
-		// compare number of reads in alignment file with number of reads in filter file, if filter file exists
-		if (file_exists(filter_fname) && input->get_num_reads() != filters.size()) {
-			throw std::length_error("Unequal number of reads (.filer vs .align)");
-		}
-
-		// compare number of reads in alignment file with number of reads in previous alignment file
-		if (mateIndex != 1 && input->get_num_reads() != numberOfAlignments) {
-			throw std::length_error("Unequal number of reads (between mates)");
-		}
-
-		numberOfAlignments = input->get_num_reads(); // set this after last if-then construct
-		alignmentFiles.push_back(input);
-	}
-
-	// for all reads in a tile
-	/////////////////////////////////////////////////////////////////////////////
-	for (uint64_t i = 0; i < numberOfAlignments; i++) {
-
-		std::vector<seqan::BamAlignmentRecord> records;
-
-		std::vector<ReadAlignment*> mateAlignments;
-		for (auto e:alignmentFiles) {
-			mateAlignments.push_back(e->get_alignment());
-		}
-
-		// if the filter file is available and the filter flag is 0 then skip
-		if (filters.size() != 0 && filters.next() == false)
-			continue;
-
-		// compute barcode sequence as it should be written to BC tag
-		std::string barcode = globalAlignmentSettings.format_barcode(mateAlignments[0]->getBarcodeString());
-
-		// Barcode index for the read
-		CountType barcodeIndex = mateAlignments[0]->getBarcodeIndex();
-
-		// If read has undetermined barcode and keep_all_barcodes is not set, skip this read
-		if ( barcodeIndex == NO_MATCH && !globalAlignmentSettings.get_keep_all_barcodes() )
-			continue;
-		else if ( barcodeIndex == NO_MATCH )
-			barcodeIndex = barcodes.size(); // this is the index for the "undetermined" output stream
-
-		// setup QNAME
-		// Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
-		// readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
-		//TODO: where do we get the Illumina read coordinate from?
-		std::stringstream readname;
-		readname << "lane." << lane << "|tile." << tile << "|read." << i;
-
-		// for all mates
-		/////////////////////////////////////////////////////////////////////////////
-		for (unsigned mateAlignmentIndex=0; mateAlignmentIndex < mateAlignments.size(); ++mateAlignmentIndex) {
-
-			readname << "|mate." << mateAlignmentIndex+1;
-
-			// Variables for output modes
-			CountType first_seed_score = 0;
-			CountType last_seed_score = 0;
-			CountType num_diff_scores = 0;
-
-			// Number of printed alignments for the current mate.
-			unsigned printedMateAlignments = 0;
-
-			// Unique mode interruption
-			if ( mateAlignments[mateAlignmentIndex]->seeds.size() > 1 && globalAlignmentSettings.get_unique_hit_mode() )
-				continue;
-
-			// for all seeds
-			/////////////////////////////////////////////////////////////////////////////
-			for (SeedVecIt it = mateAlignments[mateAlignmentIndex]->seeds.begin(); it != mateAlignments[mateAlignmentIndex]->seeds.end(); ++it) {
-
-				// Skip completely trimmed seeds
-				if ( (*it)->gid == TRIMMED ) {
-					continue;
-				}
-
-				// Any best mode interruption
-				if ( printedMateAlignments > 0 && globalAlignmentSettings.get_any_best_hit_mode() )
-					break;
-
-				// Get next number of errors
-				CountType curr_seed_score = (*it)->num_matches;
-
-				if ( min_as_scores[mateAlignmentIndex] > curr_seed_score )
-					break;
-
-				// No seed printed yet -> current seed is the best one.
-				if ( num_diff_scores == 0 )
-					first_seed_score = curr_seed_score;
-
-				// All best mode interruption
-				if ( first_seed_score > curr_seed_score && globalAlignmentSettings.get_all_best_hit_mode() )
-					break;
-
-				// All best n mode interruption
-				if ( globalAlignmentSettings.get_all_best_n_scores_mode() && globalAlignmentSettings.get_best_n() == 0 )
-					break;
-				if ( curr_seed_score < last_seed_score && globalAlignmentSettings.get_all_best_n_scores_mode() &&
-						globalAlignmentSettings.get_best_n() <= num_diff_scores )
-					break;
-
-				seqan::BamAlignmentRecord record;
-
-				record.beginPos = mateAlignments[mateAlignmentIndex]->get_SAM_start_pos(*it)-1;
-				if (record.beginPos < 0) {
-					continue;
-				}
-
-				unsigned nm_i = 0;
-				unsigned as_score = 0;
-				record.cigar = (*it)->returnSeqanCigarString(&nm_i, &as_score);
-				as_score = curr_seed_score;
-
-				record.qName = readname.str();
-				record.rID = (*it)->gid;
-
-				// Sequence of the current read
-				std::string seq;
-				seq.reserve(mateCycles[mateAlignmentIndex]);
-
-				// Quality of the current read
-				std::string qual;
-				qual.reserve(mateCycles[mateAlignmentIndex]);
-
-				// Only obtain sequence and quality if no alignment was printed yet
-				if ( printedMateAlignments == 0 ) {
-					seq = mateAlignments[mateAlignmentIndex]->getSequenceString();
-					qual = mateAlignments[mateAlignmentIndex]->getQualityString();
-				}
-
-				// flag and seq
-				record.flag = 0;
-				if (printedMateAlignments >= 1) { // if current seed is secondary alignment
-					record.flag |= 256;
-					seqan::clear(record.seq);
-					seqan::clear(record.qual);
-				}
-				else {
-					record.seq = seq == "" ? "*" : seq;
-					record.qual = qual == "" ? "*" : qual;
-				}
-				if ((*it)->start_pos < 0) { // if read matched reverse complementary
-					seqan::reverseComplement(record.seq);
-					seqan::reverse(record.qual);
-					record.flag |= 16;
-				}
-				if (globalAlignmentSettings.get_mates() > 1) { // if there are more than two mates
-					record.flag |= 1;
-					if (mateAlignmentIndex == 0) {
-						record.flag |= 64;
-					} else if (mateAlignmentIndex == mateAlignments.size()-1) {
-						record.flag |= 128;
-					} else {
-						record.flag |= 192; // 64 + 128
-					}
-
-					bool eachMateAligned = true;
-					for (auto e:mateAlignments)
-						eachMateAligned = eachMateAligned && e->seeds.size() > 0;
-					if (eachMateAligned)
-						record.flag |= 2;
-				}
-
-				// tags
-				seqan::BamTagsDict dict;
-				seqan::appendTagValue(dict, "AS", ( as_score ) );
-				if (barcode!="") { // if demultiplexing is on
-					seqan::appendTagValue(dict, "BC", barcode);
-				}
-				seqan::appendTagValue(dict, "NM", nm_i);
-				record.tags = seqan::host(dict);
-
-
-				// fill records list
-				records.push_back(record);
-
-				// set variables for mode selection
-				if ( last_seed_score != curr_seed_score || num_diff_scores == 0 )
-					++num_diff_scores;
-				last_seed_score = curr_seed_score;
-
-				++printedMateAlignments;
-
-			}
-		}
-
-		// Write all records as a group to keep suboptimal alignments and paired reads together.
-		bfos[barcodeIndex].writeRecords(records);
-
-		for (auto e:mateAlignments)
-			delete e;
-	}
-	for (auto e:alignmentFiles)
-		delete e;
-
-	return;
-}
-
-
-Task AlnOut::write_next ( ) {
-	Task t = get_next ( BCL_AVAILABLE, RUNNING );
-	if ( t != NO_TASK ) {
-		write_tile_to_bam ( t );
-		return t;
-	} else {
-		return NO_TASK;
-	}
-}
-
-
-CountType AlnOut::get_task_status_num ( ItemStatus getStatus ) {
-	CountType num = 0;
-	std::lock_guard<std::mutex> lock(tasks_lock);
-	for ( auto it = tasks.begin(); it != tasks.end(); ++it ) {
-		if ( it->second == getStatus ) {
-			num += 1;
-		}
-	}
-	return num;
-}
-
-
-bool AlnOut::finalize() {
-
-	std::lock_guard<std::mutex> lock(if_lock);
-
-	if ( finalized )
-		return true;
-
-	// Don't finish if there are unfinished tasks.
-	if ( !is_finished() )
-		return false;
-
-	bool success = true;
-
-	bfos.clear();
-
-	// Move all output files to their final location.
-	for ( unsigned barcode=0; barcode < barcodes.size() + 1; barcode ++) {
-		if ( barcode < barcodes.size() || globalAlignmentSettings.get_keep_all_barcodes() ) {
-
-			std::string barcode_string = ( barcode == barcodes.size() ) ? "undetermined" : barcodes[barcode];
-
-			int rename = atomic_rename(getBamTempFileName(barcode_string, cycle).c_str(), getBamFileName(barcode_string, cycle).c_str());
-			if ( rename == -1 ) {
-				std::cerr << "Renaming temporary output file " << getBamTempFileName(barcode_string, cycle).c_str() << " to " << getBamFileName(barcode_string, cycle).c_str() << " failed." << std::endl;
-				success = false;
-			}
-		}
-	}
-
-	// If it comes here, it counts as finalized independently from the success state (otherwise, contradictory error messages may occur).
-	finalized = true;
-
-	return success;
 }

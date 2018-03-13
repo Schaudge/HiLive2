@@ -3,6 +3,7 @@
 #include "definitions.h"
 #include "global_variables.h"
 #include "parallel.h"
+#include "kindex.h"
 
 namespace po = boost::program_options;
 
@@ -28,10 +29,10 @@ protected:
 	po::variables_map cmd_settings;
 
 	/** Settings property tree obtained from the runInfo. */
-	boost::property_tree::ptree runInfo_settings;
+	po::variables_map runInfo_settings;
 
 	/** Settings property tree obtained from an settings input file. */
-	boost::property_tree::ptree input_settings;
+	po::variables_map config_file_settings;
 
 	/** Bool describing whether an input settings file was specified. */
 	bool has_input_settings = false;
@@ -112,21 +113,17 @@ protected:
 	 * @param required true, if the option must be set by the user (from one of the input sources)
 	 * @author Tobias Loka
 	 */
-	template<class T> void set_option(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T)) {
-		set_option_impl(vm_key, settings_key, default_value, function, isRequired(vm_key), static_cast<T*>(0));
+	template<class T> void set_option(std::string vm_key, T default_value, void (AlignmentSettings::*function)(T)) {
+		set_option_impl(vm_key, default_value, function, isRequired(vm_key), static_cast<T*>(0));
 	}
 
 	/**
 	 * General implementation of set_option(...).
 	 */
-	template<class T> void set_option_impl(std::string vm_key, std::string settings_key, T default_value, void (AlignmentSettings::*function)(T), bool required, T*) {
+	template<class T> void set_option_impl(std::string vm_key, T default_value, void (AlignmentSettings::*function)(T), bool required, T*) {
 
 		T value = default_value;
 		bool was_set = false;
-
-		boost::optional<T> isv = input_settings.get_optional<T>(settings_key);
-		boost::optional<T> rsv = runInfo_settings.get_optional<T>(settings_key);
-
 
 		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) ) {
@@ -135,18 +132,18 @@ protected:
 		}
 
 		// Settings file -> second priority
-		else if ( isv ) {
-			value = isv.get();
+		else if ( config_file_settings.count(vm_key) ) {
+			value = config_file_settings[vm_key].as<T>();
 			was_set = true;
 		}
 
 		// RunInfo file -> third priority
-		else if ( rsv ) {
-			value = rsv.get();
+		else if ( runInfo_settings.count(vm_key) ) {
+			value = runInfo_settings[vm_key].as<T>();
 			was_set = true;
 		}
 
-		// Throw exception if unset
+		// Throw exception if required but unset
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
 
@@ -159,30 +156,31 @@ protected:
 	/**
 	 * Overload of set_option_impl for bool data type.
 	 */
-	void set_option_impl(std::string vm_key, std::string settings_key, bool default_value, void (AlignmentSettings::*function)(bool), bool required, bool *) {
+	void set_option_impl(std::string vm_key, bool default_value, void (AlignmentSettings::*function)(bool), bool required, bool *) {
 
 		bool value = default_value;
+
 		bool was_set = false;
 
-		boost::optional<bool> isv = input_settings.get_optional<bool>(settings_key);
-		boost::optional<bool> rsv = runInfo_settings.get_optional<bool>(settings_key);
-
-		if ( cmd_settings[vm_key].as<bool>() != default_value ) {
+		// User parameter -> first priority
+		if ( cmd_settings.count(vm_key) && cmd_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
 
-		else if ( isv && isv.get() != default_value ) {
+		// Settings file -> second priority
+		else if ( config_file_settings.count(vm_key) && config_file_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
 
-		else if ( rsv && rsv.get() != default_value ) {
+		// RunInfo file -> third priority
+		else if ( runInfo_settings.count(vm_key) && runInfo_settings[vm_key].as<bool>() != default_value ) {
 			value = !default_value;
 			was_set = true;
 		}
 
-
+		// Throw exception if required but unset
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
 
@@ -193,43 +191,30 @@ protected:
 	}
 
 	/** Overload of set_option_impl for std::vector data types. */
-	template<class T> void set_option_impl(std::string vm_key, std::string settings_key, std::vector<T> default_value, void (AlignmentSettings::*function)(std::vector<T>), bool required, std::vector<T> *) {
+	template<class T> void set_option_impl(std::string vm_key, std::vector<T> default_value, void (AlignmentSettings::*function)(std::vector<T>), bool required, std::vector<T> *) {
 
 		std::vector<T> value;
 		bool was_set = false;
 
-		auto sub_isv = input_settings.get_child_optional(settings_key);
-		auto sub_rsv = runInfo_settings.get_child_optional(settings_key);
-
-
 		// User parameter -> first priority
 		if ( cmd_settings.count(vm_key) ) {
-			if ( vm_key == "reads") {
-				std::cout << "USED PARAMETER" << std::endl;
-			}
 			value = cmd_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}
 
-		// Settings file -> third priority
-		else if ( sub_isv && sub_isv.get().count("el") ) {
-			for ( auto& v : sub_isv.get() ) {
-				if ( v.first == "el" )
-					value.push_back(v.second.get_value<T>());
-			}
+		// Settings file -> second priority
+		else if ( config_file_settings.count(vm_key) ) {
+			value = config_file_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}
 
-		// RunInfo file -> second priority
-		else if ( sub_rsv && sub_rsv.get().count("el") ) {
-			for ( auto& v : sub_rsv.get() ) {
-				if ( v.first == "el" )
-					value.push_back(v.second.get_value<T>());
-			}
+		// RunInfo file -> third priority
+		else if ( runInfo_settings.count(vm_key) ) {
+			value = runInfo_settings[vm_key].as<std::vector<T>>();
 			was_set = true;
 		}
 
-		// Throw exception if unset
+		// Throw exception if required but unset
 		if ( required && !was_set )
 			throw po::required_option(vm_key);
 
@@ -241,6 +226,15 @@ protected:
 		auto binded_function = std::bind(function, &globalAlignmentSettings, std::placeholders::_1);
 		binded_function(value);
 	}
+
+	/**
+	 * Check the occurence of parameters setting the same value(s) in the alignment settings.
+	 * Parameters set on the command line will have priority over config file settings.
+	 * If parameters are set on the same input level, the parameter on an smaller position of the input vector will be returned.
+	 * @param parameters A vector of parameters to prioritize.
+	 * @return The parameter that should be used to set the respective values in the alignment settings.
+	 */
+	std::string select_prioritized_parameter( std::vector<std::string> parameters );
 
 public:
 
@@ -264,10 +258,6 @@ public:
  * Class to parse arguments for HiLive build.
  */
 class BuildIndexArgumentParser : public ArgumentParser {
-
-	uint16_t kmer_weight;
-
-	std::vector<unsigned> gap_positions = {};
 
 	/**
 	 * Use the constructor of the inherited ArgumentParser class.
@@ -303,17 +293,9 @@ class BuildIndexArgumentParser : public ArgumentParser {
 	 */
 	bool set_positional_variables(po::variables_map vm);
 
-	/**
-	 * Set all variables for the build arguments.
-	 * @param vm The variables map containing the user parameters.
-	 * @return true on success, false otherwise
-	 * @author Tobias Loka
-	 */
-	bool set_build_variables(po::variables_map vm);
-
-	void report() override;
-
 	void init_help(po::options_description visible_options) override;
+
+	virtual void report() override{};
 
 public:
 
@@ -322,9 +304,6 @@ public:
 
 	// name of the input fasta file
 	std::string fasta_name;
-
-	// trimming parameter
-	unsigned trim;
 
 	// do_not_convert_spaces_switch
 	bool do_not_convert_spaces;
@@ -356,19 +335,9 @@ protected:
 	 */
 	po::options_description general_options();
 
-	/**
-	 * Positional options of HiLive.
-	 * @return Option descriptor containing all positional options that must be set by the user.
-	 * @author Martin Lindner
-	 */
-	po::options_description positional_options();
+	po::options_description sequencing_options();
 
-	/**
-	 * I/O options of HiLive.
-	 * @return Option descriptor containing all I/O options that can be set by the user.
-	 * @author Martin Lindner
-	 */
-	po::options_description io_options();
+	po::options_description report_options();
 
 	/**
 	 * Alignment options of HiLive.
@@ -376,6 +345,13 @@ protected:
 	 * @author Martin Lindner
 	 */
 	po::options_description alignment_options();
+
+	/**
+	 * Scorings scheme of HiLive.
+	 * @return Option descriptor containing all scoring options that can be set by the user.
+	 * @author Martin Lindner
+	 */
+	po::options_description scoring_options();
 
 	/**
 	 * Technical options of HiLive.
@@ -405,7 +381,15 @@ protected:
 
 	bool set_options();
 
-	virtual void set_required_parameters() override { required_options = {"BC_DIR", "INDEX", "CYCLES"}; }
+	virtual void set_required_parameters() override { required_options = {"bcl-dir", "index", "reads"}; }
+
+	/**
+	 * Add mode defaults to the commandline parameters if not exist.
+	 * The index name must already be set in the globalAlignmentSettings.
+	 * @return default anchor length for this mode
+	 * @author Tobias Loka
+	 */
+	CountType set_mode();
 
 public:
 
@@ -425,61 +409,5 @@ class HiLiveOutArgumentParser : public HiLiveArgumentParser {
 
 	void report() override;
 
-	void set_required_parameters() override { required_options = {"settings", "INDEX"}; };
+	void set_required_parameters() override { required_options = {"config", "index"}; };
 };
-
-//class HiLiveOutArgumentParser : public ArgumentParser {
-//
-//	/**
-//	 * Use the constructor of the inherited ArgumentParser class.
-//	 */
-//	using ArgumentParser::ArgumentParser;
-//
-//	/**
-//	 * General options of HiLive build.
-//	 * @return Option descriptor containing all general options that can be set by the user.
-//	 * @author Martin Lindner
-//	 */
-//	po::options_description general_options();
-//
-//	/**
-//	 * Positional options of HiLive build.
-//	 * @return Option descriptor containing all positional options that must be set by the user.
-//	 * @author Martin Lindner
-//	 */
-//	po::options_description positional_options();
-//
-//	/**
-//	 * Build options of HiLive build.
-//	 * @return Option descriptor containing all positional options that must be set by the user.
-//	 * @author Martin Lindner
-//	 */
-//	po::options_description output_options();
-//
-//	/**
-//	 * Set all variables for the positional command arguments.
-//	 * @param vm The variables map containing the user parameters.
-//	 * @return true on success, false otherwise
-//	 * @author Tobias Loka
-//	 */
-//	bool set_positional_variables(po::variables_map vm);
-//
-//	/**
-//	 * Set all variables for the build arguments.
-//	 * @param vm The variables map containing the user parameters.
-//	 * @return true on success, false otherwise
-//	 * @author Tobias Loka
-//	 */
-//	bool set_output_variables(po::variables_map vm);
-//
-//	void report() override;
-//
-//	void init_help(po::options_description visible_options) override;
-//
-//	bool set_options() override;
-//
-//public:
-//
-//	int parseCommandLineArguments() override;
-//
-//};

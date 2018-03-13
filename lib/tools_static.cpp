@@ -1,64 +1,8 @@
 #include "tools_static.h"
 
-
-/////////////////////////////////
-////////// Comparators //////////
-/////////////////////////////////
-
-bool gp_compare (GenomePosType i,GenomePosType j) {
-	if ( i.pos == j.pos )
-		return i.gid < j.gid;
-	return (i.pos < j.pos);
-}
-
-
-/////////////////////////////////////
-////////// Type convertion //////////
-/////////////////////////////////////
-
-void split(const std::string &s, char delim, std::vector<std::string> &elems) {
-    std::stringstream ss;
-    ss.str(s);
-    std::string item;
-    while (std::getline(ss, item, delim)) {
-        elems.push_back(item);
-    }
-}
-
-
 ///////////////////////////////////
 ////////// File handling //////////
 ///////////////////////////////////
-
-std::ifstream::pos_type get_filesize(const std::string &fname)
-{
-  std::ifstream in(fname, std::ios::binary | std::ios::ate);
-  return in.tellg();
-}
-
-bool is_directory(const std::string &path) {
-  if ( boost::filesystem::exists(path) ) {
-    if ( boost::filesystem::is_directory(path) ) {
-      return true;
-    }
-    else {
-      return false;
-    }
-  }
-  else {
-    return false;
-  }
-}
-
-bool file_exists(const std::string &fname) {
-  return boost::filesystem::exists(fname);
-
-}
-
-std::string absolute_path(std::string fname) {
-	boost::filesystem::path input_path(fname);
-	return boost::filesystem::canonical(fname).string();
-}
 
 std::vector<char> read_binary_file(const std::string &fname) {
 
@@ -70,8 +14,9 @@ std::vector<char> read_binary_file(const std::string &fname) {
   f = fopen(fname.c_str(), "rb");
 
   if (!f) {
-    std::cerr << "Error reading binary file " << fname << ": Could not open file." << std::endl;
-    return std::vector<char>();
+	  std::stringstream error;
+	  error << "Error reading binary file " << fname << ": Could not open file.";
+	  throw std::ios::failure ( error.str() );
   }
 
   // allocate memory
@@ -81,8 +26,9 @@ std::vector<char> read_binary_file(const std::string &fname) {
   uint64_t read = fread(data.data(), 1, size, f);
 
   if (read != size){
-    std::cerr << "Error reading binary file " << fname << ": File size: " << size << " bytes. Read: " << read << " bytes." << std::endl;
-    return std::vector<char>();
+	  std::stringstream error;
+	  error << "Error reading binary file " << fname << ": Read " << read << " bytes while file has " << size << " bytes.";
+	  throw std::ios::failure ( error.str() );
   }
 
   fclose(f);
@@ -97,8 +43,9 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
   ofile = fopen(fname.c_str(), "wb");
 
   if (!ofile) {
-    std::cerr << "Error serializing object to file " << fname << ": Could not open file for writing." << std::endl;
-    return 1;
+	  std::stringstream error;
+	  error << "Error serializing object to file " << fname << ": Could not open file for writing.";
+	  throw std::ios::failure ( error.str() );
   }
 
   // write all data
@@ -108,10 +55,29 @@ uint64_t write_binary_file(const std::string &fname, const std::vector<char> & d
   fclose(ofile);
 
   if (written != data.size()){
-    std::cerr << "Error serializing object to file " << fname << ": Total size: " << data.size() << " bytes. Written: " << written << " bytes." << std::endl;
+	  std::stringstream error;
+	  error << "Error serializing object to file " << fname << ": Wrote " << written << " bytes while data contains " << data.size() << " bytes.";
+	  throw std::ios::failure ( error.str() );
   }
 
   return written;
+}
+
+std::string get_file_suffix ( OutputFormat format ) {
+	switch ( format ) {
+	case OutputFormat::SAM:
+		return ".sam";
+		break;
+	case OutputFormat::BAM:
+		return ".bam";
+		break;
+	case OutputFormat::CRAM:
+		return ".cram";
+		break;
+	default:
+		return ".txt";
+		break;
+	}
 }
 
 
@@ -137,12 +103,12 @@ bool read_xml(boost::property_tree::ptree & xml_in, std::string xml_fname) {
 
 }
 
-bool write_xml(boost::property_tree::ptree & xml_out, std::string xml_fname) {
+bool write_ini(boost::property_tree::ptree & ini_out, std::string ini_fname) {
 
 	try {
-		boost::property_tree::write_xml( xml_fname, xml_out );
+		boost::property_tree::write_ini( ini_fname, ini_out );
 	} catch ( const std::exception &ex ) {
-		std::cerr << "Error writing xml file " << xml_fname << ": " << std::endl << ex.what() << std::endl;
+		std::cerr << "Error writing config file " << ini_fname << ": " << std::endl << ex.what() << std::endl;
 		return false;
 	}
 
@@ -177,13 +143,4 @@ uint32_t num_reads_from_bcl(std::string bcl) {
   fclose (ifile);
 
   return num_reads;
-}
-
-std::vector<CountType> flowcell_layout_to_tile_numbers( CountType surfaceCount, CountType swathCount, CountType tileCount ) {
-	std::vector<uint16_t> tiles_vec;
-	for (uint16_t surf = 1; surf <= surfaceCount; surf++)
-		for (uint16_t swath = 1; swath <= swathCount; swath++)
-			for (uint16_t tile = 1; tile <= tileCount; tile++)
-				tiles_vec.push_back(surf*1000 + swath*100 + tile);
-	return tiles_vec;
 }

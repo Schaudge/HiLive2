@@ -4,12 +4,14 @@
 #include "../lib/definitions.h"
 #include "../lib/kindex.h"
 #include "../lib/alnstream.h"
+#include "../lib/alnout.h"
 #include "../lib/parallel.h"
 #include "../lib/argument_parser.h"
 
 namespace po = boost::program_options;
 
 AlignmentSettings globalAlignmentSettings;
+KixRun* idx;
 mutex_map<std::string> fileLocks;
 
 /**
@@ -21,8 +23,8 @@ mutex_map<std::string> fileLocks;
 int main(int argc, const char* argv[]) {
 
 	// Program start output
-	std::cout << std::endl << "------" << std::endl << "HiLive Output Tool v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
-			" - Output of Realtime Alignments of Illumina Reads" << std::endl << "------" << std::endl<< std::endl;
+	std::cout << std::endl << "__________________________________________________________________________" << std::endl << std::endl << "HiLive Output Tool v"<< HiLive_VERSION_MAJOR << "." << HiLive_VERSION_MINOR <<
+			" - Output of Realtime Alignments of Illumina Reads" << std::endl << "__________________________________________________________________________" << std::endl<< std::endl;
 
 	// Parse the command line arguments
     HiLiveOutArgumentParser argumentParser(argc, argv);
@@ -41,10 +43,13 @@ int main(int argc, const char* argv[]) {
 
 	// load the index
 	std::cout << "Loading Index Header..." << std::endl;
-	KixRun* index = new KixRun();
+	idx = new KixRun();
+//
+//	index->get_header_information(globalAlignmentSettings.get_index_fname());
+//	index->store_kmer();
 
-	index->get_header_information(globalAlignmentSettings.get_index_fname());
-	index->store_kmer();
+    idx->load_metadata( globalAlignmentSettings.get_index_fname() );
+    idx->load_fmindex( globalAlignmentSettings.get_index_fname() );
 
 	std::cout << "Start writing ouput." << std::endl;
 
@@ -59,7 +64,7 @@ int main(int argc, const char* argv[]) {
 	bool all_finished = false;
 
 	for ( CountType cycle : globalAlignmentSettings.get_output_cycles() ) {
-		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle, index);
+		alnouts.emplace_back(globalAlignmentSettings.get_lanes(), globalAlignmentSettings.get_tiles(), cycle);
 	}
 
 	while ( !all_finished ) {
@@ -107,7 +112,7 @@ int main(int argc, const char* argv[]) {
 
 	std::cout << "Finished." << std::endl;
 
-	delete index;
+	delete idx;
 
 	return EXIT_SUCCESS;
 }

@@ -3,9 +3,361 @@
 
 #include "headers.h"
 
+////////////////////////////////
+////////// Exceptions //////////
+////////////////////////////////
+
+/** Errors that occur during I/O operations. */
+class io_error : public std::runtime_error {
+public:
+	using std::runtime_error::runtime_error;
+};
+
+/** Errors that occur when opening a file. */
+class file_open_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
+/** Errors that occur if a file does not exist. */
+class file_not_exist_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
+/** Erorrs that occur because a file has the wrong format. */
+class file_format_error : public io_error {
+public:
+	using io_error::io_error;
+};
+
+/**
+ * Exception specialization for Unmodifiable data types.
+ * @author Tobias Loka
+ */
+class immutable_error : public std::logic_error
+{
+public:
+	using std::logic_error::logic_error;
+};
+
+/**
+ * Error that is thrown when trying to modify a value of an immutable variable that was already set.
+ * @author Tobias Loka
+ */
+class try_to_modify_immutable_error : public immutable_error
+{
+public:
+	using immutable_error::immutable_error;
+};
+
+/**
+ * Error that is thrown when trying to modify a value of an immutable variable that was already set.
+ * @author Tobias Loka
+ */
+class try_to_get_unset_immutable_error : public immutable_error
+{
+public:
+	using immutable_error::immutable_error;
+};
+
+
+////////////////////////////////////////
+////////// Integer Data Types //////////
+////////////////////////////////////////
+
+/** Type for small counters. */
+typedef uint16_t CountType;
+
+/** Difference between positions in the read and matching position in the reference. */
+typedef int16_t DiffType;
+
+/** Data type for alignment scores. */
+typedef int16_t ScoreType;
+
+/** Type for the identifier of genomes (gid). */
+typedef uint32_t GenomeIdType;
+
+/** Type for positions in a genome. */
+typedef uint32_t PositionType;
+
+
+///////////////////////////////////////
+////////// Complex Data Types /////////
+///////////////////////////////////////
+
+/** A pair of genome ID and position. */
+struct GenomePosType {
+
+	/** Genome ID */
+	GenomeIdType gid;
+
+  	/** Position in the genome */
+	PositionType pos;
+
+	GenomePosType() : gid(0), pos(0) {};
+	GenomePosType(GenomeIdType g, PositionType p): gid(g), pos(p) {};
+};
+
+/**
+ * Template to store a map of mutexes.
+ * Attention: Ensure that a locked mutex gets always unlocked (on destruction, if necessary).
+ * If possible, use a combination of std::lock_guard and get_reference(T).
+ */
+template<typename K> class mutex_map {
+
+private:
+
+	/** The actual map of mutexes. */
+	std::map<K, std::mutex> map;
+
+	/** A mutex to control access to the map of mutexes. */
+	std::mutex mut;
+
+	/**
+	 * Check if a key is already used in the map.
+	 * @param k The key value.
+	 * @return 0, if the key is not used in the current map. >0 if the key is used.
+	 */
+	typename std::map<K, std::mutex>::size_type count(K k) {
+		return map.count(k);
+	}
+
+	/**
+	 * Put a new mutex to the map if there the key is not used yet.
+	 * @param k The key value.
+	 * @return Reference to the mutex for the given key. This is a newly created mutex if the key was not used before,
+	 * otherwise a previously existing mutex will be returned (which my be locked!).
+	 */
+	std::mutex& try_emplace(K k) {
+		{
+			std::lock_guard<std::mutex> lock(mut);
+			if ( !count(k) )
+				map.emplace(std::piecewise_construct, std::forward_as_tuple(k), std::forward_as_tuple());
+			return map.at(k);
+		}
+	}
+
+public:
+
+	/**
+	 * Unlock the mutex for a given key.
+	 * @param k The key value.
+	 */
+	void unlock(K k) {
+		if ( count(k) )
+			map.at(k).unlock();
+	}
+
+	/**
+	 * Lock the mutex for a given key.
+	 * @param k The key value.
+	 */
+	void lock(K k) {
+		try_emplace(k);
+		map.at(k).lock();
+	}
+
+	/**
+	 * Get a reference for a mutex for a specified key.
+	 * @param k The key value.
+	 * @return Reference to the mutex for the specified key. If no mutex exist for this key, create a new one.
+	 */
+	std::mutex& at(K k){
+		return try_emplace(k);
+	}
+
+};
+
+/**
+ * A data type that increments an atomic arithmetic field for the time of it's existance.
+ * This functionality can be used to block one slot of a specified capacity.
+ */
+template<
+	typename T,
+	typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
+> class atomic_increment_guard {
+
+	/** Reference to the atomic field. */
+	std::atomic<T>& val;
+
+	/** Value of the atomic field during incrementation. */
+	T blocked_value;
+
+public:
+
+	/**
+	 * Constructor. Increments the value of the given reference and stores the value after incrementing.
+	 * @param value Reference to the atomic, arithmetic value.
+	 */
+	atomic_increment_guard( std::atomic<T>& value ) : val(value), blocked_value(++val) { }
+
+	/** Destructor. The reference value is decremented when destructing the guard. */
+	~atomic_increment_guard() { --val; }
+
+	/**
+	 Get the value of the reference after being incremented.
+	 @return The value of the reference after being incremented by this guard.
+	 */
+	T get_incremented_value(){
+		return blocked_value;
+	}
+};
+
+/**
+ * Template to define data types that can only be set once.
+ * @type T Data type of the unmodifiable object.
+ * @author Tobias Loka
+ */
+template <
+	typename T
+> class Immutable {
+
+private:
+
+	/** The unmodifiable object. */
+	T immutable_object;
+
+	/** Flag to check if the object was already set once. */
+	bool setFlag = false;
+
+public:
+
+	/** Constructor without setting the object (to only declare the object).*/
+	Immutable(){	}
+
+	/** Constructor with setting the object (to init the object).*/
+	Immutable(T object) {
+		set(object);
+	}
+
+	/** Automatic cast of the unmodifiable to the object type. */
+	operator T() { return get(); }
+
+	/**
+	 * Set the unmodifiable object (will only work once!).
+	 * @param object The object to be copied to this unmodifiable data type.
+	 * @return true if setting was successful
+	 * @throws immutable_error if the value was already set.
+	 * @author Tobias Loka
+	 */
+	void set(T object) {
+		if ( isSet() ) {
+			throw try_to_modify_immutable_error("Tried to modify an immutable instance.");
+		}
+
+		immutable_object = object;
+		setFlag = true;
+	}
+
+	/**
+	 * Check if the object was already set.
+	 * @return true if the object was already set.
+	 * @author Tobias Loka
+	 */
+	bool isSet() const {
+		return setFlag;
+	}
+
+	/**
+	 * Return a copy of the unmodifiable object.
+	 * @param allow_unset if false, an exception is thrown when the object was not set before. Should only be true for
+	 * objects that require access to certain properties before their initialization (e.g. to check a container's size
+	 * without knowing if the container was already set).
+	 * @return (copy/value of) the unmodifiable object
+	 * @author Tobias Loka
+	 */
+	T get(bool allow_unset = false ) const {
+		if ( ! isSet() && ! allow_unset) {
+			throw try_to_get_unset_immutable_error("Tried to access the data of an unset immutable.");
+		}
+
+		return immutable_object;
+	}
+
+};
+
+
+///////////////////////////////////////
+////////// Const definitions //////////
+///////////////////////////////////////
+
+/** Number of characters per line for help message. */
+static const unsigned default_line_width = 80;
+
+/** Size of a pair of genome ID and position (in bytes). */
+const uint64_t GenomePos_size = sizeof(GenomeIdType) + sizeof(PositionType);
+
+/** Supported nucleotides. */
+const std::string seq_chars = "ACGTacgt";
+
+/** Supported split characters for listing multitoken arguments. */
+const std::string split_chars = " ,:;&|";
+
+///** Define a mismatch as maximum value of DiffType. */
+//const DiffType NO_MATCH = std::numeric_limits<DiffType>::max();
+//
+///** Define an insertion as maximum value of Difftype -1. */
+//const DiffType INSERTION = std::numeric_limits<DiffType>::max()-1;
+//
+///** Define a deletion as maximum value of DiffType -2. */
+//const DiffType DELETION = std::numeric_limits<DiffType>::max()-2;
+
+/** Define the maximal number of positions to consider. */
+const CountType MAX_NUM_POSITIONS = std::numeric_limits<CountType>::max();
+
+/** Define a mask to only consider the latter two bits of a byte. */
+static const uint8_t two_bit_mask = 3;
+
+
+//////////////////////////////////
+////////// Enumerations //////////
+//////////////////////////////////
+
+/** The different alignment modes. */
+enum AlignmentMode:char {
+	ALL='A',
+	ALLBEST='H',
+	ANYBEST='B',
+	BESTN='N',
+	UNIQUE='U',
+	UNKNOWN='Z'
+};
+
+/** The output formats of HiLive. */
+enum OutputFormat:char {
+	SAM		= 'S',	// SAM format
+	BAM		= 'B',	// BAM format
+	CRAM	= 'C',	// CRAM format //TODO: not supported yet.
+};
+
+/** SAM flags as defined in the specification. */
+enum SAMFlag:uint16_t {
+	MULT_SEG			= 1,	// Template has multiple segments
+	ALL_SEG_MAPPED		= 2,	// Each segment properly aligned
+	SEG_UNMAPPED		= 4,	// Segment unmapped
+	NEXT_SEG_UNMAPPED	= 8,	// Next segment in the template unmapped
+	SEQ_RC				= 16,	// SEQ being reverse complemented
+	NEXT_SEQ_RC			= 32,	// SEQ of the next segment in the template being reverse complemented
+	FIRST_SEG			= 64,	// the first segment in the template
+	LAST_SEG			= 128,	// The last segment in the template
+	SEC_ALIGNMENT		= 256,	// secondary alignment
+	FILTER_NOT_PASSED	= 512,	// Not passing filteres, such as platform quality control
+	PCR_OR_OPTICAL_DUPL	= 1024,	// PCR or optical duplicate
+	SUPPL_ALIGNMENT		= 2048	// supplementary alignment
+};
+
+/** Alignment operations. */
+enum Operations:uint8_t {
+	MATCH = 0,
+	NO_MATCH = 1,
+	INSERTION = 2,
+	DELETION = 3
+};
+
 
 /////////////////////////////////////////////
-////////// Sequences / Nucleotides //////////
+////////// Nucleotide representations ///////
 /////////////////////////////////////////////
 
 /**
@@ -35,118 +387,10 @@
                            (n) == 1 ? 'C' : \
                            (n) == 2 ? 'G' : 'T')
 
-/**
- * Supported nucleotides.
- */
-const std::string seq_chars = "ACGTacgt";
-
-
-////////////////////////////////////////
-////////// Genome Identifiers //////////
-////////////////////////////////////////
-
-/**
- * Type for the identifier of genomes (gid).
- */
-typedef uint32_t GenomeIdType;
-
-/**
- * Constant variable to tag a k-mer as "trimmed".
- */
-const GenomeIdType TRIMMED = std::numeric_limits<GenomeIdType>::max();
-
-/**
- * A list of Genome Ids
- */
-typedef std::vector<GenomeIdType> GenomeIdListType;
-
-
-//////////////////////////////////////
-////////// Genome Positions //////////
-//////////////////////////////////////
-
-/**
- * Type for positions in a genome.
- */
-typedef int32_t PositionType;
-
-/**
- * A pair of genome ID and position.
- */
-struct GenomePosType {
-
-  GenomeIdType gid;
-  PositionType pos;
-
-  GenomePosType()=default;
-  GenomePosType(GenomeIdType g, PositionType p): gid(g), pos(p) {};
-};
-
-/**
- * Size of a pair of genome ID and position (in bytes)
- */
-const uint64_t GenomePos_size = sizeof(GenomeIdType) + sizeof(PositionType);
-
-/**
- * A vector of GenomePosTypes.
- */
-typedef std::vector<GenomePosType> GenomePosListType;
-
-/**
- * Iterator on GenomePosListType.
- */
-typedef GenomePosListType::iterator GenomePosListIt;
-
-
-/////////////////////////////////
-////////// K-mer index //////////
-/////////////////////////////////
-
-/**
- * Type to hash k-mers into.
- * This type also limits the k-mer weight (currently to 32).
- */
-typedef uint64_t HashIntoType;
-
-/**
- * K-mer index type.
- */
-typedef std::vector<GenomePosListType> KmerIndexType;
-
-/**
- * A lightweight type for storing the index.
- */
-typedef std::vector<char*> KixRunDB;
-
-
-////////////////////////////////////////
-////////// Integer data types //////////
-////////////////////////////////////////
-
-/**
- * Type for small counters.
- */
-typedef uint16_t CountType;
-
-/**
-* Difference between k-mer position in the read and matching position in the reference.
-*/
-typedef int16_t DiffType;
-
-
-////////////////////////////////////////
-////////// Offset definitions //////////
-////////////////////////////////////////
-
-/**
- * Define a mismatch as maximum value of DiffType.
- */
-const DiffType NO_MATCH = std::numeric_limits<DiffType>::max();
-
-/**
- * Define a trimmed match  maximum value of DiffType -1.
- */
-const DiffType TRIMMED_MATCH = std::numeric_limits<DiffType>::max()-1;
+#define comp(ch) ((toupper(ch)) == 'A' ? 'T' : \
+				 (toupper(ch)) == 'C' ? 'G' : \
+				 (toupper(ch)) == 'G' ? 'C' : \
+				 (toupper(ch)) == 'T' ? 'A' : 'N');
 
 
 ////////////////////////////////////
@@ -161,17 +405,17 @@ struct CigarElement {
 	/** Length of the region. */
     CountType length;
 
-    /** Offset of the region to the original start pos (created by InDels). */
-    DiffType offset;
+    /** Operation of the region (Match, mismatch, insertion or deletion) */
+    Operations operation;
 
-    CigarElement (CountType l, DiffType o): length(l), offset(o) {};
-    CigarElement (): length(0), offset(NO_MATCH) {};
+    CigarElement (CountType l, Operations o): length(l), operation(o) {};
+    CigarElement (): length(0), operation(NO_MATCH) {};
 };
 
 /**
  * Vector of CIGAR elements, representing the alignment information for one seed.
  */
-typedef std::list<CigarElement> CigarVector;
+typedef std::vector<CigarElement> CigarVector;
 
 
 ///////////////////////////////////////
@@ -214,7 +458,7 @@ struct SequenceElement {
 	 * @return true, if SequenceElement is a barcode. False if not.
 	 * @author Tobias Loka
 	 */
-	bool isBarcode() { return (mate==0);}
+	bool isBarcode() const { return (mate==0);}
 };
 
 /**
@@ -232,209 +476,5 @@ inline bool operator!=(const SequenceElement l, const SequenceElement r) {return
  */
 const SequenceElement NULLSEQ = SequenceElement();
 
-
-////////////////////////////////////////////
-////////// Unmodifiable variables //////////
-////////////////////////////////////////////
-
-/**
- * Exception specialization for Unmodifiable data types.
- * @author Tobias Loka
- */
-class unmodifiable_error : public std::logic_error
-{
-public:
-	using std::logic_error::logic_error;
-};
-
-/**
- * Template to define data types that can only be set once.
- * @type T Data type of the unmodifiable object.
- * @author Tobias Loka
- */
-template <typename T>
-class Unmodifiable {
-
-private:
-
-	/** The unmodifiable object. */
-	T unmodifiable_object;
-
-	/** Flag to check if the object was already set once. */
-	bool setFlag = false;
-
-public:
-
-	/** Constructor without setting the object (to only declare the object).*/
-	Unmodifiable(){	}
-
-	/** Constructor with setting the object (to init the object).*/
-	Unmodifiable(T object) {
-		unmodifiable_object = object;
-	}
-
-	/** Automatic cast to of the unmodifiable to the object type. */
-	operator T() { return unmodifiable_object; }
-
-	/**
-	 * Set the unmodifiable object (will only work once!).
-	 * @param object The object to be copied to this unmodifiable data type.
-	 * @return true if setting was successful
-	 * @author Tobias Loka
-	 */
-	void set(T object) {
-		if ( isSet() ) {
-			throw unmodifiable_error("Tried to modify unmodifiable object");
-		}
-
-		unmodifiable_object = object;
-		setFlag = true;
-	}
-
-	/**
-	 * Check if the object was already set.
-	 * @return true if the object was already set.
-	 * @author Tobias Loka
-	 */
-	bool isSet() {
-		return setFlag;
-	}
-
-	/**
-	 * Return a copy of the unmodifiable object.
-	 * @param allow_unset if false, an exception is thrown when the object was not set before. Should only be true for
-	 * objects that require access to certain properties before their initialization (e.g. to check a container's size
-	 * without knowing if the container was already set).
-	 * @return (copy/value of) the unmodifiable object
-	 * @author Tobias Loka
-	 */
-	T get(bool allow_unset = false ) {
-		if ( ! isSet() && ! allow_unset) {
-			throw unmodifiable_error("Tried to access uninitialized object");
-		}
-
-		return unmodifiable_object;
-	}
-
-};
-
-////////////////////////////////
-////////// Exceptions //////////
-////////////////////////////////
-class io_error : public std::runtime_error {
-public:
-	using std::runtime_error::runtime_error;
-};
-
-class file_open_error : public io_error {
-public:
-	using io_error::io_error;
-};
-
-class file_not_exist_error : public io_error {
-public:
-	using io_error::io_error;
-};
-
-class file_format_error : public io_error {
-public:
-	using io_error::io_error;
-};
-
-///////////////////////////////////////
-////////// Other definitions //////////
-///////////////////////////////////////
-
-/**
- * A list of strings
- */
-typedef std::vector<std::string> StringListType;
-
-/**
- * The different alignment modes.
- * @author Tobias Loka
- */
-enum AlignmentMode:char {
-	ALL='A',
-	ALLBEST='H',
-	ANYBEST='B',
-	BESTN='N',
-	UNIQUE='U',
-	UNKNOWN='Z'
-};
-
-/**
- * Template to store a map of mutexes.
- * Ensure that a locked mutex gets always unlocked (on destruction, if necessary). If possible, use a combination of std::lock_guard and get_reference(T).
- */
-template<typename K> class mutex_map {
-
-private:
-	std::map<K, std::mutex> map;
-	std::mutex mut;
-
-	typename std::map<K, std::mutex>::size_type count(K k) {
-		return map.count(k);
-	}
-
-	std::mutex& try_emplace(K k) {
-		{
-			std::lock_guard<std::mutex> lock(mut);
-			if ( !count(k) )
-				map.emplace(std::piecewise_construct, std::forward_as_tuple(k), std::forward_as_tuple());
-			return map.at(k);
-		}
-	}
-
-public:
-
-	void unlock(K k) {
-		if ( count(k) )
-			map.at(k).unlock();
-	}
-
-	void lock(K k) {
-		try_emplace(k);
-		map.at(k).lock();
-	}
-
-	std::mutex& at(K k){
-
-		return try_emplace(k);
-	}
-
-};
-
-/**
- * A data type that increments an arithmetic field for the time of it's existance.
- * This functionality can be used to block one slot of a certain capacity.
- */
-template<
-	typename T,
-	typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
-> class block_guard {
-	T& val;
-	T blocked_value;
-public:
-	block_guard( T& value ) : val(value), blocked_value(++val){ }
-	~block_guard() { --val; }
-	T get_blocked_value(){ return blocked_value; }
-};
-
-/**
- * A data type that increments an atomic arithmetic field for the time of it's existance.
- * This functionality can be used to block one slot of a certain capacity.
- */
-template<
-	typename T,
-	typename = typename std::enable_if<std::is_arithmetic<T>::value, T>::type
-> class atomic_block_guard {
-	std::atomic<T>& val;
-	T blocked_value;
-public:
-	atomic_block_guard( std::atomic<T>& value ) : val(value), blocked_value(++val) { }
-	~atomic_block_guard() { --val; }
-	T get_blocked_value(){ return blocked_value; }
-};
 
 #endif /* DEFINITIONS_H */

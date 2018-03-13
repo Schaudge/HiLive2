@@ -5,8 +5,8 @@ cmake_minimum_required (VERSION 2.8)
 project (HiLive)
 
 # Set the version number 
-add_definitions(-DHiLive_VERSION_MAJOR=1)
-add_definitions(-DHiLive_VERSION_MINOR=1)
+add_definitions(-DHiLive_VERSION_MAJOR=2)
+add_definitions(-DHiLive_VERSION_MINOR=0)
 
 # Set flags for compilation
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fPIC -g -pthread -W -Wall -std=gnu++14 -O0")
@@ -56,7 +56,7 @@ set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${SEQAN_CXX_FLAGS}")
 ### setup HiLive libraries ###
 include_directories("${PROJECT_SOURCE_DIR}/lib")
 # make a list of HiLive libraries
-set (LIB_NAMES tools_static tools alnread alnstream illumina_parsers kindex parallel argument_parser)
+set (LIB_NAMES tools_static tools alnread alnstream alnout illumina_parsers kindex parallel argument_parser)
 set(LIB_LIST "")
 foreach (x ${LIB_NAMES})
 	list(APPEND LIB_LIST "lib/${x}.cpp")

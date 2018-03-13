@@ -5,827 +5,1364 @@
 #include "definitions.h"
 #include "tools_static.h"
 
-// Data structure to store the alignment settings
+/**
+ * Data structure to store the alignment settings.
+ * @author Martin Lindner
+ */
 class AlignmentSettings {
 
 private:
 
-  // kmer gap positions
-  Unmodifiable<std::vector<unsigned>> kmer_gaps;
+	///////////////////////////////////////
+	////////// Technical options //////////
+	///////////////////////////////////////
 
-  // reverse gap positions
-  Unmodifiable<std::vector<unsigned>> rev_kmer_gaps;
+	/** Memory block size for the input and output buffer in the streamed alignment. */
+	Immutable<uint64_t> block_size;
 
-  // PARAMETER: kmer span (automatically computed from kmer_weight and kmer_gaps)
-  Unmodifiable<uint8_t> kmer_span;
+	/** Compression format for alignment files. */
+	Immutable<uint8_t> compression_format;
 
-  // PARAMETER: Weight of the k-mers
-  Unmodifiable<uint8_t> kmer_weight;
+	/** Number of threads to use. */
+	Immutable<CountType> num_threads;
 
-  // VARIABLE: maximum number of consecutive gaps in the gap pattern (will be computed at runtime)
-  Unmodifiable<CountType> max_consecutive_gaps;
+	// SWITCH: Keep the old alignment files of previous cycles
+	Immutable<std::vector<uint16_t>> keep_aln_files;
 
-  // PARAMETER: Base Call quality cutoff, treat BC with quality < bc_cutoff as miscall
-  Unmodifiable<CountType> min_qual;
 
-  // PARAMETER: max. insert/deletion size
-  Unmodifiable<DiffType> window;
+	////////////////////////////////////
+	////////// Output options //////////
+	////////////////////////////////////
 
-  // PARAMETER: minimum number of errors allowed in alignment
-  Unmodifiable<CountType> min_errors;
+	/** Value N for best_n output mode. */
+	Immutable<CountType> best_n;
 
-  // SWITCH: discard One-hit-wonders
-  Unmodifiable<bool> discard_ohw;
+	/** Switch: Write BAM instead of SAM output. */
+	Immutable<OutputFormat> output_format;
 
-  // PARAMETER: first cycle to discard one-hit-wonders
-  Unmodifiable<CountType> start_ohw;
+	/** Cycles for (intermediate) SAM/BAM output. */
+	Immutable<std::vector<uint16_t>> output_cycles;
 
-  // PARAMETER: All-Best-N-Scores-Mode::N
-  Unmodifiable<CountType> best_n;
+	/** Switch: Activate extended CIGAR annotation. */
+	Immutable<bool> extended_cigar;
 
-  // PARAMETER: temporary directory for the streamed alignment
-  Unmodifiable<std::string> temp_dir;
+	/** Output mode. */
+	Immutable<AlignmentMode> mode;
 
-  // SWITCH: write sam/bam output or not
-  Unmodifiable<bool> write_bam;
+	/** Switch: store all sequences. */ // TODO: this setting seems to not be considered in the program.
+	Immutable<bool> keep_all_sequences;
 
-  // PARAMETER: Cycles for intermediate SAM/BAM output
-  Unmodifiable<std::vector<uint16_t>> output_cycles;
+	/** Switch: Report unmapped reads. */
+	Immutable<bool> report_unmapped;
 
-  // SWITCH: Keep the old alignment files of previous cycles
-  Unmodifiable<std::vector<uint16_t>> keep_aln_files;
 
-  // PARAMETER: Memory block size for the input and output buffer in the streamed alignment
-  Unmodifiable<uint64_t> block_size;
+	////////////////////////////////////
+	////////// Scoring scheme //////////
+	////////////////////////////////////
 
-  // PARAMETER: Compression format for alignment files
-  Unmodifiable<uint8_t> compression_format;
+	/** Minimal alignment score to keep an alignment. */
+	Immutable<ScoreType> min_as;
 
-  // PARAMETER: list of lanes to process
-  Unmodifiable<std::vector<uint16_t>> lanes;
-  
-  // PARAMETER: list of tiles to process
-  Unmodifiable<std::vector<uint16_t>> tiles;
+	/** Score for an alignment match. */
+	Immutable<CountType> match_score;
 
-  // PARAMETER: root directory of hilive run
-  Unmodifiable<std::string> root;
+	/** Penalty for an alignment mismatch. */
+	Immutable<CountType> mismatch_penalty;
 
-  // PARAMETER: path to the index file
-  Unmodifiable<std::string> index_fname;
+	/** Penalty for opening an insertion region. */
+	Immutable<CountType> insertion_opening_penalty;
 
-  // PARAMETER: the first cycle to handle. Should be 1 by default.
-  Unmodifiable<CountType> start_cycle;
+	/** Penalty for opening a deletion region. */
+	Immutable<CountType> deletion_opening_penalty;
 
-  // PARAMETER: read length of all reads (including barcodes)
-  Unmodifiable<CountType> cycles;
+	/** Penalty for extending an insertion region. */
+	Immutable<CountType> insertion_extension_penalty;
 
-  //PARAMETER: Stores the barcodes defined by the user. The inner vector contains the single fragments of multi-barcodes.
-  Unmodifiable<std::vector<std::vector<std::string>>> barcodeVector;
+	/** Penalty for extending a deletion region. */
+	Immutable<CountType> deletion_extension_penalty;
 
-  // PARAMETER: directory in which to create the output directory structure 
-  Unmodifiable<std::string> out_dir;
+	/** Penalty for opening a softclip region (only for output, not for filtering). */
+	Immutable<float> softclip_opening_penalty;
 
-  // PARAMETER: number of threads to use
-  Unmodifiable<CountType> num_threads;
+	/** Penalty for extending a softclip region (only for output, not for filtering). */
+	Immutable<float> softclip_extension_penalty;
 
-  // PARAMETER: max. amount of threads used for output
-  Unmodifiable<CountType> num_out_threads;
+	/** Maximal consecutive number of insertions or deletions. */
+	Immutable<CountType> max_gap_length;
 
-  // SWITCH: activate extended CIGAR annotation
-  Unmodifiable<bool> extended_cigar;
+	// PARAMETER: max. amount of threads used for output
+	Immutable<CountType> num_out_threads;
 
-  /**
-   * Contains the read information of the sequencing machine (as SequenceElement objects). Includes sequence reads and barcodes.
-   * Arbitrary numbers and orders of reads are supported. The summed length of all elements must equal the number of sequencing cycles.
-   * @author Tobias Loka
-   */
-  Unmodifiable<std::vector<SequenceElement>> seqs;
+	// PARAMETER: the first cycle to handle. Should be 1 by default.
+	Immutable<CountType> start_cycle;
 
-  // Number of mates (information taken from the seqLengths parameter), (Hint: corresponding indeces are 1-based)
-  Unmodifiable<uint16_t> mates;
+	/** Maximal relative length of softclip region. */
+	Immutable<float> max_softclip_ratio;
 
-  // PARAMETER: number of allowed errors for the single barcodes
-  Unmodifiable<std::vector<uint16_t>> barcode_errors;
 
-  // SWITCH: if true, keep all barcodes (disables barcode filtering).
-  Unmodifiable<bool> keep_all_barcodes;
+	///////////////////////////////////////
+	////////// Alignment options //////////
+	///////////////////////////////////////
 
-  Unmodifiable<AlignmentMode> mode;
+	/** Length of the alignment anchor. */
+	Immutable<CountType> anchorLength;
 
-  Unmodifiable<float> min_as_ratio;
+	/** Interval to increase the number of tolerated errors. */
+	Immutable<CountType> errorRate;
 
-  Unmodifiable<bool> force_resort;
+	/** Interval to create new seeds. */
+	Immutable<CountType> seeding_interval;
 
-  template<typename T>
-  bool set_unmodifiable(Unmodifiable<T> & unmodifiable, T value, std::string variable_name) {
-	  try {
-		  unmodifiable.set(value);
-	  }
-	  catch (unmodifiable_error& e) {
-//		std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
-		  variable_name.length(); // TODO: just to remove compiler warnings. Remove variable_name string when finished.
-		 return false ;
-	  }
-	  return true;
-  }
+	/** Minimal quality for a base call to be valid. */
+	Immutable<CountType> min_qual;
 
-  template<typename T>
-  T get_unmodifiable(Unmodifiable<T> unmodifiable, std::string variable_name, bool allow_unset = false) {
-	  try {
-		  return unmodifiable.get(allow_unset);
-	  }
-	  catch (unmodifiable_error& e) {
-		  std::cerr << e.what() << " (" << variable_name << ")." << std::endl;
-		  return T();
-	  }
-  }
+	/** Sort the alignment files for output even if sorted files already exist.*/
+	Immutable<bool> force_resort;
 
-  std::vector<std::string> xmlParse_barcodeVector() {
-	  std::vector<std::string> bc_strings;
-	  for ( CountType i = 0; i < get_barcodeVector().size(); i++ ) {
-		  bc_strings.push_back( get_barcodeString(i) );
-	  }
-	  return bc_strings;
-  }
+	/** List of lanes to process. */
+	Immutable<std::vector<uint16_t>> lanes;
 
-  std::vector<std::string> xmlParse_seqs() {
-	  std::vector<std::string> seq_vector;
-	  for ( auto el : get_seqs() ) {
-		  std::string seq_string;
-		  seq_string += std::to_string(el.length);
-		  seq_string += el.mate == 0 ? "B" : "R";
-		  seq_vector.push_back(seq_string);
-	  }
-	  return seq_vector;
-  }
+	/** List of tiles to process. */
+	Immutable<std::vector<uint16_t>> tiles;
 
-  void set_barcodeVector(std::vector<std::vector<std::string> > value) {
-	  set_unmodifiable(barcodeVector, value, "barcodeVector");
-  }
+	/** Total length of the sequencing procedure. */
+	Immutable<CountType> cycles;
 
-  void set_seqs(std::vector<SequenceElement> value) {
-  	  set_unmodifiable(seqs, value, "seqs");
-    }
+	/** List of all sequence fragments. */
+	Immutable<std::vector<SequenceElement>> seqs;
 
-  void set_block_size(uint64_t value) {
-	  set_unmodifiable(block_size, value, "block_size");
-  }
+	/** Total number of mates. */
+	Immutable<uint16_t> mates;
 
-  void set_mates(uint16_t value) {
-  	  set_unmodifiable(mates, value, "mates");
-    }
 
-  AlignmentMode get_mode() {
-	  return get_unmodifiable(mode, "mode");
-  }
+	////////////////////////////////////////////
+	////////// Demultiplexing options //////////
+	////////////////////////////////////////////
 
-  void set_mode(AlignmentMode value, CountType bestn = 0) {
-	  set_unmodifiable(mode, value, "mode");
-	  set_unmodifiable(best_n, bestn, "best_n");
-  }
+	/** List of barcode sequences (split in an inner vector for multibarcodes). */
+	Immutable<std::vector<std::vector<std::string>>> barcodeVector;
+
+	/** Number of tolerated mismatches for barcodes. */
+	Immutable<std::vector<uint16_t>> barcode_errors;
+
+	/** Switch: Keep all barcodes (disables barcode filtering). */
+	Immutable<bool> keep_all_barcodes;
+
+
+	//////////////////////////////////////////
+	////////// File/Directory paths //////////
+	//////////////////////////////////////////
+
+	/** Temporary directory for the streamed alignment. */
+	Immutable<std::string> temp_dir;
+
+	/** Root directory of hilive run. */
+	Immutable<std::string> root;
+
+	/** Index file(s) prefix. */
+	Immutable<std::string> index_fname;
+
+	/** Output directory. */
+	Immutable<std::string> out_dir;
+
+
+	///////////////////////////////////////
+	////////// Private functions //////////
+	///////////////////////////////////////
+
+	/**
+	 * Parse the barcode vector to a string vector that can be used for XML output.
+	 * @return Vector with one string for each barcode. Subsequences are delimited with a "-" character.
+	 * @author Tobias Loka
+	 */
+	std::vector<std::string> configParse_barcodeVector() {
+		std::vector<std::string> bc_strings;
+		for ( CountType i = 0; i < get_barcodeVector().size(); i++ ) {
+			bc_strings.push_back( get_barcodeString(i) );
+		}
+		return bc_strings;
+	}
+
+	/**
+	 * Parse the seq vector to a string vector that can be used for XML output.
+	 * @return Vector with one string for each element in format [0-9]*[BR]
+	 * @author Tobias Loka
+	 */
+	std::vector<std::string> configParse_seqs() {
+		std::vector<std::string> seq_vector;
+		for ( auto el : get_seqs() ) {
+			std::string seq_string;
+			seq_string += std::to_string(el.length);
+			seq_string += el.mate == 0 ? "B" : "R";
+			seq_vector.push_back(seq_string);
+		}
+		return seq_vector;
+	}
+
+	std::string configParse_outFormat() {
+		switch ( get_output_format() ) {
+		case OutputFormat::SAM:
+			return "SAM";
+			break;
+		default:
+			return "BAM";
+		}
+	}
+
+	std::string configParse_outputMode() {
+		std::string mode = std::string(1, char(get_mode())); // output mode begin
+		if ( get_mode() == AlignmentMode::BESTN )
+			mode += std::to_string(get_best_n());
+		return mode;
+	}
+
+	/**
+	 * Set the barcode vector. Can only be set once (immutable object).
+	 * @param value The barcode split in a 2D-vector, where first dimension are the different barcodes and second dimension the fragments of multi-barcodes.
+	 * @author Tobias Loka
+	 */
+	void set_barcodeVector(std::vector<std::vector<std::string> > value) {
+		set_immutable(barcodeVector, value);
+	}
+
+	/**
+	 * Set the seq vector. Can only be set once (immutable object).
+	 * @param value Vector of SequenceElement objects that contain all information about the read structure.
+	 * @author Tobias Loka
+	 */
+	void set_seqs(std::vector<SequenceElement> value) {
+		set_immutable(seqs, value);
+	}
+
+	/**
+	 * Set the block size. Can only be set once (immutable object).
+	 * @param value The block size as unsigned integer.
+	 * @author Tobias Loka
+	 */
+	void set_block_size(uint64_t value) {
+		set_immutable(block_size, value);
+	}
+
+	/**
+	 * Set the number of mates. Can only be set once (immutable object).
+	 * @param value The number of mates as unsigned integer.
+	 * @author Tobias Loka
+	 */
+	void set_mates(uint16_t value) {
+		set_immutable(mates, value);
+	}
+
+	/**
+	 * Get the output mode.
+	 * @return The output mode as AlignmentMode object.
+	 * @author Tobias Loka
+	 */
+	AlignmentMode get_mode() const{
+		return get_immutable(mode);
+	}
+
+	/**
+	 * Set the output mode. Can only be set once (immutable object).
+	 * @param value The output mode as AlignmentMode object.
+	 * @param bestn (optional) Defines the N for the best_n mode (0 if not defined).
+	 * @author Tobias Loka
+	 */
+	void set_mode(AlignmentMode value, CountType bestn = 0) {
+		set_immutable(mode, value);
+		set_immutable(best_n, bestn);
+	}
+
 
 public:
 
-  /**
-   * Create a property tree that is filled with all (relevant) settings.
-   * @return Property tree containing all settings.
-   * @author Tobias Loka
-   */
-  boost::property_tree::ptree to_ptree() {
-
-	  boost::property_tree::ptree xml_out;
-
-	  // General settings
-	  xml_out.add_child("settings.lanes", getXMLnode_vector ( get_lanes() ));
-	  xml_out.add_child("settings.tiles", getXMLnode_vector ( get_tiles() ));
-	  xml_out.add_child("settings.min_errors", getXMLnode (get_min_errors() ));
-	  xml_out.add_child("settings.cycles", getXMLnode ( get_cycles() ));
-	  xml_out.add_child("settings.sequences", getXMLnode_vector ( xmlParse_seqs() ));
-
-	  // Barcode settings
-	  xml_out.add_child("settings.barcodes.sequences", getXMLnode_vector( xmlParse_barcodeVector() ));
-	  xml_out.add_child("settings.barcodes.errors", getXMLnode_vector ( get_barcode_errors() ));
-	  xml_out.add_child("settings.barcodes.keep_all", getXMLnode ( get_keep_all_barcodes() ));
-
-	  // Alignment mode
-	  std::string mode = std::string(1, char(get_mode()));
-	  if ( get_mode() == AlignmentMode::BESTN )
-		  mode += std::to_string(get_best_n());
-	  xml_out.add_child("settings.mode", getXMLnode ( mode ));
-
-	  // Paths
-	  xml_out.add_child("settings.paths.temp_dir", getXMLnode ( get_temp_dir() ));
-	  xml_out.add_child("settings.paths.out_dir", getXMLnode ( get_out_dir() ));
-	  xml_out.add_child("settings.paths.root", getXMLnode ( get_root() ));
-	  xml_out.add_child("settings.paths.index", getXMLnode ( get_index_fname() ));
-
-	  // Output settings
-	  xml_out.add_child("settings.out.bam", getXMLnode ( get_write_bam() ));
-	  xml_out.add_child("settings.out.cycles", getXMLnode_vector ( get_output_cycles() ));
-	  xml_out.add_child("settings.out.extended_cigar", getXMLnode ( get_extended_cigar() ));
-	  xml_out.add_child("settings.out.min_as_ratio", getXMLnode ( get_min_as_ratio()) );
-
-	  // Technical settings
-	  xml_out.add_child("settings.technical.num_threads", getXMLnode ( get_num_threads() ));
-	  xml_out.add_child("settings.technical.num_out_threads", getXMLnode ( get_num_out_threads() ));
-	  xml_out.add_child("settings.technical.keep_aln_files", getXMLnode_vector ( get_keep_aln_files() ));
-	  xml_out.add_child("settings.technical.block_size", getXMLnode ( get_block_size() ));
-	  xml_out.add_child("settings.technical.compression_format", getXMLnode ( get_compression_format() ));
-
-	  // Alignment algorithm settings
-	  xml_out.add_child("settings.align.min_qual", getXMLnode (get_min_qual() ));
-	  xml_out.add_child("settings.align.window", getXMLnode (get_window() ));
-	  xml_out.add_child("settings.align.discard_ohw", getXMLnode ( get_discard_ohw() ));
-	  xml_out.add_child("settings.align.start_ohw", getXMLnode ( get_start_ohw() ));
-
-	  return xml_out;
-  }
-
- void set_barcodes ( std::vector< std::string > barcodeArg ) {
-
-	 // Get the barcode length(s) from the seqs vector
-  	std::vector<uint16_t> barcode_lengths;
-  	for ( uint16_t seq_num = 0; seq_num < get_seqs().size(); seq_num++ ) {
-  		if ( getSeqById(seq_num).isBarcode() )
-  	  		barcode_lengths.push_back( getSeqById(seq_num).length );
-  	}
-
-  	// Fill 2D-vector for internal storage
-    std::vector<std::vector<std::string> > barcodeVector;
-  	for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {
-
-  		// Check if all characters in the current barcode are valid
-  		std::string valid_chars = seq_chars + "-";
-  		for(CountType i = 0; i != (*barcode).length(); i++){
-  			char c = (*barcode)[i];
-  			if ( valid_chars.find(c) == std::string::npos )
-  				throw std::runtime_error("Invalid character '" + std::string(1,c) + "' in barcode sequence " + *barcode + ".");
-  		}
-
-  		// Split barcode string into fragments
-  		std::vector<std::string> fragments;
-  		split(*barcode, '-', fragments);
-
-  		// Check correct number of fragments
-  		if ( barcode_lengths.size() != fragments.size()) {
-			throw std::runtime_error("Wrong number of fragments for barcode " + *barcode + " (should have " + std::to_string(barcode_lengths.size()) + " fragments).");
-  		}
-
-  		// Check correct length of all fragments
-  		for ( uint16_t num = 0; num != fragments.size(); num++ ) {
-  			if ( fragments[num].length() != barcode_lengths[num] ) {
-  				throw std::runtime_error("Wrong fragment length in barcode " + *barcode);
-  			}
-  		}
-
-  		// Push barcode to the final 2D vector
-  		barcodeVector.push_back(fragments);
-  	}
-
-  	set_barcodeVector(barcodeVector);
-
-  }
-
- std::vector<std::vector<std::string> > get_barcodeVector() {
-     return get_unmodifiable(barcodeVector, "barcodeVector", true);
- }
-
- std::string format_barcode(std::string unformatted_barcode) {
-	  CountType pos = 0;
-	  for ( auto el : get_seqs() ) {
-		  if ( el.mate == 0 ) {
-			  pos+=el.length;
-			  if ( unformatted_barcode.length() >= pos )
-				  unformatted_barcode.insert(pos++, "-");
-			  else
-				  break;
-		  }
-	  }
-
-	  return unformatted_barcode.substr(0,pos-1);
-
- }
-
- std::string get_barcodeString(CountType index) {
-
-	  // invalid index
-	  if ( index >= get_barcodeVector().size() ) {
-		  return "";
-	  }
-
-	  else {
-
-		  std::vector<std::string> bc_vec = get_barcodeVector()[index];
-
-		  std::stringstream ss;
-		  for ( auto fragment : bc_vec ) {
-			  ss << fragment;
-		  }
-		  std::string barcode_string = ss.str();
-		  return format_barcode(barcode_string);
-	  }
- }
-
- void set_read_structure ( std::vector<std::string> read_argument ) {
-
-	 // Init variables
-	 CountType lenSum = 0;
-	 CountType length = 0;
-	 std::string length_string = "";
-	 char type;
-	 unsigned mates = 0;
-	 std::vector<SequenceElement> temp;
-
-	 // Iterate through input vector
-	 for ( auto read = read_argument.begin(); read != read_argument.end(); ++read ) {
-
-		 // Split string into fragment length and fragment type (B or R)
-		 length_string = (*read).substr(0,(*read).length()-1);
-		 type = (*(*read).rbegin());
-
-		 if ( length_string.find_first_not_of("0123456789")!=std::string::npos ) {
-			 throw std::runtime_error("Invalid length for read fragment " + *read  + ". Please only use unsigned integer values.");
-		 }
-
-		 try{
-			 length = CountType(std::atol(length_string.c_str()));
-		 } catch( std::bad_cast & ex ){
-			 std::cerr << "Error while casting length " << length_string << " to type uint16_t." << std::endl;
-			 throw ex;
-		 }
-
-		 if ( type!='B' && type!='R' ) {
-			 std::stringstream ss;
-			 ss << "\'" << type << "\' is no valid read type. Please use \'R\' for sequencing reads or \'B\' for barcode reads.";
-			 throw std::runtime_error(ss.str());
-
-		 }
-
-		 temp.push_back(SequenceElement(temp.size(), (type == 'R') ? ++mates : 0, length));
-		 lenSum += length;
-
-	 }
-	 set_seqs(temp);
-	 set_mates(mates);
-
-	 if ( lenSum!=get_cycles() ) {
-		 throw std::runtime_error("Sum of defined reads does not equal the given number of cycles.");
-	 }
-
- }
-
-  /**
-   * Get a SequenceElement object from the seqs vector by using the id
-   * @param id The id of the SequenceElement.
-   * @return The respective SequenceElement object for the given id.
-   * @author Tobias Loka
-   */
-  SequenceElement getSeqById(CountType id) {return seqs.get()[id];}
-
-  /**
-   * Get a SequenceElement object from the seqs vector by using the mate number
-   * @param id The mate number of the SequenceElement.
-   * @return The respective SequenceElement object for the given mate number. NULLSEQ if mate==0 (barcodes).
-   * @author Tobias Loka
-   */
-  SequenceElement getSeqByMate(CountType mate) {
-	  if ( mate == 0 ) return NULLSEQ;
-	  auto the_seq = seqs.get();
-	  for (uint16_t i = 0; i != the_seq.size(); i++) {
-		  if(the_seq[i].mate == mate) return the_seq[i];
-	  }
-	  return NULLSEQ;
-  }
-
-  std::vector<unsigned> get_kmer_gaps() {
-      return get_unmodifiable(kmer_gaps, "kmer_gaps", true);
-  }
-
-  std::vector<unsigned> get_rev_kmer_gaps() {
-      return get_unmodifiable(rev_kmer_gaps, "rev_kmer_gaps", true);
-  }
-
-  bool set_kmer( uint8_t kmer_weight, std::vector<unsigned> gaps ) {
-
-	  if ( gaps.size() > 0 ) {
-		  // Prepare user-defined list of gap positions (sort and erase duplicates)
-		  std::sort(gaps.begin(), gaps.end());
-		  gaps.erase( std::unique(gaps.begin(), gaps.end()), gaps.end());
-
-		  // Weight and gap positions not consistent
-		  if ( kmer_weight + gaps.size() <= *(std::max_element(gaps.begin(), gaps.end())) || *(std::min_element(gaps.begin(), gaps.end())) <= 1 ) {
-			  std::cerr << "Warning: k-mer weight and gap pattern not consistent. Ensure that the first gap positions is >1 and" <<
-					  "the maximal gap positions is lower than the total length of the k-mer pattern." << std::endl;
-			  return false;
-		  }
-	  }
-
-	  // Set k-mer variables
-	  set_unmodifiable(this->kmer_weight, kmer_weight, "kmer_weight");
-	  set_unmodifiable(this->kmer_gaps, gaps, "kmer_gaps");
-	  set_unmodifiable(this->kmer_span, uint8_t(kmer_weight + gaps.size()), "kmer_span");
-
-	  std::vector<unsigned> rev_kmer_gaps;
-	  for ( auto gap:gaps ) {
-		  rev_kmer_gaps.push_back(this->kmer_span - gap + 1);
-	  }
-	  std::reverse(rev_kmer_gaps.begin(), rev_kmer_gaps.end());
-	  set_unmodifiable(this->rev_kmer_gaps, rev_kmer_gaps, "rev_kmer_gaps");
-
-	  // Compute maximal consecutive gaps in gap pattern
-	  CountType current_consecutive_gaps = 0;
-	  CountType last_gap = 0;
-	  CountType temp_max_consecutive_gaps = 0;
-
-	  for ( unsigned el : this->get_kmer_gaps() ) {
-
-		  // init first gap
-		  if ( last_gap == 0 ) {
-			  current_consecutive_gaps = 1;
-			  last_gap = el;
-			  continue;
-		  }
-
-		  // handle consecutive gaps
-		  else if ( el == unsigned( last_gap + 1 ) ){
-			  current_consecutive_gaps += 1;
-			  last_gap = el;
-		  }
-
-		  // handle end of gap region
-		  else {
-			  temp_max_consecutive_gaps = std::max ( temp_max_consecutive_gaps, current_consecutive_gaps );
-			  current_consecutive_gaps = 1;
-			  last_gap = el;
-		  }
-
-	  }
-	  set_unmodifiable(this->max_consecutive_gaps, std::max ( temp_max_consecutive_gaps, current_consecutive_gaps ), "max_consecutive_gaps");
-
-	  return true;
-  }
-
-  uint8_t get_kmer_span() {
-      return get_unmodifiable(kmer_span, "kmer_span");
-  }
-
-  uint8_t get_kmer_weight() {
-      return get_unmodifiable(kmer_weight, "kmer_weight");
-  }
-
-  void set_min_qual(CountType value) {
-    	  set_unmodifiable(min_qual, value, "min_qual");
-  }
-
-  CountType get_min_qual() {
-      return get_unmodifiable(min_qual, "min_qual");
-  }
-
-  void set_window(DiffType value) {
-      set_unmodifiable(window, value, "window");
-  }
-
-  DiffType get_window() {
-      return get_unmodifiable(window, "window");
-  }
-
-  void set_min_errors(CountType value) {
-	  set_unmodifiable(min_errors, value, "min_errors");
-  }
-
-  CountType get_min_errors() {
-      return get_unmodifiable(min_errors, "min_errors");
-  }
-
-  void disable_ohw(bool value) {
-	  set_unmodifiable(discard_ohw, !value, "discard_ohw");
-  }
-
-  bool get_discard_ohw() {
-      return get_unmodifiable(discard_ohw, "discard_ohw");
-  }
-
-  void set_start_ohw(CountType value) {
-	  set_unmodifiable(start_ohw, value, "start_ohw");
-  }
-
-  CountType get_start_ohw() {
-      return get_unmodifiable(start_ohw, "start_ohw");
-  }
-
-  bool get_any_best_hit_mode() {
-      return (get_unmodifiable(mode, "mode")==AlignmentMode::ANYBEST);
-  }
-
-  bool get_all_hit_mode() {
-      return (get_mode()==AlignmentMode::ALL);
-  }
-
-  bool get_all_best_hit_mode() {
-      return (get_mode()==AlignmentMode::ALLBEST);
-  }
-
-  bool get_all_best_n_scores_mode() {
-      return (get_mode()==AlignmentMode::BESTN);
-  }
-
-  bool get_unique_hit_mode() {
-      return (get_mode()==AlignmentMode::UNIQUE);
-  }
-
-  CountType get_best_n() {
-      return get_unmodifiable(best_n, "best_n", true);
-  }
-
-  void set_temp_dir(std::string value) {
-      set_unmodifiable(temp_dir, value, "temp_dir");
-  }
-
-  std::string get_temp_dir() {
-	  std::string dir = get_unmodifiable(temp_dir, "temp_dir");
-	  dir = dir!="" ? dir : get_unmodifiable(root, "root");
-	  return dir;
-  }
-
-  void set_write_bam(bool value) {
-	  set_unmodifiable(write_bam, value, "write_bam");
-  }
-
-  bool get_write_bam() {
-      return get_unmodifiable(write_bam, "write_bam");
-  }
-
-  void set_output_cycles(std::vector<uint16_t> cycles) {
-	  std::vector<uint16_t> the_cycles;
-	  for ( auto it = cycles.begin(); it != cycles.end(); ++it ) {
-		  if ( *it > get_cycles() )
-			  the_cycles.push_back(get_cycles());
-		  else
-			  the_cycles.push_back(*it);
-	  }
-	  std::sort(the_cycles.begin(), the_cycles.end());
-	  the_cycles.erase( std::unique(the_cycles.begin(), the_cycles.end()), the_cycles.end());
-	  set_unmodifiable(output_cycles, the_cycles, "output_cycles");
-  }
-
-  std::vector<uint16_t> get_output_cycles() {
-	  return get_unmodifiable(output_cycles, "output_cycles", true);
-  }
-
-  bool is_output_cycle(CountType cycle) {
-	  auto out_cycles = get_output_cycles();
-	  if ( std::find(out_cycles.begin(), out_cycles.end(), cycle) == out_cycles.end() )
-		  return false;
-	  return true;
-  }
-
-  void set_keep_aln_files(std::vector<uint16_t> value) {
-	  set_unmodifiable(keep_aln_files, value, "keep_aln_files");
-  }
-
-  std::vector<uint16_t> get_keep_aln_files() {
-      return get_unmodifiable(keep_aln_files, "keep_aln_files");
-  }
-
-  bool is_keep_aln_files_cycle(CountType cycle) {
-	  auto aln_files_cycles = get_keep_aln_files();
-	  if ( std::find(aln_files_cycles.begin(), aln_files_cycles.end(), cycle) == aln_files_cycles.end() )
-		  return false;
-	  return true;
-  }
-
-  void set_block_size(std::string value) {
-
-	  uint64_t size;
-	  char type = 'B';
-
-	  // Split value to size and type
-	  if ( value.find_first_of("BKM") != std::string::npos ) {
-		  type = *value.rbegin();
-		  value = value.substr(0,value.length()-1);
-	  }
-
-	  if ( value.find_first_not_of("0123456789")!=std::string::npos ) {
-		  throw std::runtime_error("Invalid block size " + value + ". Please only use unsigned integer values.");
-	  }
-
-	  try{
-		  size = uint64_t(std::atol(value.c_str()));
-	  } catch( std::bad_cast & ex ){
-		  std::cerr << "Error while casting length " << value << " to type uint16_t." << std::endl;
-		  throw ex;
-	  }
-
-	  if ( type == 'B' )
-		  set_block_size(size);
-	  else if ( type == 'K' )
-		  set_block_size(size*1024);
-	  else if ( type == 'M' )
-		  set_block_size(size*1024*1024);
-	  else
-		  throw std::runtime_error("Invalid block size type. Only 'B' (Bytes), 'K' (Kilobytes) or 'M' (Megabytes) are permitted.");
-
-  }
-
-  uint64_t get_block_size() {
-      return get_unmodifiable(block_size, "block_size");
-  }
-
-  void set_compression_format(uint16_t value) {
-	  if ( value > 2 )
-		  value = 2;
-	  uint8_t one_byte_value = value;
-	  set_unmodifiable(compression_format, one_byte_value, "compression_format");
-  }
-
-  uint8_t get_compression_format() {
-      return get_unmodifiable(compression_format, "compression_format");
-  }
-
-  void set_lanes(std::vector<uint16_t> value) {
-	  std::sort( value.begin(), value.end() );
-	  value.erase( std::unique( value.begin(), value.end() ), value.end() );
-	  set_unmodifiable(lanes, value, "lanes");
-  }
-
-  std::vector<uint16_t> get_lanes() {
-      return get_unmodifiable(lanes, "lanes", true);
-  }
-
-  void set_mode(std::string value) {
-
-	  // All hit mode
-	  if ( value == "ALL" || value == "A" ) {
-		  set_mode(AlignmentMode::ALL);
-	  }
-
-	  // Unique mode
-	  else if ( value == "UNIQUE" || value == "U" ) {
-		  set_mode(AlignmentMode::UNIQUE);
-	  }
-
-	  // Best N scores mode
-	  else if ( value.substr(0,5) == "BESTN" || value.substr(0,1) == "N" ) {
-
-		  std::string bestn = value.substr(0,5) == "BESTN" ? value.substr(5) : value.substr(1);
-
-		  if ( bestn.find_first_not_of("0123456789")!=std::string::npos ) {
-			  throw std::runtime_error("Invalid alignment mode: " + value + ".");
-		  }
-		  try{
-			  set_mode(AlignmentMode::BESTN, CountType(std::atol(bestn.c_str())));
-		  } catch( std::bad_cast & ex ){
-			  std::cerr << "Error while casting length " << bestn << " to type uint16_t." << std::endl;
-			  throw ex;
-		  }
-	  }
-
-	  // All best mode
-	  else if ( value == "ALLBEST" || value == "H" ) {
-		  set_mode(AlignmentMode::ALLBEST);
-	  }
-
-	  // All hit mode
-	  else if ( value == "ANYBEST" || value == "B" ) {
-		  set_mode(AlignmentMode::ANYBEST);
-	  }
-
-	  // Unknown mode
-	  else {
-		  throw std::runtime_error("Invalid alignment mode: " + value + ".");
-	  }
-  }
-
-  void set_tiles(std::vector<uint16_t> value) {
-	  std::sort( value.begin(), value.end() );
-	  value.erase( std::unique( value.begin(), value.end() ), value.end() );
-	  set_unmodifiable(tiles, value, "tiles");
-  }
-
-  std::vector<uint16_t> get_tiles() {
-      return get_unmodifiable(tiles, "tiles", true);
-  }
-
-  void set_root(std::string value) {
-	  set_unmodifiable(root, value, "root");
-  }
-
-  std::string get_root() {
-      return get_unmodifiable(root, "root");
-  }
-
-  void set_index_fname(std::string value) {
-	  set_unmodifiable(index_fname, value, "index_fname");
-  }
-
-  std::string get_index_fname() {
-      return get_unmodifiable(index_fname, "index_fname");
-  }
-
-  void set_cycles(CountType value) {
-	  set_unmodifiable(cycles, value, "cycles");
-  }
-
-  CountType get_cycles() {
-      return get_unmodifiable(cycles, "cycles");
-  }
-
-  void set_start_cycle(CountType value) {
-	  set_unmodifiable(start_cycle, value, "start_cycle");
-  }
-
-  CountType get_start_cycle() {
-      CountType ret = get_unmodifiable(start_cycle, "start_cycle", true);
-
-      // Value if not set.
-      if ( ret == 0 )
-    	  return 1;
-
-      return ret;
-  }
-
-  void set_out_dir(std::string value) {
-	  set_unmodifiable(out_dir, value, "out_dir");
-  }
-
-  std::string get_out_dir() {
-      return get_unmodifiable(out_dir, "out_dir");
-  }
-
-  void set_num_threads(CountType value) {
-	  set_unmodifiable(num_threads, value, "num_threads");
-  }
-
-  CountType get_num_threads() {
-      return get_unmodifiable(num_threads, "num_threads");
-  }
-
-  void set_num_out_threads(CountType value) {
-	  set_unmodifiable(num_out_threads, value, "num_out_threads");
-  }
-
-  CountType get_num_out_threads() {
-      return get_unmodifiable(num_out_threads, "num_out_threads");
-  }
-
-  std::vector<SequenceElement> get_seqs() {
-      return get_unmodifiable(seqs, "seqs", true);
-  }
-
-  uint16_t get_mates() {
-      return get_unmodifiable(mates, "mates", true);
-  }
-
-  void set_barcode_errors(std::vector<uint16_t> value) {
-	  set_unmodifiable(barcode_errors, value, "barcode_errors");
-  }
-
-  std::vector<uint16_t> get_barcode_errors() {
-      return get_unmodifiable(barcode_errors, "barcode_errors", true);
-  }
-
-  void set_keep_all_barcodes(bool value) {
-	  set_unmodifiable(keep_all_barcodes, value, "keep_all_barcodes");
-  }
-
-  bool get_keep_all_barcodes() {
-	  if ( get_barcodeVector().size() == 0 )
-		  return true;
-      return get_unmodifiable(keep_all_barcodes, "keep_all_barcodes");
-  }
-
-  void set_extended_cigar(bool value) {
-	  set_unmodifiable(extended_cigar, value, "extended_cigar");
-  }
-
-  bool get_extended_cigar() {
-      return get_unmodifiable(extended_cigar, "extended_cigar");
-  }
-
-  CountType get_max_consecutive_gaps() {
-      return get_unmodifiable(max_consecutive_gaps, "max_consecutive_gaps");
-  }
-
-  float get_min_as_ratio() {
-        return get_unmodifiable(min_as_ratio, "min_as_ratio");
-    }
-
-  void set_min_as_ratio(float value) {
-	  if ( value > 1.0f )
-		  value = 1.0f;
-	  if ( value < 0.0f )
-		  value = 0.0f;
-	  set_unmodifiable(min_as_ratio, value, "min_as_ratio");
-  }
-
-  bool get_force_resort() {
-	  return get_unmodifiable(force_resort, "force_resort");
-  }
-
-  void set_force_resort(bool value) {
-	  set_unmodifiable(force_resort, value, "force_resort");
-  }
-
+	///////////////////////////////////////////
+	////////// General functionality //////////
+	///////////////////////////////////////////
+
+	/**
+	 * Create a property tree representing the AlignmentSettings object that is filled with all (relevant) settings.
+	 * @return Property tree containing all relevant settings.
+	 * @author Tobias Loka
+	 */
+	boost::property_tree::ptree to_ptree() {
+
+		boost::property_tree::ptree ptree;
+
+		// Sequencing options
+		putConfigNode ( ptree, "bcl-dir", get_root() );
+		putConfigNode ( ptree, "lanes", to_string( get_lanes() ) );
+		putConfigNode ( ptree, "tiles", to_string( get_tiles() ) );
+		putConfigNode ( ptree, "reads", to_string( configParse_seqs() ) );
+		putConfigNode ( ptree, "barcodes", to_string( configParse_barcodeVector() ) );
+
+		// Report options
+		putConfigNode ( ptree, "out-dir", get_out_dir() );
+		putConfigNode( ptree, "out-format", configParse_outFormat() );
+		putConfigNode ( ptree, "out-cycles", to_string( get_output_cycles() ) );
+		putConfigNode ( ptree, "out-mode", configParse_outputMode() ); // output mode end // TODO: write as function
+		putConfigNode ( ptree, "report-unmapped", get_report_unmapped() );
+		putConfigNode ( ptree, "extended-cigar", get_extended_cigar() );
+		putConfigNode ( ptree, "force-resort", get_force_resort() );
+		putConfigNode ( ptree, "max-softclip-ratio", get_max_softclip_ratio() );
+
+		// Alignment options
+		putConfigNode( ptree, "index",  get_index_fname() );
+		// Align mode not needed since the implied parameters are stored.
+		putConfigNode( ptree, "anchor-length",  get_anchor_length() );
+		putConfigNode( ptree, "error-interval",  get_error_rate() );
+		putConfigNode( ptree, "seeding-interval",  get_seeding_interval() );
+		putConfigNode ( ptree, "barcode-errors", to_string( get_barcode_errors() ) );
+		putConfigNode( ptree, "align-undetermined-barcodes",  get_keep_all_barcodes() );
+		putConfigNode( ptree, "min-basecall-quality", get_min_qual() );
+		putConfigNode( ptree, "keep-invalid-sequences",  get_keep_all_sequences() );
+
+		// Scoring options
+		putConfigNode( ptree, "min-as",  get_min_as() );
+		putConfigNode( ptree, "match-score",  get_match_score() );
+		putConfigNode( ptree, "mismatch-penalty",  get_mismatch_penalty() );
+		putConfigNode( ptree, "insertion-opening-penalty",  get_insertion_opening_penalty() );
+		putConfigNode( ptree, "insertion-extension-penalty",  get_insertion_extension_penalty() );
+		putConfigNode( ptree, "deletion-opening-penalty",  get_deletion_opening_penalty() );
+		putConfigNode( ptree, "deletion-extension-penalty",  get_deletion_extension_penalty() );
+		putConfigNode( ptree, "max-gap-length",  get_max_gap_length() );
+		putConfigNode( ptree, "softclip-opening-penalty",  get_softclip_opening_penalty() );
+		putConfigNode( ptree, "softclip-extension-penalty",  get_softclip_extension_penalty() );
+
+		// Technical options
+		putConfigNode( ptree, "temp-dir",  get_temp_dir() );
+		putConfigNode ( ptree, "keep-files", to_string( get_keep_aln_files() ) );
+		// Keep all files not necessary ==> stored as keep-files
+		putConfigNode( ptree, "block-size",  get_block_size() );
+		putConfigNode( ptree, "compression",  get_compression_format() );
+		putConfigNode( ptree, "num-threads",  get_num_threads() );
+		putConfigNode( ptree, "num-out-threads",  get_num_out_threads() );
+
+		return ptree;
+	}
+
+	/**
+	 * Create the internal barcode structure.
+	 * @param barcodeArg A vector of strings as given via the command line (dual barcodes being split by a "-" char).
+	 */
+	void set_barcodes ( std::vector< std::string > barcodeArg ) {
+
+		// Get the barcode length(s) from the seqs vector
+		std::vector<uint16_t> barcode_lengths;
+		for ( uint16_t seq_num = 0; seq_num < get_seqs().size(); seq_num++ ) {
+			if ( getSeqById(seq_num).isBarcode() )
+				barcode_lengths.push_back( getSeqById(seq_num).length );
+		}
+
+		// Fill 2D-vector for internal storage
+		std::vector<std::vector<std::string> > barcodeVector;
+		for ( auto barcode = barcodeArg.begin(); barcode != barcodeArg.end(); ++barcode) {
+
+			// Check if all characters in the current barcode are valid
+			std::string valid_chars = seq_chars + "-";
+			for(CountType i = 0; i != (*barcode).length(); i++){
+				char c = (*barcode)[i];
+				if ( valid_chars.find(c) == std::string::npos )
+					throw std::runtime_error("Invalid character '" + std::string(1,c) + "' in barcode sequence " + *barcode + ".");
+			}
+
+			// Split barcode string into fragments
+			std::vector<std::string> fragments;
+			split(*barcode, '-', fragments);
+
+			// Check correct number of fragments
+			if ( barcode_lengths.size() != fragments.size()) {
+				throw std::runtime_error("Wrong number of fragments for barcode " + *barcode + " (should have " + std::to_string(barcode_lengths.size()) + " fragments).");
+			}
+
+			// Check correct length of all fragments
+			for ( uint16_t num = 0; num != fragments.size(); num++ ) {
+				if ( fragments[num].length() != barcode_lengths[num] ) {
+					throw std::runtime_error("Wrong fragment length in barcode " + *barcode);
+				}
+			}
+
+			// Push barcode to the final 2D vector
+			barcodeVector.push_back(fragments);
+		}
+
+		set_barcodeVector(barcodeVector);
+
+	}
+
+	/**
+	 * Get the barcodes as stored internally.
+	 * @return Barcodes as a 2-dimensional vector of strings.
+	 */
+	std::vector<std::vector<std::string> > get_barcodeVector() const {
+		return get_immutable(barcodeVector);
+	}
+
+	/**
+	 * Format a barcode from the internal structure to output style.
+	 * @param unformatted_barcode A barcode as single string without delimiter
+	 * @return Barcode with a "-" char between dual barcodes. Lengths of the single barcodes is retrieved from the internal data structure.
+	 */
+	std::string format_barcode(std::string unformatted_barcode) const {
+		CountType pos = 0;
+		for ( auto el : get_seqs() ) {
+			if ( el.mate == 0 ) {
+				pos+=el.length;
+				if ( unformatted_barcode.length() >= pos )
+					unformatted_barcode.insert(pos++, "-");
+				else
+					break;
+			}
+		}
+
+		return unformatted_barcode.substr(0,pos-1);
+
+	}
+
+	/**
+	 * Get a barcode from the internal list of barcodes as string.
+	 * @param index Index of the requested barcode.
+	 * @return The requested barcode as formatted string (including "-" delimiting between single barcodes).
+	 */
+	std::string get_barcodeString(CountType index) const {
+
+		// invalid index
+		if ( index >= get_barcodeVector().size() ) {
+			return "";
+		}
+
+		else {
+
+			std::vector<std::string> bc_vec = get_barcodeVector()[index];
+
+			std::stringstream ss;
+			for ( auto fragment : bc_vec ) {
+				ss << fragment;
+			}
+			std::string barcode_string = ss.str();
+			return format_barcode(barcode_string);
+		}
+	}
+
+	/**
+	 * Set the read structure of the sequencing run.
+	 * @param read_argument A vector of strings in user input-like format (e.g. 101R 8B 8B 101R)
+	 */
+	void set_read_structure ( std::vector<std::string> read_argument ) {
+
+		// Init variables
+		CountType lenSum = 0;
+		CountType length = 0;
+		std::string length_string = "";
+		char type;
+		unsigned mates = 0;
+		std::vector<SequenceElement> temp;
+
+		// Iterate through input vector
+		for ( auto read = read_argument.begin(); read != read_argument.end(); ++read ) {
+
+			// Split string into fragment length and fragment type (B or R)
+			length_string = (*read).substr(0,(*read).length()-1);
+			type = (*(*read).rbegin());
+
+			if ( length_string.find_first_not_of("0123456789")!=std::string::npos ) {
+				throw std::runtime_error("Invalid length for read fragment " + *read  + ". Please only use unsigned integer values.");
+			}
+
+			try{
+				length = CountType(std::atol(length_string.c_str()));
+			} catch( std::bad_cast & ex ){
+				std::cerr << "Error while casting length " << length_string << " to type uint16_t." << std::endl;
+				throw ex;
+			}
+
+			if ( type!='B' && type!='R' ) {
+				std::stringstream ss;
+				ss << "\'" << type << "\' is no valid read type. Please use \'R\' for sequencing reads or \'B\' for barcode reads.";
+				throw std::runtime_error(ss.str());
+
+			}
+
+			temp.push_back(SequenceElement(temp.size(), (type == 'R') ? ++mates : 0, length));
+			lenSum += length;
+
+		}
+		set_seqs(temp);
+		set_mates(mates);
+		set_cycles(lenSum);
+
+	}
+
+	void set_read_structure ( std::string read_argument ) {
+		auto vector = to_vector<std::string>( read_argument );
+		set_read_structure ( vector );
+	}
+
+	/**
+	 * Get a SequenceElement object from the seqs vector by using the id
+	 * @param id The id of the SequenceElement.
+	 * @return The respective SequenceElement object for the given id.
+	 * @author Tobias Loka
+	 */
+	SequenceElement getSeqById(CountType id) const {return seqs.get()[id];}
+
+	/**
+	 * Get a SequenceElement object from the seqs vector by using the mate number
+	 * @param id The mate number of the SequenceElement.
+	 * @return The respective SequenceElement object for the given mate number. NULLSEQ if mate==0 (barcodes).
+	 * @author Tobias Loka
+	 */
+	SequenceElement getSeqByMate(CountType mate) const {
+		if ( mate == 0 ) return NULLSEQ;
+		auto the_seq = seqs.get();
+		for (uint16_t i = 0; i != the_seq.size(); i++) {
+			if(the_seq[i].mate == mate) return the_seq[i];
+		}
+		return NULLSEQ;
+	}
+
+	/**
+	 * Set the minimum quality for a valid base call.
+	 * @param value The minimum quality as a number (0-41 for Illumina PHRED scores)
+	 */
+	void set_min_qual(CountType value) {
+		set_immutable(min_qual, value);
+	}
+
+	/**
+	 * Get the minimum quality for a valid base call.
+	 * @return The minimum quality as a number (0-41 for Illumina PHRED scores)
+	 */
+	CountType get_min_qual() const {
+		return get_immutable(min_qual);
+	}
+
+	/**
+	 * Check alignment mode for any best hit mode
+	 * @return True if any best hit mode is activated
+	 */
+	bool get_any_best_hit_mode() const {
+		return (get_immutable(mode)==AlignmentMode::ANYBEST);
+	}
+
+	/**
+	 * Check alignment mode for all hit mode
+	 * @return True if all hit mode is activated
+	 */
+	bool get_all_hit_mode() const {
+		return (get_mode()==AlignmentMode::ALL);
+	}
+
+	/**
+	 * Check alignment mode for all best hit mode
+	 * @return True if all best hit mode is activated
+	 */
+	bool get_all_best_hit_mode() const {
+		return (get_mode()==AlignmentMode::ALLBEST);
+	}
+
+	/**
+	 * Check alignment mode for all best N hit mode
+	 * @return True if all best N hit mode is activated
+	 */
+	bool get_all_best_n_scores_mode() const {
+		return (get_mode()==AlignmentMode::BESTN);
+	}
+
+	/**
+	 * Check alignment mode for unique hit mode
+	 * @return True if unique hit mode is activated
+	 */
+	bool get_unique_hit_mode() const {
+		return (get_mode()==AlignmentMode::UNIQUE);
+	}
+
+	/**
+	 * Get the N value for the "best N scores" mode.
+	 * @return Number of "best" scores to print alignments for
+	 */
+	CountType get_best_n() const {
+		return get_immutable(best_n);
+	}
+
+	/**
+	 * Set the directory to store temporary data.
+	 * @param value Path to the directory as string.
+	 */
+	void set_temp_dir(std::string value) {
+		set_immutable(temp_dir, value);
+	}
+
+	/**
+	 * Get the directory to store temporary data.
+	 * @return Path to the directory as string.
+	 */
+	std::string get_temp_dir() const {
+		std::string dir = get_immutable(temp_dir);
+		dir = dir!="" ? dir : get_immutable(root);
+		return dir;
+	}
+
+	/**
+	 * Switch output format between SAM and BAM.
+	 * @param value true for BAM, false for SAM output
+	 */
+	void set_output_format(std::string value) {
+		if ( value == "SAM" || value == "S" )
+			set_immutable(output_format, OutputFormat::SAM);
+		else if ( value == "BAM" || value == "B")
+			set_immutable(output_format, OutputFormat::BAM);
+		else
+			throw std::runtime_error("Invalid output format: " + value + ".");
+	}
+
+	/**
+	 * Get setting of the output format (SAM or BAM)
+	 * @return true if BAM, false if SAM
+	 */
+	OutputFormat get_output_format() const {
+		return get_immutable(output_format);
+	}
+
+	/**
+	 * Set the cycles to write output.
+	 * @param value Output cycles as a vector of Integers as given as user input.
+	 */
+	void set_output_cycles(std::vector<uint16_t> cycles) {
+		std::vector<uint16_t> the_cycles;
+		for ( auto it = cycles.begin(); it != cycles.end(); ++it ) {
+			if ( *it > get_cycles() )
+				the_cycles.push_back(get_cycles());
+			else
+				the_cycles.push_back(*it);
+		}
+		std::sort(the_cycles.begin(), the_cycles.end());
+		the_cycles.erase( std::unique(the_cycles.begin(), the_cycles.end()), the_cycles.end());
+		set_immutable(output_cycles, the_cycles);
+	}
+
+	void set_output_cycles(std::string value) {
+		auto vector = to_vector<uint16_t>(value);
+		set_output_cycles(vector);
+	}
+
+	/**
+	 * Get the cycles to write output.
+	 * @return Output cycles as a vector of Integers as given as user input.
+	 */
+	std::vector<uint16_t> get_output_cycles() const {
+		return get_immutable(output_cycles);
+	}
+
+	/**
+	 * Check a cycle to be an output cycle.
+	 * @param cycle Requested cycle to check for output.
+	 * @return true if requested cycle is an output cycle. false otherwise
+	 */
+	bool is_output_cycle(CountType cycle) const {
+		auto out_cycles = get_output_cycles();
+		if ( std::find(out_cycles.begin(), out_cycles.end(), cycle) == out_cycles.end() )
+			return false;
+		return true;
+	}
+
+	/**
+	 * Set the cycles to keep the alignment files for.
+	 * @rparam value Kept cycles as a vector of Integers as given as user input.
+	 */
+	void set_keep_aln_files(std::vector<uint16_t> value) {
+		set_immutable(keep_aln_files, value);
+	}
+
+	void set_keep_aln_files(std::string value) {
+		auto vector = to_vector<uint16_t>(value);
+		set_keep_aln_files(vector);
+	}
+
+	void set_keep_all_aln_files() {
+		std::vector<CountType>keep_all_files (get_cycles());
+		std::iota(keep_all_files.begin(), keep_all_files.end(), 1);
+		set_keep_aln_files(keep_all_files);
+	}
+
+	/**
+	 * Get the cycles to keep the alignment files for.
+	 * @return Kept cycles as a vector of Integers as given as user input.
+	 */
+	std::vector<uint16_t> get_keep_aln_files() const {
+		return get_immutable(keep_aln_files);
+	}
+
+	/**
+	 * Check a cycle to be a kept cycle.
+	 * @param cycle Requested cycle to check for keeping temporary files.
+	 * @return true if requested cycle is a kept cycle. false otherwise
+	 */
+	bool is_keep_aln_files_cycle(CountType cycle) const {
+		auto aln_files_cycles = get_keep_aln_files();
+		if ( std::find(aln_files_cycles.begin(), aln_files_cycles.end(), cycle) == aln_files_cycles.end() )
+			return false;
+		return true;
+	}
+
+	/**
+	 * Set the block size for output.
+	 * @param value The block size as String as given by the user input. Format: [0-9]+[BKM]?
+	 */
+	void set_block_size(std::string value) {
+
+		uint64_t size;
+		char type = 'B';
+
+		// Split value to size and type
+		if ( value.find_first_of("BKM") != std::string::npos ) {
+			type = *value.rbegin();
+			value = value.substr(0,value.length()-1);
+		}
+
+		if ( value.find_first_not_of("0123456789")!=std::string::npos ) {
+			throw std::runtime_error("Invalid block size " + value + ". Please only use unsigned integer values.");
+		}
+
+		try{
+			size = uint64_t(std::atol(value.c_str()));
+		} catch( std::bad_cast & ex ){
+			std::cerr << "Error while casting length " << value << " to type uint16_t." << std::endl;
+			throw ex;
+		}
+
+		if ( type == 'B' )
+			set_block_size(size);
+		else if ( type == 'K' )
+			set_block_size(size*1024);
+		else if ( type == 'M' )
+			set_block_size(size*1024*1024);
+		else
+			throw std::runtime_error("Invalid block size type. Only 'B' (Bytes), 'K' (Kilobytes) or 'M' (Megabytes) are permitted.");
+
+	}
+
+	/**
+	 * Get the block size for output.
+	 * @param value The block size as uint64_t (in bytes)
+	 */
+	uint64_t get_block_size() const {
+		return get_immutable(block_size);
+	}
+
+	/**
+	 * Set the compression format.
+	 * @param value Compression format as an uint16_t [0-2]
+	 */
+	void set_compression_format(uint16_t value) {
+		if ( value > 2 )
+			value = 2;
+		uint8_t one_byte_value = value;
+		set_immutable(compression_format, one_byte_value);
+	}
+
+	/**
+	 * Get the compression format.
+	 * @return Compression format as uint8_t.
+	 */
+	uint8_t get_compression_format() const {
+		return get_immutable(compression_format);
+	}
+
+	/**
+	 * Set the lanes to work on.
+	 * @param value The lanes to consider for alignment as vector of Integers.
+	 */
+	void set_lanes(std::vector<uint16_t> value) {
+		std::sort( value.begin(), value.end() );
+		value.erase( std::unique( value.begin(), value.end() ), value.end() );
+		set_immutable(lanes, value);
+	}
+
+	void set_lanes(std::string value) {
+
+		auto lanes = to_vector<uint16_t>(value);
+		set_lanes(lanes);
+	}
+
+	/**
+	 * Get the lanes to work on.
+	 * @return The lanes considered for alignment as vector of Integers.
+	 */
+	std::vector<uint16_t> get_lanes() const {
+		return get_immutable(lanes);
+	}
+
+	/**
+	 * Set the alignment mode for sequencing [(ALL)(UNIQUE)(BESTN[0-9]+)(ALLBEST)(ANYBEST)AU(N[0-9]+)HB].
+	 * @param value Alignment mode as string.
+	 */
+	void set_mode(std::string value) {
+
+		// All hit mode
+		if ( value == "ALL" || value == "A" ) {
+			set_mode(AlignmentMode::ALL);
+		}
+
+		// Unique mode
+		else if ( value == "UNIQUE" || value == "U" ) {
+			set_mode(AlignmentMode::UNIQUE);
+		}
+
+		// Best N scores mode
+		else if ( value.substr(0,5) == "BESTN" || value.substr(0,1) == "N" ) {
+
+			std::string bestn = value.substr(0,5) == "BESTN" ? value.substr(5) : value.substr(1);
+
+			if ( bestn.find_first_not_of("0123456789")!=std::string::npos ) {
+				throw std::runtime_error("Invalid alignment mode: " + value + ".");
+			}
+			try{
+				set_mode(AlignmentMode::BESTN, CountType(std::atol(bestn.c_str())));
+			} catch( std::bad_cast & ex ){
+				std::cerr << "Error while casting length " << bestn << " to type uint16_t." << std::endl;
+				throw ex;
+			}
+		}
+
+		// All best mode
+		else if ( value == "ALLBEST" || value == "H" ) {
+			set_mode(AlignmentMode::ALLBEST);
+		}
+
+		// All hit mode
+		else if ( value == "ANYBEST" || value == "B" ) {
+			set_mode(AlignmentMode::ANYBEST);
+		}
+
+		// Unknown mode
+		else {
+			throw std::runtime_error("Invalid alignment mode: " + value + ".");
+		}
+	}
+
+	/**
+	 * Set the tiles to work on.
+	 * @param value The tiles to consider for alignment as vector of Integers.
+	 */
+	void set_tiles(std::vector<uint16_t> value) {
+		std::sort( value.begin(), value.end() );
+		value.erase( std::unique( value.begin(), value.end() ), value.end() );
+		set_immutable(tiles, value);
+	}
+
+	void set_tiles(std::string value) {
+		auto tiles = to_vector<uint16_t>(value);
+		set_tiles(tiles);
+	}
+
+	void set_max_tile( CountType value ) {
+		set_tiles ( maxTile_to_tiles( value ) );
+	}
+
+	/**
+	 * Get the tiles to work on.
+	 * @return The tiles considered for alignment as vector of Integers.
+	 */
+	std::vector<uint16_t> get_tiles() const {
+		return get_immutable(tiles);
+	}
+
+	/**
+	 * Set the root directory (i.e. the path of the BaseCalls directory)
+	 * @param value the path to the root directory as string
+	 */
+	void set_root(std::string value) {
+		set_immutable(root, value);
+	}
+
+	/**
+	 * Get the root directory (i.e. the path of the BaseCalls directory)
+	 * @param value the path to the root directory as string
+	 */
+	std::string get_root() const {
+		return get_immutable(root);
+	}
+
+	/**
+	 * Set the path to the index (including the file prefix)
+	 * @param value Path to the index as string.
+	 */
+	void set_index_fname(std::string value) {
+		set_immutable(index_fname, value);
+	}
+
+	/**
+	 * Get the path to the index (including the file prefix)
+	 * @return Path to the index as string.
+	 */
+	std::string get_index_fname() const {
+		return get_immutable(index_fname);
+	}
+
+	/**
+	 * Set the total number of cycles.
+	 * @param value The total number of cycles (must match the sum of cycles given by -r parameter)
+	 */
+	void set_cycles(CountType value) {
+		set_immutable(cycles, value);
+	}
+
+	/**
+	 * Get the total number of cycles.
+	 * @return The total number of cycles
+	 */
+	CountType get_cycles() const {
+		return get_immutable(cycles);
+	}
+
+	/**
+	 * Set the cycle to start computations (used for --continue)
+	 * @param value The cycle to start computations
+	 */
+	void set_start_cycle(CountType value) {
+		set_immutable(start_cycle, value);
+	}
+
+	/**
+	 * Get the cycle to start computations (used for --continue)
+	 * @return The cycle to start computations
+	 */
+	CountType get_start_cycle() const {
+		CountType ret = get_immutable(start_cycle);
+
+		// Value if not set.
+		if ( ret == 0 )
+			return 1;
+
+		return ret;
+	}
+
+	/**
+	 * Set the directory to write output files.
+	 * @param value Path to the output directory (no need to exist).
+	 */
+	void set_out_dir(std::string value) {
+		set_immutable(out_dir, value);
+	}
+
+	/**
+	 * Get the directory to write output files.
+	 * @return Path to the output directory
+	 */
+	std::string get_out_dir() const {
+		return get_immutable(out_dir);
+	}
+
+	/**
+	 * Set the total number of threads.
+	 * @param value Number of threads.
+	 */
+	void set_num_threads(CountType value) {
+		set_immutable(num_threads, value);
+	}
+
+	/**
+	 * Get the total number of threads.
+	 * @return Number of threads.
+	 */
+	CountType get_num_threads() const {
+		return get_immutable(num_threads);
+	}
+
+	/**
+	 * Set the number of threads used for output.
+	 * @param value The number of output threads. This number of threads is also used for output if new alignment jobs would be available.
+	 */
+	void set_num_out_threads(CountType value) {
+		set_immutable(num_out_threads, value);
+	}
+
+	/**
+	 * Get the number of threads used for output.
+	 * @return The number of output threads. This number of threads is also used for output if new alignment jobs would be available.
+	 */
+	CountType get_num_out_threads() const {
+		return get_immutable(num_out_threads);
+	}
+
+	/**
+	 * Get the sequence elements.
+	 * @return Vector of sequence elements. This includes read and barcode elements.
+	 */
+	std::vector<SequenceElement> get_seqs() const {
+		return get_immutable(seqs);
+	}
+
+	/**
+	 * Get the number of mates.
+	 * @return The number of mates.
+	 */
+	uint16_t get_mates() const {
+		return get_immutable(mates);
+	}
+
+	/**
+	 * Set the number of errors allowed for each barcode.
+	 * @param value The number of errors for each barcode as a vector of ints.
+	 */
+	void set_barcode_errors(std::vector<uint16_t> value) {
+		set_immutable(barcode_errors, value);
+	}
+
+	void set_barcode_errors(std::string value) {
+		auto barcode_errors = to_vector<uint16_t>(value);
+		set_barcode_errors(barcode_errors);
+	}
+
+	/**
+	 * Get the number of errors allowed for each barcode.
+	 * @param value The number of errors for each barcode as a vector of ints.
+	 */
+	std::vector<uint16_t> get_barcode_errors() const {
+		return get_immutable(barcode_errors);
+	}
+
+	/**
+	 * Set to write all reads that don't match a barcode to an "undetermined" file.
+	 * @param value true to write reads without a matching barcode, false to not write them
+	 */
+	void set_keep_all_barcodes(bool value) {
+		set_immutable(keep_all_barcodes, value);
+	}
+
+	/**
+	 * Get whether reads without a matching barcode are written to an "undetermined" file.
+	 * @return true if reads without a matching barcode are written, false otherwise
+	 */
+	bool get_keep_all_barcodes() const {
+		if ( get_barcodeVector().size() == 0 )
+			return true;
+		return get_immutable(keep_all_barcodes);
+	}
+
+	/**
+	 * Set to use extended CIGAR format for alignment output.
+	 * @param value true to activate extended CIGAR format, false to use standard CIGAR.
+	 */
+	void set_extended_cigar(bool value) {
+		set_immutable(extended_cigar, value);
+	}
+
+	/**
+	 * Check to use extended CIGAR format for alignment output.
+	 * @return true if extended CIGAR format is activated, false is standard CIGAR is used.
+	 */
+	bool get_extended_cigar() const {
+		return get_immutable(extended_cigar);
+	}
+
+	/**
+	 * Check to keep all sequences (also those of unmapped reads)
+	 * @return true if all sequences are kept
+	 */
+	bool get_keep_all_sequences() const {
+		return get_immutable(keep_all_sequences);
+	}
+
+	/**
+	 * Set to keep all sequences (also those of unmapped reads)
+	 * @param value true to keep all sequences, false otherwise
+	 */
+	void set_keep_all_sequences(bool value) {
+		set_immutable(keep_all_sequences, value);
+	}
+
+	/**
+	 * Check to report unmapped reads
+	 * @return true if all sequences are kept
+	 */
+	bool get_report_unmapped() const {
+		return get_immutable(report_unmapped);
+	}
+
+	/**
+	 * Set to keep all sequences (also those of unmapped reads)
+	 * @param value true to keep all sequences, false otherwise
+	 */
+	void set_report_unmapped(bool value) {
+		set_immutable(report_unmapped, value);
+	}
+
+	////////// Scoring scheme  //////////
+
+	/**
+	 * Get the minimum alignment score for an alignment to be considered.
+	 * @return Minimum score for an alignment.
+	 * @author Tobias Loka
+	 */
+	ScoreType get_min_as() const {
+		return get_immutable(min_as);
+	}
+
+	/**
+	 * Set the minimum alignment score for an alignment to be considered.
+	 * @param value Minimum score for an alignment.
+	 * @author Tobias Loka
+	 */
+	void set_min_as(ScoreType value) {
+		set_immutable(min_as, value);
+	}
+
+	/**
+	 * Get the maximumlength of consecutive gaps (insertions or deletions).
+	 * @return Maximum gap length.
+	 * @author Tobias Loka
+	 */
+	CountType get_max_gap_length() const {
+		return get_immutable(max_gap_length);
+	}
+
+	/**
+	 * Set the maximumlength of consecutive gaps (insertions or deletions).
+	 * @param value Maximum gap length.
+	 * @author Tobias Loka
+	 */
+	void set_max_gap_length(CountType value) {
+		set_immutable(max_gap_length, value);
+	}
+
+	/**
+	 * Get the score for a match.
+	 * @return Score for a match.
+	 * @author Tobias Loka
+	 */
+	CountType get_match_score() const {
+		return get_immutable(match_score);
+	}
+
+	/**
+	 * Set the score for a match.
+	 * @param value Score for a match.
+	 * @author Tobias Loka
+	 */
+	void set_match_score(CountType value) {
+		set_immutable(match_score, value);
+	}
+
+	/**
+	 * Get the penalty for a mismatch.
+	 * @return Penalty for a mismatch.
+	 * @author Tobias Loka
+	 */
+	CountType get_mismatch_penalty() const {
+		return get_immutable(mismatch_penalty);
+	}
+
+	/**
+	 * Set the penalty for a mismatch.
+	 * @param value Penalty for a mismatch.
+	 * @author Tobias Loka
+	 */
+	void set_mismatch_penalty(CountType value) {
+		set_immutable(mismatch_penalty, value);
+	}
+
+	/**
+	 * Get the penalty for an insertion opening.
+	 * @return Penalty for an insertion opening.
+	 * @author Tobias Loka
+	 */
+	CountType get_insertion_opening_penalty() const {
+		return get_immutable(insertion_opening_penalty);
+	}
+
+	/**
+	 * Set the penalty for an insertion opening.
+	 * @param value Penalty for an insertion opening.
+	 * @author Tobias Loka
+	 */
+	void set_insertion_opening_penalty(CountType value) {
+		set_immutable(insertion_opening_penalty, value);
+	}
+
+	/**
+	 * Get the penalty for a deletion opening.
+	 * @return Penalty for a deletion opening.
+	 * @author Tobias Loka
+	 */
+	CountType get_deletion_opening_penalty() const {
+		return get_immutable(deletion_opening_penalty);
+	}
+
+	/**
+	 * Set the penalty for a deletion opening.
+	 * @param value Penalty for a deletion opening.
+	 * @author Tobias Loka
+	 */
+	void set_deletion_opening_penalty(CountType value) {
+		set_immutable(deletion_opening_penalty, value);
+	}
+
+	/**
+	 * Get the penalty for an insertion extension.
+	 * @return Penalty for an insertion extension.
+	 * @author Tobias Loka
+	 */
+	CountType get_insertion_extension_penalty() const {
+		return get_immutable(insertion_extension_penalty);
+	}
+
+	/**
+	 * Set the penalty for an insertion extension.
+	 * @param value Penalty for an insertion extension.
+	 * @author Tobias Loka
+	 */
+	void set_insertion_extension_penalty(CountType value) {
+		set_immutable(insertion_extension_penalty, value);
+	}
+
+	/**
+	 * Get the penalty for a deletion extension.
+	 * @return Penalty for a deletion extension.
+	 * @author Tobias Loka
+	 */
+	CountType get_deletion_extension_penalty() const {
+		return get_immutable(deletion_extension_penalty);
+	}
+
+	/**
+	 * Set the penalty for a deletion extension.
+	 * @param value Penalty for a deletion extension.
+	 * @author Tobias Loka
+	 */
+	void set_deletion_extension_penalty(CountType value) {
+		set_immutable(deletion_extension_penalty, value);
+	}
+
+	/**
+	 * Get the penalty for a softclip extension. This is only used for the final output, not for filtering during the alignment algorithm.
+	 * @return Penalty for a softclip extension.
+	 * @author Tobias Loka
+	 */
+	float get_softclip_extension_penalty() const {
+		return get_immutable(softclip_extension_penalty);
+	}
+
+	/**
+	 * Set the penalty for a softclip extension.
+	 * @param value Penalty for a softclip extension.
+	 * @author Tobias Loka
+	 */
+	void set_softclip_extension_penalty(float value) {
+		set_immutable(softclip_extension_penalty, value);
+	}
+
+	/**
+	 * Get the penalty for a softclip opening. This is only used for the final output, not for filtering during the alignment algorithm.
+	 * @return Penalty for a softclip opening.
+	 * @author Tobias Loka
+	 */
+	float get_softclip_opening_penalty() const {
+		return get_immutable(softclip_opening_penalty);
+	}
+
+	/**
+	 * Set the penalty for a softclip opening.
+	 * @param value Penalty for a softclip opening.
+	 * @author Tobias Loka
+	 */
+	void set_softclip_opening_penalty(float value) {
+		set_immutable(softclip_opening_penalty, value);
+	}
+
+	/**
+	 * Get the maximal relative length of the front softclip.
+	 * @return Maximal softclip ratio.
+	 * @author Tobias Loka
+	 */
+	float get_max_softclip_ratio() const {
+		return get_immutable(max_softclip_ratio);
+	}
+
+	/**
+	 * Set the maximal relative length of the front softclip.
+	 * @param value The maximal length of the front softclip.
+	 * @author Tobias Loka
+	 */
+	void set_max_softclip_ratio(float value) {
+		set_immutable(max_softclip_ratio, value);
+	}
+
+
+
+	/**
+	 * Get the anchor length.
+	 * @return The anchor length.
+	 * @author Tobias Loka
+	 */
+	CountType get_anchor_length() const {
+		return get_immutable(anchorLength);
+	}
+
+	/**
+	 * Set the anchor length.
+	 * @param value The anchor length.
+	 * @author Tobias Loka
+	 */
+	void set_anchor_length( CountType value ) {
+		set_immutable(anchorLength, value);
+	}
+
+	/**
+	 * Get the frequency to increase the tolerated number of errors during the alingment algorithm.
+	 * @return Frequency to tolerate more errors during the alignment algorithm.
+	 * @author Tobias Loka
+	 */
+	CountType get_error_rate() const {
+		return get_immutable(errorRate);
+	}
+
+	/**
+	 * Set the frequency to increase the tolerated number of errors during the alingment algorithm.
+	 * @param value Frequency to tolerate more errors during the alignment algorithm.
+	 * @author Tobias Loka
+	 */
+	void set_error_rate(CountType value) {
+		set_immutable(errorRate, value);
+	}
+
+	/**
+	 * Get the interval to create new seeds.
+	 * @return The interval to create new seeds.
+	 * @author Tobias Loka
+	 */
+	CountType get_seeding_interval() const {
+		return get_immutable(seeding_interval);
+	}
+
+	/**
+	 * Get the interval to create new seeds.
+	 * @param value The interval to create new seeds.
+	 * @author Tobias Loka
+	 */
+	void set_seeding_interval(CountType value) {
+
+		// interval must be at least 1
+		value = value == 0 ? 1 : value;
+
+		set_immutable(seeding_interval, value);
+	}
+
+	/**
+	 * Check if resorting of alignment files before writing output is activated.
+	 * @return true if resorting is activated, false otherwise
+	 */
+	bool get_force_resort() const {
+		return get_immutable(force_resort);
+	}
+
+	/**
+	 * Set resorting of alignment files before writing output is activated or not.
+	 * @return true to activate resorting, false otherwise
+	 */
+	void set_force_resort(bool value) {
+		set_immutable(force_resort, value);
+	}
 
 };
 
