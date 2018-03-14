@@ -1,6 +1,7 @@
 HiLive2 - Live Mapping of Illumina reads
 ========================================
 
+
 Content
 -------
 
@@ -17,6 +18,7 @@ Content
  - [License](#license)
  - [Contact](#contact)
 
+
 Description
 -----------
 
@@ -26,7 +28,6 @@ is finished as soon as the sequencer is finished. Alignment output can also
 be written for intermediate cycles providing insights into the data already 
 during sequencing. HiLive2 supports paired-end reads and live demultiplexing, 
 creating one output alignment file for each barcode and cycle.
-
 
 
 Website
@@ -76,6 +77,7 @@ If using a local version of lz4 you will need to adjust path in CMakeLists.txt
 (line 32).  
 Please also adjust the paths to the SeqAn library in CMakeLists.txt (lines 41 
 and 42).
+
 
 Usage
 -----
@@ -128,7 +130,7 @@ settings that were specified for the related HiLive2 run. To produce output
 files for other cycles, e.g. 50, 70, 90, type:
 
 ```
-hilive-out --config /path/to/temp/dir/hilive_settings.xml --out-cycles 50 70 90
+hilive-out --config /path/to/temp/hilive_config.ini --out-cycles 50,70,90
 ```
 
 Please note, that the temporary files for the respective cycles must be present 
@@ -290,6 +292,7 @@ HiLive2 since it is required but not set in the configuration file.
 | **-n [--num-threads] ARG** |  Number of threads to spawn (including output threads). [Default: 1] |
 | **-N [--num-out-threads] ARG** | Maximum number of threads to use for output. [Default: 'num-threads'/2] |
 
+
 License
 -------
 
@@ -302,8 +305,8 @@ Contact
 Please consult the HiLive project website for questions!
 
 If this does not help, please feel free to consult:
- * Technical support <hilive.team (at) gmail.com> (technical contact)
- * Bernhard Y. Renard <renardb (at) rki.de> (project head)
+ * Technical support: hilive.team (at) gmail.com (technical contact)
+ * Bernhard Y. Renard: renardb (at) rki.de (project head)
 
 also see CONTRIBUTORS for a complete list of contributors and their contact 
 information.
