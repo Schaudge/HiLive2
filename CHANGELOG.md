@@ -4,6 +4,30 @@ HiLive - Live Mapping of Illumina reads
 Changelog
 -----------
 
+v2.0
+-----
+
+Version 2.0 comes with a completely new index and algorithm.  
+This comes with major changes in parameter settings.  
+Please note, that commands and index files of previous versions cannot be used with HiLive v2.0.  
+The old HiLive version using the k-mer seed-and-extend approach is still available in a separated repository.  
+Please visit https://gitlab.com/rki_bioinformatics/HiLive for access to both versions.
+
+General functionality:
+ * New algorithm based on the FM-index
+ * Exact mapping results after a potential front softclip
+ * Support of alternative scoring models other than edit distance
+
+Parameters:
+ * Revised parameter nomenclature
+ * Multitoken parameters must now be separated by a "," 
+ * Changed config file format to .ini
+ * Additional parameters to facilitate parameter input (e.g., --max-tile for easier tile declaration)
+ * Different alignment modes for automated selection of algorithmic parameters
+
+Output:
+ * Corrected SAM flags for paired-end reads.
+
 v1.1
 -----
 

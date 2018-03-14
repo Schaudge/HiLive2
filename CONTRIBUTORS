@@ -1,19 +1,29 @@
+Active contributors
+-----
+
 Bernhard Y. Renard <renardb (at) rki.de>
  * Project head
 
+Tobias P. Loka <lokat (at) rki.de>
+ * Development HiLive v2.0 (HiLive2)
+ * Development HiLive v1.1
+ * Development HiLive v1.0
+
+Simon H. Tausch <tauschs (at) rki.de>
+ * continuous development support
+
+
+Former contributors
+-----
+
 Martin S. Lindner <martin (at) mail-linder.de>
- * Project founder, implemented versions 0.1 and 0.2
+ * Development HiLive v0.2
+ * Development HiLive v0.1
+ * Project founder
 
 Jakob M. Schulze <jakobschulze (at) arcor.de>
- * development v0.2 -> v0.3
- * development support v0.3 -> v1.0
- 
- Tobias P. Loka <lokat (at) rki.de>
- * development v0.3 -> v1.0
- * development v1.0 -> v1.1
- 
- Simon H. Tausch <tauschs (at) rki.de>
- * continuous development support
+ * Development support v1.0
+ * Development v0.3
  
  Kristina Kirsten
- * development support v0.3 -> v1.0 (real-time SAM/BAM output)
+ * Development support v1.0
