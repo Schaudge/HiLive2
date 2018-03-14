@@ -32,95 +32,14 @@ uint64_t TaskQueue::size() {
   return tasks.size();
 }
 
-// create a vector with all lane numbers
-std::vector<uint16_t> all_lanes() {
-  std::vector<uint16_t> ln;
-  for (uint16_t l=0; l < 8; l++)
-    ln.push_back(l+1);
-  return ln;
-}
-
 // create a vector with one lane number
 std::vector<uint16_t> one_lane(uint16_t l) {
   return std::vector<uint16_t> (1,l);
 }
 
-// create a vector with all tile numbers
-std::vector<uint16_t> all_tiles() {
-  std::vector<uint16_t> tl;
-  for (uint16_t l = 0; l < 2; l++) {
-    for (uint16_t s = 0; s < 3; s++) {
-      for (uint16_t t = 0; t < 16; t++) {
-	// construct tile number
-	tl.push_back( (l+1)*1000 + (s+1)*100 + (t+1) );
-      }      
-    }
-  }
-  return tl;
-}
-
 // create a vector with one tile number
 std::vector<uint16_t> one_tile(uint16_t t) {
   return std::vector<uint16_t> (1,t);
-}
-
-// initialize agenda with read length only (all lanes, all tiles)
-Agenda::Agenda (uint16_t rl) {
-  
-  // add lanes 1-8 to the list
-  std::vector<uint16_t> ln = all_lanes();
-  
-  // call the tiles constructor
-  Agenda(rl, ln);
-
-}
-
-// initialize agenda with read length and lanes (all tiles)
-Agenda::Agenda (uint16_t rl, std::vector<uint16_t> ln) {
-
-  // add all tiles to the list
-  std::vector<uint16_t> tl = all_tiles();
-  
-  // call the full constructor
-  Agenda (rl, ln, tl);
-
-}
-
-// initialize agenda with read length, lanes, and tiles
-Agenda::Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl) {
-
-	Agenda(rl, ln, tl, 1);
-
-}
-
-// initialize agenda with read length, lanes, and tiles
-Agenda::Agenda (uint16_t rl, std::vector<uint16_t> ln, std::vector<uint16_t> tl, CountType start_cycle) {
-
-  rlen = rl;
-  lanes = ln;
-  tiles = tl;
-
-  // set up the agenda
-  items.clear();
-  for (uint16_t ln_id = 0; ln_id < lanes.size(); ln_id++) {
-    std::vector<std::vector<ItemStatus> > lane_status;
-    for (uint16_t tl_id = 0; tl_id < tiles.size(); tl_id++) {
-
-    	// Status for finished cycles if "--continue" was used.
-    	std::vector<ItemStatus> tile_status (start_cycle-1, FINISHED);
-
-    	// Waiting cycles
-    	std::vector<ItemStatus> waiting_status (rlen-(start_cycle-1), WAITING);
-
-    	// Merge vectors
-    	tile_status.insert(tile_status.end(), waiting_status.begin(), waiting_status.end());
-
-    	// Push back
-    	lane_status.push_back(tile_status);
-    }
-    items.push_back(lane_status);
-  }
-
 }
 
 // check for BCL files and update item status
@@ -137,8 +56,6 @@ void Agenda::update_status () {
 			while ( (first_unfinished < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == FINISHED)) {
 				first_unfinished++;
 			}
-
-//			std::cout << ln_id << ";" << tl_id << ";" << first_unfinished << std::endl;
 
 			// if there is one, check if there is a BCL file available
 			if ((first_unfinished != items[ln_id][tl_id].size()) && (items[ln_id][tl_id][first_unfinished] == WAITING)) {
@@ -171,11 +88,11 @@ Task Agenda::get_task(){
 			if ( unprocessed != items[ln_id][tl_id].size() ) {
 				uint16_t cycle = unprocessed + 1;
 				uint16_t read_no = 0;
-				while ( cycle > globalAlignmentSettings.getSeqById(read_no).length) {
-					cycle -= globalAlignmentSettings.getSeqById(read_no).length;
+				while ( cycle > globalAlignmentSettings.get_seq_by_id(read_no).length) {
+					cycle -= globalAlignmentSettings.get_seq_by_id(read_no).length;
 					read_no += 1;
 				}
-				Task t (lanes[ln_id], tiles[tl_id], globalAlignmentSettings.getSeqById(read_no), cycle);
+				Task t (lanes[ln_id], tiles[tl_id], globalAlignmentSettings.get_seq_by_id(read_no), cycle);
 				return t;
 			}
 		}

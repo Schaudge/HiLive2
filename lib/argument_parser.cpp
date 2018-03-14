@@ -173,6 +173,9 @@ po::options_description HiLiveArgumentParser::sequencing_options() {
 					("max-tile,T", po::value<CountType>(), "Specify the highest tile number. The tile numbers will be computed by this number, considering the correct surface count, swath count and tile count for Illumina sequencing.\nThis parameter serves as a shortcut for --tiles.\n\nExample:\n   --max-tile 2216\nwill activate all tiles in [1-2][1-2][01-16].\n")
 					("reads,r", po::value<std::string>(), "Length and types of the read segments. Each segment is either a read ('R') or a barcode ('B'). Please give the segments in the correct order as they are produced by the sequencing machine. [REQUIRED]\n\nExample:\n   --reads 101R,8B,8B,101R\nspecifies paired-end sequencing with 2x101bp reads and 2x8bp barcodes.\n")
 					("barcodes,B", po::value<std::string>(), "Barcode(s) of the sample(s) to be considered for read alignment. Barcodes must match the barcode length(s) as specified with --reads. Delimit different segments of the same barcodes by '-' and different barcodes by ','. [Default: All barcodes]\n\nExample:\n   -b ACCG-ATTG,ATGT-TGAC\nfor two different barcodes of length 2x4bp.\n")
+					("run-id", po::value<std::string>(), "ID of the sequencing run. Should be obtained from runInfo.xml.")
+					("flowcell-id", po::value<std::string>(), "ID of the flowcell. Should be obtained from runInfo.xml.")
+					("instrument-id", po::value<std::string>(), "ID of the sequencing machine. Should be obtained from runInfo.xml.")
 					;
 	return sequencing;
 }
@@ -311,23 +314,13 @@ void HiLiveArgumentParser::report() {
     std::cout << "Read lengths:             ";
     std::string barcode_suffix;
     for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
-    	std::cout << globalAlignmentSettings.getSeqById(read).length;
-    	barcode_suffix = globalAlignmentSettings.getSeqById(read).isBarcode() ? "B" : "R";
+    	std::cout << globalAlignmentSettings.get_seq_by_id(read).length;
+    	barcode_suffix = globalAlignmentSettings.get_seq_by_id(read).isBarcode() ? "B" : "R";
     	std::cout << barcode_suffix << " ";
     }
     std::cout << std::endl;
     std::cout << "Min. alignment score:     " << globalAlignmentSettings.get_min_as() << std::endl;
-    if (globalAlignmentSettings.get_any_best_hit_mode())
-        std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
-    else if (globalAlignmentSettings.get_all_best_hit_mode())
-        std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
-    else if (globalAlignmentSettings.get_all_best_n_scores_mode())
-        std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
-    else if (globalAlignmentSettings.get_unique_hit_mode())
-        std::cout << "Mapping mode:             Unique-Hits-Mode" << std::endl;
-    else
-        std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
-
+    std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode()) << std::endl;
     std::cout << "Anchor length:            " << globalAlignmentSettings.get_anchor_length() << std::endl;
 
 	if ( globalAlignmentSettings.get_start_cycle() > 1 ) {
@@ -340,57 +333,81 @@ void HiLiveArgumentParser::report() {
 
 bool HiLiveArgumentParser::parseRunInfo(po::variables_map vm) {
 
-	// TODO: REACTIVATE!
-
+	// Check for runinfo commandline parameter
 	if ( ! vm.count("runinfo"))
 		return false;
 
-	boost::property_tree::ptree tree;
-	read_xml(tree, vm["runinfo"].as<std::string>());
-
 	using boost::property_tree::ptree;
 
-	if (!tree.empty() && tree.count("RunInfo")!=0) {
-		ptree ptree_RunInfo = tree.get_child("RunInfo");
+	// Load the file
+	ptree tree;
+	read_xml(tree, vm["runinfo"].as<std::string>());
 
-		if (ptree_RunInfo.count("Run")!=0) {
-			ptree ptree_Run = ptree_RunInfo.get_child("Run");
-
-			if (ptree_Run.count("Reads")!=0) {
-
-				ptree ptree_Reads = ptree_Run.get_child("Reads");
-
-				// Get the sequence structure and total number of cycles
-				std::vector<std::string> sequences;
-				for (const auto &read : ptree_Reads) {
-					std::string sequence = "";
-					sequence += read.second.get<std::string>("<xmlattr>.NumCycles");
-					sequence += read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N" ? "R" : "B";
-					sequences.push_back(sequence);
-				}
-
-				runInfo_settings.insert(std::make_pair("reads", boost::program_options::variable_value(to_string(sequences), false)));
-
-	            if (ptree_Run.count("FlowcellLayout")!=0) {
-
-	            	ptree ptree_FlowcellLayout = ptree_Run.get_child("FlowcellLayout");
-
-	            	// Get the lanes
-	            	std::vector<uint16_t> lanes_vec(ptree_FlowcellLayout.get<unsigned>("<xmlattr>.LaneCount"));
-	            	std::iota(lanes_vec.begin(), lanes_vec.end(), 1);
-	            	runInfo_settings.insert(std::make_pair("lanes", boost::program_options::variable_value(to_string(lanes_vec), false)));
-
-	            	// Get the tiles
-	            	std::vector<uint16_t> tiles_vec = flowcell_layout_to_tile_numbers(
-	            			ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SurfaceCount"),
-							ptree_FlowcellLayout.get<unsigned>("<xmlattr>.SwathCount"),
-							ptree_FlowcellLayout.get<unsigned>("<xmlattr>.TileCount") );
-	            	runInfo_settings.insert(std::make_pair("tiles", boost::program_options::variable_value(to_string(tiles_vec), false)));
-	            }
-			}
-		}
+	// Try to obtain the run ID
+	if ( tree.get_child_optional("RunInfo.Run.<xmlattr>.Id")) {
+			runInfo_settings.insert(std::make_pair("run-id", boost::program_options::variable_value(tree.get<std::string>("RunInfo.Run.<xmlattr>.Id"), false)));
 	}
+
+	// Try to obtain the flowcell ID
+	if ( tree.get_child_optional("RunInfo.Run.Flowcell") ) {
+		runInfo_settings.insert(std::make_pair("flowcell-id", boost::program_options::variable_value(tree.get<std::string>("RunInfo.Run.Flowcell"), false)));
+	}
+
+	// Try to obtain the instrument ID
+	if ( tree.get_child_optional("RunInfo.Run.Instrument")) {
+		runInfo_settings.insert(std::make_pair("instrument-id", boost::program_options::variable_value(tree.get<std::string>("RunInfo.Run.Instrument"), false)));
+	}
+
+	 // Try to obtain the read segments
+	if ( tree.get_child_optional("RunInfo.Run.Reads") ) {
+
+		std::vector<std::string> sequences;
+		for (const auto &read : tree.get_child("RunInfo.Run.Reads") ) {
+
+			if ( !read.second.get_child_optional("<xmlattr>.NumCycles")
+					|| !read.second.get_child_optional("<xmlattr>.IsIndexedRead") ) {
+				throw std::runtime_error("Parsing error: Read information in runInfo file is not valid.");
+			}
+
+			// Get the segments
+			std::string sequence = "";
+			sequence += read.second.get<std::string>("<xmlattr>.NumCycles");
+			sequence += read.second.get<std::string>("<xmlattr>.IsIndexedRead") == "N" ? "R" : "B";
+			sequences.push_back(sequence);
+		}
+
+		// Store the read segments
+		runInfo_settings.insert(std::make_pair("reads", boost::program_options::variable_value(join(sequences), false)));
+	}
+
+	// Try to obtain the Flowcell layout
+	if ( tree.get_child_optional("RunInfo.Run.FlowcellLayout") ) {
+
+		auto tree_FlowcellLayout = tree.get_child("RunInfo.Run.FlowcellLayout");
+
+		// Store the lane count
+		if ( tree_FlowcellLayout.get_child_optional("<xmlattr>.LaneCount")) {
+			std::vector<uint16_t> lanes_vec(tree_FlowcellLayout.get<unsigned>("<xmlattr>.LaneCount"));
+			std::iota(lanes_vec.begin(), lanes_vec.end(), 1);
+			runInfo_settings.insert(std::make_pair("lanes", boost::program_options::variable_value(join(lanes_vec), false)));
+		}
+
+		// Store the tile count
+		if ( tree_FlowcellLayout.get_child_optional("<xmlattr>.SurfaceCount")
+				&& tree_FlowcellLayout.get_child_optional("<xmlattr>.SwathCount")
+				&& tree_FlowcellLayout.get_child_optional("<xmlattr>.TileCount") ) {
+
+			std::vector<uint16_t> tiles_vec = flowcell_layout_to_tile_numbers(
+					tree_FlowcellLayout.get<unsigned>("<xmlattr>.SurfaceCount"),
+					tree_FlowcellLayout.get<unsigned>("<xmlattr>.SwathCount"),
+					tree_FlowcellLayout.get<unsigned>("<xmlattr>.TileCount") );
+			runInfo_settings.insert(std::make_pair("tiles", boost::program_options::variable_value(join(tiles_vec), false)));
+		}
+
+	}
+
 	return true;
+
 }
 
 int HiLiveArgumentParser::parseCommandLineArguments() {
@@ -508,21 +525,25 @@ bool HiLiveArgumentParser::set_options() {
 		// GENERAL OPTIONS
 		set_option<CountType>("continue", 1, &AlignmentSettings::set_start_cycle);
 
-
 		// SEQUENCING OPTIONS
 		set_option<std::string>("bcl-dir", "", &AlignmentSettings::set_root);
 
-		set_option<std::string>("lanes", to_string(all_lanes()), &AlignmentSettings::set_lanes);
+		set_option<std::string>("lanes", join(all_lanes()), &AlignmentSettings::set_lanes);
 
 		if ( select_prioritized_parameter( {"tiles", "max-tile"} ) == "tiles" )
-			set_option<std::string>("tiles", to_string(all_tiles()), &AlignmentSettings::set_tiles);
+			set_option<std::string>("tiles", join(all_tiles()), &AlignmentSettings::set_tiles);
 		else
 			set_option<CountType>("max-tile", 2316, &AlignmentSettings::set_max_tile);
 
 		set_option<std::string>("reads", "", &AlignmentSettings::set_read_structure);
 
-		std::vector<std::string> barcode_sequences_default;
-		set_option<std::vector<std::string>>("barcodes", barcode_sequences_default, &AlignmentSettings::set_barcodes);
+		set_option<std::string>("barcodes", "", &AlignmentSettings::set_barcodes);
+
+		set_option<std::string>("run-id", "", &AlignmentSettings::set_run_id);
+
+		set_option<std::string>("flowcell-id", "", &AlignmentSettings::set_flowcell_id);
+
+		set_option<std::string>("instrument-id", "", &AlignmentSettings::set_instrument_id);
 
 
 		// REPORT OPTIONS
@@ -530,7 +551,7 @@ bool HiLiveArgumentParser::set_options() {
 
 		set_option<std::string>("out-format", "BAM", &AlignmentSettings::set_output_format);
 
-		set_option<std::string>("out-cycles", "" + globalAlignmentSettings.get_cycles(), &AlignmentSettings::set_output_cycles);
+		set_option<std::string>("out-cycles", std::to_string(globalAlignmentSettings.get_cycles()), &AlignmentSettings::set_output_cycles);
 
 		set_option<std::string>("out-mode", "ANYBEST", &AlignmentSettings::set_mode);
 
@@ -583,7 +604,7 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<float>("softclip-extension-penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_anchor_length(), &AlignmentSettings::set_softclip_extension_penalty);
 
 		// 3% error rate by default
-		ScoreType min_as_default = getMaxPossibleScore(globalAlignmentSettings.getSeqByMate(1).length) - ( float(globalAlignmentSettings.getSeqByMate(1).length / 100.0f) * 3.0f * getMaxSingleErrorPenalty());
+		ScoreType min_as_default = getMaxPossibleScore(globalAlignmentSettings.get_seq_by_mate(1).length) - ( float(globalAlignmentSettings.get_seq_by_mate(1).length / 100.0f) * 3.0f * getMaxSingleErrorPenalty());
 		set_option<ScoreType>("min-as", min_as_default, &AlignmentSettings::set_min_as);
 
 
@@ -705,22 +726,13 @@ void HiLiveOutArgumentParser::report() {
 	std::cout << "Total Read lengths:       ";
 	std::string barcode_suffix;
 	for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
-		std::cout << globalAlignmentSettings.getSeqById(read).length;
-		barcode_suffix = globalAlignmentSettings.getSeqById(read).isBarcode() ? "B" : "R";
+		std::cout << globalAlignmentSettings.get_seq_by_id(read).length;
+		barcode_suffix = globalAlignmentSettings.get_seq_by_id(read).isBarcode() ? "B" : "R";
 		std::cout << barcode_suffix << " ";
 	}
 	std::cout << std::endl;
 	std::cout << "Min. Alignment Score:     " << globalAlignmentSettings.get_min_as() << std::endl;
-	if (globalAlignmentSettings.get_any_best_hit_mode())
-		std::cout << "Mapping mode:             Any-Best-Hit-Mode" << std::endl;
-	else if (globalAlignmentSettings.get_all_best_hit_mode())
-		std::cout << "Mapping mode:             All-Best-Hit-Mode" << std::endl;
-	else if (globalAlignmentSettings.get_all_best_n_scores_mode())
-		std::cout << "Mapping mode:             All-Best-N-Scores-Mode with N=" << globalAlignmentSettings.get_best_n() << std::endl;
-    else if (globalAlignmentSettings.get_unique_hit_mode())
-        std::cout << "Mapping mode:             Unique-Hits-Mode" << std::endl;
-	else
-		std::cout << "Mapping mode:             All-Hits-Mode" << std::endl;
+	std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode()) << std::endl;
 	std::cout << "Output Cycles:            ";
 	for ( auto cycle : globalAlignmentSettings.get_output_cycles() ) {
 		std::cout << cycle << " ";

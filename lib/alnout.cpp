@@ -8,8 +8,8 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 
 	// Fill list of specified barcodes
 	std::vector<std::string> barcodes;
-	for ( unsigned i = 0; i < globalAlignmentSettings.get_barcodeVector().size(); i++ ) {
-		barcodes.push_back(globalAlignmentSettings.get_barcodeString(i));
+	for ( unsigned i = 0; i < globalAlignmentSettings.get_barcode_vector().size(); i++ ) {
+		barcodes.push_back(globalAlignmentSettings.get_barcode_string(i));
 	}
 
 	// Get the finished cycles for each mate
@@ -152,7 +152,7 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 CountType AlnOut::openiAlnStream( CountType lane, CountType tile, CountType mateCycle, CountType mate, iAlnStream* istream) {
 
 	// Check if mate is valid.
-	if ( globalAlignmentSettings.getSeqByMate(mate) == NULLSEQ )
+	if ( globalAlignmentSettings.get_seq_by_mate(mate) == NULLSEQ )
 		return 1;
 
 	// Check if mate cycle is >0
@@ -302,7 +302,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 		// setup QNAME
 		// Read name format <instrument‐name>:<run ID>:<flowcell ID>:<lane‐number>:<tile‐number>:<x‐pos>:<y‐pos>
 		// readname << "<instrument>:<run-ID>:<flowcell-ID>:" << ln << ":" << tl << ":<xpos>:<ypos>:" << i;
-		//TODO: where do we get the Illumina read coordinate from?
+		//TODO: Get coordinates from clocs file, run-ID from runInfo.xml, flowcell ID from runInfo.xml, instrument from runInfo.xml
 		std::stringstream readname;
 		readname << "lane." << lane << "|tile." << tile << "|read." << i;
 
@@ -367,7 +367,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 			// Unique mode interruption
 			// TODO: Think about reporting of unmapped and non-unique reads if report-unmapped is activated
-			if ( mateAlignments[mateAlignmentIndex]->seeds.size() > 1 && globalAlignmentSettings.get_unique_hit_mode() )
+			if ( mateAlignments[mateAlignmentIndex]->seeds.size() > 1 && globalAlignmentSettings.is_mode(UNIQUE) )
 				continue;
 
 			std::vector<uint8_t> mapqs = mateAlignments[mateAlignmentIndex]->getMAPQs();
@@ -384,7 +384,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					first_seed_score = curr_seed_score;
 
 				// Stop in all best mode when AS:i score is lower than the first
-				if( globalAlignmentSettings.get_all_best_hit_mode() && first_seed_score > curr_seed_score )
+				if( globalAlignmentSettings.is_mode(ALLBEST) && first_seed_score > curr_seed_score )
 					goto nextmate;
 
 
@@ -428,7 +428,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 				// Get positions for the current seed
 				std::vector<GenomePosType> pos_list;
 
-				if ( globalAlignmentSettings.get_any_best_hit_mode() )
+				if ( globalAlignmentSettings.is_mode(ANYBEST) )
 					pos_list = (*it)->getPositions(0, 1); // retrieve only one position from the index
 				else
 					pos_list = (*it)->getPositions(); // retrieve all positions from the index
@@ -437,7 +437,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 				for ( auto p = pos_list.begin(); p != pos_list.end(); ++p ) {
 
 					// Stop in any best mode when first alignment was already written
-					if( globalAlignmentSettings.get_any_best_hit_mode() && printedMateAlignments >= 1 )
+					if( globalAlignmentSettings.is_mode(ANYBEST) && printedMateAlignments >= 1 )
 						goto nextmate;
 
 					seqan::BamAlignmentRecord record = mate_record;

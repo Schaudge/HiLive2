@@ -85,7 +85,7 @@ inline std::string get_config_fname() {
 inline uint16_t getSeqCycle(uint16_t cycle, uint16_t seq_id) {
 	uint16_t seq_cycle = cycle;
 	for ( int i = 0; i < seq_id; i++ )
-		seq_cycle += globalAlignmentSettings.getSeqById(i).length;
+		seq_cycle += globalAlignmentSettings.get_seq_by_id(i).length;
 	return seq_cycle;
 }
 /**
@@ -106,7 +106,7 @@ inline uint16_t getMateCycle( uint16_t mate_number, uint16_t seq_cycle ) {
 	for ( CountType id = 0; id < globalAlignmentSettings.get_seqs().size(); id++ ) {
 
 		// Current sequence element
-		SequenceElement seq = globalAlignmentSettings.getSeqById(id);
+		SequenceElement seq = globalAlignmentSettings.get_seq_by_id(id);
 
 		// Seq is mate of interest
 		if ( seq.mate == mate_number )

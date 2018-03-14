@@ -107,7 +107,7 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
                 else {
                 	CountType mate = 1;
                 	for ( ; mate <= globalAlignmentSettings.get_mates(); mate++ ) {
-                		SequenceElement seqEl = globalAlignmentSettings.getSeqByMate(mate);
+                		SequenceElement seqEl = globalAlignmentSettings.get_seq_by_mate(mate);
                 		CountType current_mate_cycle = t.seqEl.id < seqEl.id ? 0 : seqEl.length;
                 		s.extend_barcode(t.cycle, current_mate_cycle, t.seqEl.id, mate);
                 	}
@@ -230,7 +230,7 @@ int main(int argc, const char* argv[]) {
             			continue;
 
 
-                StreamedAlignment s (ln, tl, globalAlignmentSettings.getSeqByMate(mate).length);
+                StreamedAlignment s (ln, tl, globalAlignmentSettings.get_seq_by_mate(mate).length);
                 s.create_directories();
                 s.init_alignment(mate);
             }
