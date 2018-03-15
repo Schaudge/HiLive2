@@ -267,7 +267,7 @@ void HiLiveArgumentParser::init_help(po::options_description visible_options) {
 bool HiLiveArgumentParser::checkPaths() {
 
 	std::size_t found = globalAlignmentSettings.get_root().find("BaseCalls");
-	if (!(found != std::string::npos && found >= globalAlignmentSettings.get_root().size()-10)) {
+	if (!(found != std::string::npos && found >= globalAlignmentSettings.get_root().size()-9)) {
 		std::cerr << "Warning: BaseCalls directory seems to be invalid: " << globalAlignmentSettings.get_root() << std::endl;
 	}
 
