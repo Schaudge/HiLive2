@@ -523,9 +523,12 @@ bool HiLiveArgumentParser::set_options() {
 	try {
 
 		// GENERAL OPTIONS
+
 		set_option<CountType>("continue", 1, &AlignmentSettings::set_start_cycle);
 
+
 		// SEQUENCING OPTIONS
+
 		set_option<std::string>("bcl-dir", "", &AlignmentSettings::set_root);
 
 		set_option<std::string>("lanes", join(all_lanes()), &AlignmentSettings::set_lanes);
@@ -547,6 +550,7 @@ bool HiLiveArgumentParser::set_options() {
 
 
 		// REPORT OPTIONS
+
 		set_option<std::string>("out-dir", "./out", &AlignmentSettings::set_out_dir);
 
 		set_option<std::string>("out-format", "BAM", &AlignmentSettings::set_output_format);
@@ -565,6 +569,7 @@ bool HiLiveArgumentParser::set_options() {
 
 
 		// ALIGNMENT OPTIONS
+
 		set_option<std::string>("index", "", &AlignmentSettings::set_index_fname);
 
 		CountType default_anchor_length = set_mode();
@@ -609,9 +614,10 @@ bool HiLiveArgumentParser::set_options() {
 
 
 		// TECHNICAL OPTIONS
+
 		set_option<std::string>("temp-dir", "./temp", &AlignmentSettings::set_temp_dir);
 
-		if ( cmd_settings["keep-all-files"].as<bool>() || ( ! cmd_settings.count("keep-files") && config_file_settings["keep-all-files"].as<bool>() ) ) {
+		if ( select_prioritized_parameter( {"keep-all-files", "keep-files"} ) == "keep-all-files" ) {
 			globalAlignmentSettings.set_keep_all_aln_files();
 		} else {
 			set_option<std::string>("keep-files", "", &AlignmentSettings::set_keep_aln_files);
