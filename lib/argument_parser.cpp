@@ -173,9 +173,9 @@ po::options_description HiLiveArgumentParser::sequencing_options() {
 					("max-tile,T", po::value<CountType>(), "Specify the highest tile number. The tile numbers will be computed by this number, considering the correct surface count, swath count and tile count for Illumina sequencing.\nThis parameter serves as a shortcut for --tiles.\n\nExample:\n   --max-tile 2216\nwill activate all tiles in [1-2][1-2][01-16].\n")
 					("reads,r", po::value<std::string>(), "Length and types of the read segments. Each segment is either a read ('R') or a barcode ('B'). Please give the segments in the correct order as they are produced by the sequencing machine. [REQUIRED]\n\nExample:\n   --reads 101R,8B,8B,101R\nspecifies paired-end sequencing with 2x101bp reads and 2x8bp barcodes.\n")
 					("barcodes,B", po::value<std::string>(), "Barcode(s) of the sample(s) to be considered for read alignment. Barcodes must match the barcode length(s) as specified with --reads. Delimit different segments of the same barcodes by '-' and different barcodes by ','. [Default: All barcodes]\n\nExample:\n   -b ACCG-ATTG,ATGT-TGAC\nfor two different barcodes of length 2x4bp.\n")
-					("run-id", po::value<std::string>(), "ID of the sequencing run. Should be obtained from runInfo.xml.")
-					("flowcell-id", po::value<std::string>(), "ID of the flowcell. Should be obtained from runInfo.xml.")
-					("instrument-id", po::value<std::string>(), "ID of the sequencing machine. Should be obtained from runInfo.xml.")
+					("run-id", po::value<std::string>(), "ID of the sequencing run. Should be obtained from runInfo.xml.\n")
+					("flowcell-id", po::value<std::string>(), "ID of the flowcell. Should be obtained from runInfo.xml.\n")
+					("instrument-id", po::value<std::string>(), "ID of the sequencing machine. Should be obtained from runInfo.xml.\n")
 					;
 	return sequencing;
 }
@@ -254,9 +254,9 @@ void HiLiveArgumentParser::init_help(po::options_description visible_options) {
 	help_message << "Usage: " << std::endl << "  hilive [options]" << std::endl << std::endl;
 	help_message << "Example command: " << std::endl << "  hilive --bcl-dir ./BaseCalls --index ./reference/hg19 --reads 101R" << std::endl << std::endl;
 	help_message << "REQUIRED OPTIONS:" << std::endl;
-	help_message << "  --bcl-dir             Illumina's BaseCalls directory which contains the sequence information of the reads." << std::endl;
-	help_message << "  --index               Path to the HiLive index." << std::endl;
-	help_message << "  --reads               Length and types of the read segments." << std::endl << std::endl;;
+	help_message << "  -b [--bcl-dir]        Illumina's BaseCalls directory which contains the sequence information of the reads." << std::endl;
+	help_message << "  -i [--index]          Path to the HiLive index." << std::endl;
+	help_message << "  -r [--reads]          Length and types of the read segments." << std::endl << std::endl;;
 	help_message << "Required options might be specified either on the command line or in the config file." << std::endl;
 
 	help_message << visible_options;
