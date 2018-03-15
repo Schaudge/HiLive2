@@ -11,6 +11,10 @@ Content
   - [Index building](#index-building)
   - [Run HiLive2](#run-hilive2)
  - [HiLive2 options](#hilive2-options)
+  - [Important general options](#important-general-options)
+  - [Paired-end sequencing](#paired-end-sequencing) 
+  - [Live demultiplexing](#live-demultiplexing)
+  - [Output cycles](#output-cycles)
  - [Using a configuration file](#using-a-configuration-file)
  - [Using the hilive-out executable](#using-the-hilive-out-executable)
  - [Additional remarks](#additional-remarks)
@@ -27,9 +31,9 @@ Please make sure you installed HiLive2 as described in the README.md of the prog
 To test HiLive2, please try to open the help of the three executables:
 
 ```
-/path/to/hilive -h
-/path/to/hilive-out -h
-/path/to/hilive-build -h
+> /path/to/hilive -h
+> /path/to/hilive-out -h
+> /path/to/hilive-build -h
 ```
 
 ### Example data
@@ -42,8 +46,8 @@ Get started
 At the beginning of the tutorial, please change your working directory to the tutorial data:
 
 ```
-cd /path/to/HiLive2/tutorial
-ls
+> cd /path/to/HiLive2/tutorial
+> ls
 ```
 
 The `ls` command should list four files/directories:
@@ -60,8 +64,8 @@ To use HiLive2, you first need to build an index of your reference genome(s) of 
 Use the `hilive-build` executable to build your index. Please note, that the output directory must exist:
 
 ```
-mkdir index
-hilive-build -i hiv1.fa -o index/hiv1
+> mkdir index
+> hilive-build -i hiv1.fa -o index/hiv1
 ```
 
 This should only take a few seconds and the command line output should look like this:
@@ -81,7 +85,7 @@ After [buiding your index](#index-building), you can run HiLive2 with the prepar
 To run HiLive2 with default parameters, type:
 
 ```
-hilive -b BaseCalls -i index/hiv1 -r 100R --lanes 1 --tiles 1101 
+> hilive -b BaseCalls -i index/hiv1 -r 100R --lanes 1 --tiles 1101 
 ```
 
 The command line output should look similar to this:
@@ -123,3 +127,93 @@ Total run time: 31 s
 ``` 
 
 HiLive2 created two new directories: `out` and `temp`. In the `temp` directory, you find temporary alignment files of the last cycle (100). Additionally, there is a file `hilive_config.ini` which stores the parameter settings used by HiLive2 for the given run. The `out` directory contains the actual output files in BAM format. There is one cycle for each cycle and barcode. For the example command with default parameters, this is only one single file `hilive_out_cycle100_undetermined.bam`.
+
+
+HiLive2 options
+---------------
+
+### Paired-end sequencing
+
+To align both reads rather than only the first 100bp, the segment order must be specified with the `-r [--reads]` option.  
+In Illumina sequencing, barcodes of paired-end sequencing mostly occur in the middle of both reads. For the given data, we simulated 2x100bp reads and 2x4bp barcodes in between them.
+This corresponds to the segment structure 100R-4B-4B-100R. In HiLive2, specify the segments order as a comma-separated list:
+
+```
+hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R 
+```
+
+Alignments for both reads are written to the same BAM file as defined in the SAM/BAM specification.  
+However, HiLive2 only reports independent alignments for both reads rather than proper pairs.
+
+
+### Live demultiplexing
+
+With live demultiplexing, it is possible to distinguish different samples of the same sequencing run.  
+HiLive2 supports arbitrary combinations of the segment structure which also allows to use dual barcodes as shown in this example (2x4bp).  
+Before you continue, please remove all previously created data:
+
+```
+> rm -r ./out
+> rm -r ./temp
+```
+
+Our example data set contains reads with two slightly different Barcodes:
+```
+ACAG-TCGA
+|| |-| ||
+ACGG-TGGA
+```
+
+With default parameters, two errors per barcode fragment are tolerated. Thus, all reads fulfill the criteria and will be aligned and reported.  
+The desired barcode sequence(s) are declared with the `-B [--barcodes]` option.  
+The number of permitted barcodes per fragment can be set with `--barcode-errors`.  
+While both parameters are comma-separated lists in general, the tolerated number of errors can also be set with a single number to set this value for all fragments. Dual barcodes are separated with a "-" character:
+
+```
+# Default barcode options
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA
+
+# Strict barcode options (not tolerating errors)
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA --barcode-errors 0
+
+# Tolerate 0 errors in the first barcode segment and 1 error in the second
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA --barcode-errors 0,1
+
+# Specify both barcodes
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA,ACGG-TGGA
+```
+
+### Output cycles
+When performing real-time read mapping, it is often valuable to get intermediate mapping results when the sequencing machine is still running rather than only producing results after the last sequencing cycle.  
+Therefore, it is possible to write SAM/BAM output files for intermediate sequencing cycles using the `-O [--out-cycles]` option.  
+In the following example, output files are written in the cycles 50, 100, 158 and 208:
+
+```
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA -O 50,100,158,208
+```
+
+This results in the following output files:
+
+```
+> ls -lah ./out
+hilive_out_cycle50_ACAG-TCGA.bam
+hilive_out_cycle100_ACAG-TCGA.bam
+hilive_out_cycle158_ACAG-TCGA.bam
+hilive_out_cycle208_ACAG-TCGA.bam
+```
+
+To also align and report undetermined barcodes, set the `--align-undetermined-barcodes` option:
+
+```
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA -O 50,100,158,208 --align-undetermined-barcodes
+
+> ls -lah ./out
+hilive_out_cycle50_ACAG-TCGA.bam
+hilive_out_cycle50_undetermined.bam
+hilive_out_cycle100_ACAG-TCGA.bam
+hilive_out_cycle100_undetermined.bam
+hilive_out_cycle158_ACAG-TCGA.bam
+hilive_out_cycle158_undetermined.bam
+hilive_out_cycle208_ACAG-TCGA.bam
+hilive_out_cycle208_undetermined.bam
+```
