@@ -309,6 +309,9 @@ const CountType MAX_NUM_POSITIONS = std::numeric_limits<CountType>::max();
 /** Define a mask to only consider the latter two bits of a byte. */
 static const uint8_t two_bit_mask = 3;
 
+/** Define the value for undetermined barcodes as maximum of CountType. */
+static const CountType UNDETERMINED = std::numeric_limits<CountType>::max();
+
 
 //////////////////////////////////
 ////////// Enumerations //////////

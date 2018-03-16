@@ -41,6 +41,8 @@ void AlnOut::init() {
 	if ( initialized )
 		return;
 
+	barcodes = globalAlignmentSettings.get_barcode_string_vector();
+
 	// Init the bamIOContext (the same object can be used for all output streams)
 	bfos.set_context(idx->getSeqNames(), idx->getSeqLengths());
 
@@ -281,7 +283,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 			mateAlignments.push_back(e->get_alignment());
 		}
 
-		std::vector<std::vector<seqan::BamAlignmentRecord>> mateRecords(mateAlignments.size());
+		std::vector<std::vector<seqan::BamAlignmentRecord>> mateRecords(mateAlignments.size(), std::vector<seqan::BamAlignmentRecord>(0));
 
 		// if the filter file is available and the filter flag is 0 then skip
 		if (filters.size() != 0 && filters.next() == false)
@@ -294,9 +296,9 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 		CountType barcodeIndex = mateAlignments[0]->getBarcodeIndex();
 
 		// If read has undetermined barcode and keep_all_barcodes is not set, skip this read
-		if ( barcodeIndex == NO_MATCH && !globalAlignmentSettings.get_keep_all_barcodes() )
+		if ( barcodeIndex == UNDETERMINED && !globalAlignmentSettings.get_keep_all_barcodes() )
 			continue;
-		else if ( barcodeIndex == NO_MATCH )
+		else if ( barcodeIndex == UNDETERMINED )
 			barcodeIndex = barcodes.size(); // this is the index for the "undetermined" output stream
 
 		// setup QNAME
@@ -310,7 +312,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 		// TODO: implement equivalent alignment window as user parameter
 		PositionType equivalentAlignmentWindow = 10;
 		std::set<PositionType> alignmentPositions;
-
 
 		// for all mates
 		/////////////////////////////////////////////////////////////////////////////
@@ -523,7 +524,6 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 		// Write all records as a group to keep suboptimal alignments and paired reads together.
 		bfos[barcodeIndex].writeRecords(mateRecords);
-
 
 		for (auto e:mateAlignments)
 			delete e;

@@ -635,7 +635,7 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 
 	    // filter invalid barcodes if new barcode fragment is completed
 	    // TODO: Is done for each mate. Check if it's worth to change it (runtime should not be too high?)
-	    if ( !globalAlignmentSettings.get_keep_all_barcodes() && bc_cycle == globalAlignmentSettings.get_seqs()[read_no].length && ra->getBarcodeIndex() == NO_MATCH ) {
+	    if ( !globalAlignmentSettings.get_keep_all_barcodes() && bc_cycle == globalAlignmentSettings.get_seqs()[read_no].length && ra->getBarcodeIndex() == UNDETERMINED ) {
 	    	ra->disable();
 	    }
 

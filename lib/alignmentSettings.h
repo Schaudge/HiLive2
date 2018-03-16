@@ -184,19 +184,6 @@ private:
 	///////////////////////////////////////
 
 	/**
-	 * Parse the barcode vector to a string vector that can be used for XML output.
-	 * @return Vector with one string for each barcode. Subsequences are delimited with a "-" character.
-	 * @author Tobias Loka
-	 */
-	std::vector<std::string> barcodes_to_string_vector() {
-		std::vector<std::string> bc_strings;
-		for ( CountType i = 0; i < get_barcode_vector().size(); i++ ) {
-			bc_strings.push_back( get_barcode_string(i) );
-		}
-		return bc_strings;
-	}
-
-	/**
 	 * Parse the seq vector to a string vector that can be used for XML output.
 	 * @return Vector with one string for each element in format [0-9]*[BR]
 	 * @author Tobias Loka
@@ -298,7 +285,7 @@ public:
 		putConfigNode ( ptree, "lanes", join( get_lanes() ) );
 		putConfigNode ( ptree, "tiles", join( get_tiles() ) );
 		putConfigNode ( ptree, "reads", join( seqs_to_string_vector() ) );
-		putConfigNode ( ptree, "barcodes", join( barcodes_to_string_vector() ) );
+		putConfigNode ( ptree, "barcodes", join( get_barcode_string_vector() ) );
 		putConfigNode ( ptree, "run-id", get_run_id() );
 		putConfigNode ( ptree, "flowcell-id", get_flowcell_id() );
 		putConfigNode ( ptree, "instrument-id", get_instrument_id() );
@@ -475,6 +462,19 @@ public:
 			std::string barcode_string = ss.str();
 			return format_barcode(barcode_string);
 		}
+	}
+
+	/**
+	 * Parse the barcode vector to a string vector that can be used for XML output.
+	 * @return Vector with one string for each barcode. Subsequences are delimited with a "-" character.
+	 * @author Tobias Loka
+	 */
+	std::vector<std::string> get_barcode_string_vector() {
+		std::vector<std::string> bc_strings;
+		for ( CountType i = 0; i < get_barcode_vector().size(); i++ ) {
+			bc_strings.push_back( get_barcode_string(i) );
+		}
+		return bc_strings;
 	}
 
 	/**
