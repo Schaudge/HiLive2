@@ -132,6 +132,71 @@ HiLive2 created two new directories: `out` and `temp`. In the `temp` directory, 
 HiLive2 options
 ---------------
 
+### Important general options:
+
+This sections lists the options of HiLive2 that we expect to be most important when using HiLive2.  
+This short introductions does not contain information about options concerning [paired-end sequencing](#paired-end-sequencing), [live demultiplexing](#live-demultiplexing) and [output cycles](#output-cycles) as they are described in separated section to provide more details.  
+
+##### Alignment mode
+HiLive2 comes with three different alignment modes: `FAST`, `BALANCED` or `ACCURATE`.  
+By default, HiLive2 is started in `BALANCED` mode. Use the `--align-mode` option to make HiLive2 run faster (`FAST`) or more sensitive (`ACCURATE`):
+
+```
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R --align-mode FAST
+```
+
+The selected alignment mode can affect several algorithmic parameters, as the anchor length or seeding interval.
+
+##### Report mode
+HiLive2 comes with several report modes:
+
+ * `ANYBEST` reports one best alignment  
+ * `ALLBEST` reports all best alignments
+ * `BESTN#` reports the best up to # alignments (also suboptimal)
+ * `ALL` reports all alignments found by the algorithm
+ * `UNIQUE` reports only unique alignments (only aligning to one position)
+
+Use the `--out-mode` option to select the respective report mode:
+
+```
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R --out-mode BESTN5
+```
+
+##### Lanes and tiles
+Different Illumina sequencing machines (and run modes/protocols) have a different number of lanes and tiles.  
+These can be set with the `--lanes` and `--tiles` option as a comma-separated list:
+
+```
+# This command will not work with the example data since lane 2 and tile 1102 are missing.
+> hilive -b BaseCalls -i index/hiv1 --lanes 1,2 --tiles 1101,1102 -r 100R
+```
+
+Since the number of tiles can be very large for real sequencing applications (e.g., 96 tiles for Illumina HiSeq in High Output mode), HiLive2 also comes with the `--max-tile` option.
+By typing the maximum tile number that occurs for your sequencing run, all other numbers will be computed automatically according to Illumina nomenclature.  
+The following command will include the tiles 1101-1116, 1201-1216, 2101-2116 and 2201-2216:
+
+```
+# This command will not work with the example data since several tiles are missing.
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --max-tile 2216 -r 100R
+```
+
+Alternatively, the number of lanes and tiles can be determined automatically from Illumina's `runInfo.xml` file by using the `--runinfo` option of HiLive2 (not shown in this tutorial).
+
+##### Output and temp directories
+HiLive2 writes output and temp files in two different directories.  
+By default, this is `./out` and `./temp` for the output and temporary files, respectively. The directories are created in your current working location.  
+Use the `-o [--out-dir]` and `--temp-dir` parameters to change the output and temporary directory, respectively. Not existing directories are automatically created.  
+  
+NOTE: Existing files from previous runs will be overwritten. We strongly recommend to use separated output and temporary directories for each sequencing run!
+
+##### Output format
+You may change the output format from `BAM` (default) to `SAM` by using `--out-format SAM` or `-f SAM`.
+
+##### Multithreading
+Please specify the maximal number of threads with the `-n [--num-threads]` option.  
+The default number of threads is 1. However, we recommend to use one thread for each analyzed tile.
+
+
 ### Paired-end sequencing
 
 To align both reads rather than only the first 100bp, the segment order must be specified with the `-r [--reads]` option.  
@@ -139,7 +204,7 @@ In Illumina sequencing, barcodes of paired-end sequencing mostly occur in the mi
 This corresponds to the segment structure 100R-4B-4B-100R. In HiLive2, specify the segments order as a comma-separated list:
 
 ```
-hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R 
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R 
 ```
 
 Alignments for both reads are written to the same BAM file as defined in the SAM/BAM specification.  
@@ -167,21 +232,59 @@ ACGG-TGGA
 With default parameters, two errors per barcode fragment are tolerated. Thus, all reads fulfill the criteria and will be aligned and reported.  
 The desired barcode sequence(s) are declared with the `-B [--barcodes]` option.  
 The number of permitted barcodes per fragment can be set with `--barcode-errors`.  
-While both parameters are comma-separated lists in general, the tolerated number of errors can also be set with a single number to set this value for all fragments. Dual barcodes are separated with a "-" character:
+While both parameters are comma-separated lists in general, the tolerated number of errors can also be set with a single number to set this value for all fragments. 
+Dual barcodes are separated with a "-" character. 
+To also align and report undetermined barcodes, set the `--align-undetermined-barcodes` option.  
+There are 75 reads with the first and 25 reads with the second barcode. 
+For each read, there are two reported alignments (one per segment).  
+The following examples show how the number of reads in the respective output files behaves for the given data: 
 
 ```
 # Default barcode options
-> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA --align-undetermined-barcodes
+[...]
+> samtools view out/hilive_out_cycle208_ACAG-TCGA.bam | wc -l
+200
+> samtools view out/hilive_out_cycle208_undetermined.bam | wc -l
+0
 
 # Strict barcode options (not tolerating errors)
-> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA --barcode-errors 0
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA --barcode-errors 0 --align-undetermined-barcodes
+[...]
+> samtools view out/hilive_out_cycle208_ACAG-TCGA.bam | wc -l
+150
+> samtools view out/hilive_out_cycle208_undetermined.bam | wc -l
+50
 
-# Tolerate 0 errors in the first barcode segment and 1 error in the second
+# Tolerate 0 errors in the first barcode segment and 1 error in the second, don't align reads with undetermined barcode
 > hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA --barcode-errors 0,1
+[...]
+> samtools view out/hilive_out_cycle208_ACAG-TCGA.bam | wc -l
+150
+> samtools view out/hilive_out_cycle208_undetermined.bam | wc -l
+[E::hts_open_format] fail to open file 'out/hilive_out_cycle208_undetermined.bam'
+samtools view: failed to open "out/hilive_out_cycle208_undetermined.bam" for reading: No such file or directory
+0
 
-# Specify both barcodes
+# Specify both barcodes, don't align reads with undetermined barcode. 
+# In this example, all reads match the first barcode with the default number of tolerated error, thus all reads are in the output file of ACAG-TCGA
 > hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA,ACGG-TGGA
+[...]
+> samtools view out/hilive_out_cycle208_ACAG-TCGA.bam | wc -l
+200
+> samtools view out/hilive_out_cycle208_ACGG-TGGA.bam | wc -l
+0
+
+# If the tolerated number of error is adapted, the barcodes are assigned as expected:
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA,ACGG-TGGA --barcode-errors 0
+[...]
+> samtools view out/hilive_out_cycle208_ACAG-TCGA.bam | wc -l
+150
+> samtools view out/hilive_out_cycle208_ACGG-TGGA.bam | wc -l
+50
+
 ```
+
 
 ### Output cycles
 When performing real-time read mapping, it is often valuable to get intermediate mapping results when the sequencing machine is still running rather than only producing results after the last sequencing cycle.  
@@ -190,11 +293,7 @@ In the following example, output files are written in the cycles 50, 100, 158 an
 
 ```
 > hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA -O 50,100,158,208
-```
-
-This results in the following output files:
-
-```
+[...]
 > ls -lah ./out
 hilive_out_cycle50_ACAG-TCGA.bam
 hilive_out_cycle100_ACAG-TCGA.bam
@@ -202,18 +301,3 @@ hilive_out_cycle158_ACAG-TCGA.bam
 hilive_out_cycle208_ACAG-TCGA.bam
 ```
 
-To also align and report undetermined barcodes, set the `--align-undetermined-barcodes` option:
-
-```
-> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA -O 50,100,158,208 --align-undetermined-barcodes
-
-> ls -lah ./out
-hilive_out_cycle50_ACAG-TCGA.bam
-hilive_out_cycle50_undetermined.bam
-hilive_out_cycle100_ACAG-TCGA.bam
-hilive_out_cycle100_undetermined.bam
-hilive_out_cycle158_ACAG-TCGA.bam
-hilive_out_cycle158_undetermined.bam
-hilive_out_cycle208_ACAG-TCGA.bam
-hilive_out_cycle208_undetermined.bam
-```
