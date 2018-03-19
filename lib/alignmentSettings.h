@@ -292,7 +292,7 @@ public:
 
 		// Report options
 		putConfigNode ( ptree, "out-dir", get_out_dir() );
-		putConfigNode( ptree, "out-format", to_string( get_output_format() ) );
+		putConfigNode ( ptree, "out-format", to_string( get_output_format() ) );
 		putConfigNode ( ptree, "out-cycles", join( get_output_cycles() ) );
 		putConfigNode ( ptree, "out-mode", to_string ( get_mode(), get_best_n() ) );
 		putConfigNode ( ptree, "report-unmapped", get_report_unmapped() );

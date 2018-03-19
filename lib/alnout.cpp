@@ -311,7 +311,10 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 		// Track equivalent alignments for the same mate (similar positions from different seeds -> only keep the best one)
 		// TODO: implement equivalent alignment window as user parameter
 		PositionType equivalentAlignmentWindow = 10;
-		std::set<PositionType> alignmentPositions;
+
+		// TODO: Improve the prevention of reporting similar alignments.
+//		std::set<PositionType> alignmentPositions;
+		std::set<GenomePosType> alignmentPositions;
 
 		// for all mates
 		/////////////////////////////////////////////////////////////////////////////
@@ -368,8 +371,12 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 			// Unique mode interruption
 			// TODO: Think about reporting of unmapped and non-unique reads if report-unmapped is activated
-			if ( mateAlignments[mateAlignmentIndex]->seeds.size() > 1 && globalAlignmentSettings.is_mode(UNIQUE) )
+			// TODO: this filtering approach is problematic if similar seeds exist ...
+			if ( globalAlignmentSettings.is_mode(UNIQUE) && (
+					mateAlignments[mateAlignmentIndex]->seeds.size() > 1 ||
+					(mateAlignments[mateAlignmentIndex]->seeds.size() == 1 && mateAlignments[mateAlignmentIndex]->seeds.front()->getNumPositions() > 1))) {
 				continue;
+			}
 
 			std::vector<uint8_t> mapqs = mateAlignments[mateAlignmentIndex]->getMAPQs();
 			auto mapqs_it = mapqs.begin();
@@ -385,8 +392,9 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					first_seed_score = curr_seed_score;
 
 				// Stop in all best mode when AS:i score is lower than the first
-				if( globalAlignmentSettings.is_mode(ALLBEST) && first_seed_score > curr_seed_score )
+				if( globalAlignmentSettings.is_mode(ALLBEST) && first_seed_score > curr_seed_score ) {
 					goto nextmate;
+				}
 
 
 				// Don't write this seed if the user-specified score or softclip ratio is not fulfilled
@@ -429,17 +437,23 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 				// Get positions for the current seed
 				std::vector<GenomePosType> pos_list;
 
-				if ( globalAlignmentSettings.is_mode(ANYBEST) )
+				if ( globalAlignmentSettings.is_mode(ANYBEST) ) {
 					pos_list = (*it)->getPositions(0, 1); // retrieve only one position from the index
-				else
+				} else
 					pos_list = (*it)->getPositions(); // retrieve all positions from the index
 
 				// handle all positions
 				for ( auto p = pos_list.begin(); p != pos_list.end(); ++p ) {
 
 					// Stop in any best mode when first alignment was already written
-					if( globalAlignmentSettings.is_mode(ANYBEST) && printedMateAlignments >= 1 )
+					if( globalAlignmentSettings.is_mode(ANYBEST) && printedMateAlignments >= 1 ) {
 						goto nextmate;
+					}
+
+					// Stop in bestn mode if first n alignments were already written
+					if ( globalAlignmentSettings.is_mode(BESTN) && printedMateAlignments >= globalAlignmentSettings.get_best_n() ) {
+						goto nextmate;
+					}
 
 					seqan::BamAlignmentRecord record = mate_record;
 
@@ -455,8 +469,8 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					}
 
 					// skip positions that were already written (equivalent alignments). This can be done because the best alignment for this position is written first.
-					if ( alignmentPositions.find(record.beginPos - ( record.beginPos % equivalentAlignmentWindow ) ) != alignmentPositions.end() ||
-							alignmentPositions.find(record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ) ) != alignmentPositions.end()) {
+					if ( alignmentPositions.find(GenomePosType(p->gid, record.beginPos - ( record.beginPos % equivalentAlignmentWindow ) )) != alignmentPositions.end() ||
+							alignmentPositions.find(GenomePosType(p->gid, record.beginPos +  (equivalentAlignmentWindow - ( record.beginPos % equivalentAlignmentWindow ) ) ) ) != alignmentPositions.end()) {
 						continue;
 					}
 
@@ -506,7 +520,7 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 					last_seed_score = curr_seed_score;
 
 					++printedMateAlignments;
-					alignmentPositions.insert(record.beginPos - ( record.beginPos % equivalentAlignmentWindow ));
+					alignmentPositions.insert(GenomePosType(p->gid, record.beginPos - ( record.beginPos % equivalentAlignmentWindow )));
 
 				}
 			}

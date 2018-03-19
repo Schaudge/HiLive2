@@ -98,6 +98,7 @@ struct GenomePosType {
 	GenomePosType() : gid(0), pos(0) {};
 	GenomePosType(GenomeIdType g, PositionType p): gid(g), pos(p) {};
 };
+inline bool operator<(const GenomePosType l, const GenomePosType r) { if(l.gid==r.gid) return l.pos<r.pos; return l.gid<r.gid;}
 
 /**
  * Template to store a map of mutexes.

@@ -409,7 +409,7 @@ inline std::string to_string ( AlignmentMode mode, CountType bestn = 0 ) {
 	case UNKNOWN:
 		return "UNKNOWN";
 	case BESTN:
-		return "BESTN" + bestn;
+		return "BESTN" + std::to_string(bestn);
 	default:
 		return "ANYBEST";
 	}

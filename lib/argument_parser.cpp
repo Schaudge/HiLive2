@@ -320,7 +320,7 @@ void HiLiveArgumentParser::report() {
     }
     std::cout << std::endl;
     std::cout << "Min. alignment score:     " << globalAlignmentSettings.get_min_as() << std::endl;
-    std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode()) << std::endl;
+    std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode(), globalAlignmentSettings.get_best_n()) << std::endl;
     std::cout << "Anchor length:            " << globalAlignmentSettings.get_anchor_length() << std::endl;
 
 	if ( globalAlignmentSettings.get_start_cycle() > 1 ) {
