@@ -673,11 +673,17 @@ public:
 
 	/**
 	 * Activate keeping the temporary alignment files for all cycles.
+	 * @param value if true, keep all files. If false, keep none.
 	 */
-	void set_keep_all_aln_files() {
-		std::vector<CountType>keep_all_files (get_cycles());
-		std::iota(keep_all_files.begin(), keep_all_files.end(), 1);
-		set_keep_aln_files(keep_all_files);
+	void set_keep_all_aln_files(bool value) {
+		if ( value ) {
+			std::vector<CountType>keep_all_files (get_cycles());
+			std::iota(keep_all_files.begin(), keep_all_files.end(), 1);
+			set_keep_aln_files(keep_all_files);
+		} else {
+			std::vector<CountType>keep_all_files;
+			set_keep_aln_files(keep_all_files);
+		}
 	}
 
 	/**
