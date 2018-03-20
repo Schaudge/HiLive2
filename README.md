@@ -1,6 +1,13 @@
 HiLive2 - Live Mapping of Illumina reads
 ========================================
 
+- [Description](#description)
+- [Website](#website)
+- [Installation](#installation)
+- [Usage](#usage)
+- [License](#license)
+- [Contact](#contact)
+
 Description
 -----------
 
@@ -65,8 +72,6 @@ HiLive has three components:
  * ``hilive``        the read mapper itself
  * ``hilive-out``    write output files of existing HiLive data
 
----
-
 #### Using hilive-build:
 
 Building a HiLive index from FASTA file input.fa:
@@ -77,8 +82,6 @@ hilive-build --input input.fa --out-prefix /path/to/index/directory/prefix
 
 The command will produce several files with the declared prefix.  
 
----
-
 #### Using hilive:
 
 To map reads in a 100bp run (without barcodes) using default settings:
@@ -88,8 +91,6 @@ To map reads in a 100bp run (without barcodes) using default settings:
 For an overview of additional parameters, type 
 	
 	hilive --help
-
----
 
 #### Using hilive-out:
 
@@ -107,20 +108,8 @@ To produce output files for other cycles, e.g. 50, 70, 90, type:
 Please note, that the temporary files for the respective cycles must be present in the temp folder.
 This is only the case if the --keep-files parameter and/or the --out-cycles parameter for the respective cycles was activated in the HiLive run.
 
-
-#### Demultiplexing:
-
-To map reads from multiplexed sequencing runs, you can provide HiLive with the barcode sequences from your Sample Sheet.  
-In default cases, barcode sequences are read after the (first) read, such that demultiplexing is carried out after the mapping is completed.  
-If you use double indexing, please concatenate both indices in the correct order and provide them as one sequence. Separate different barcodes by "," and dual barcodes by "-".
-
-```
-hilive --bcl-dir /path/to/BaseCalls --index /path/to/prefix --reads 101R,8B,8B,101R --barcodes ACGTACGT-TGCATGCA,GCTAGCTA-TGTGCACA
-```
-
----
-
-Please consult the project website for more details on the parameters!
+#### Tutorial
+We provide more extensive explanations and examples in the [Tutorial](https://gitlab.com/lokat/hilive2/tutorial).
 
 
 License
