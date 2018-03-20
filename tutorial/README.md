@@ -15,6 +15,7 @@ Content
   - [Paired-end sequencing](#paired-end-sequencing) 
   - [Live demultiplexing](#live-demultiplexing)
   - [Output cycles](#output-cycles)
+  - [Countinue an interrupted run](#continue-an-interrupted-run)
  - [Using a configuration file](#using-a-configuration-file)
  - [Using the hilive-out executable](#using-the-hilive-out-executable)
  - [Additional remarks](#additional-remarks)
@@ -301,3 +302,148 @@ hilive_out_cycle158_ACAG-TCGA.bam
 hilive_out_cycle208_ACAG-TCGA.bam
 ```
 
+### Continue an interrupted run
+If a HiLive2 run is interrupted for some reason, it can be continued from a specified cycle. This cycle must be finished for all lanes and tiles. You have to check manually for this.  
+To continue a run, use the `--continue` parameter and specify the cycle after the last available temporary alignment files for all cycles. You should also use the automatically created configuration file for the original HiLive2 run as an input.  
+To try this, run HiLive2 on the example data with the following settings:
+
+```
+> hilive -b BaseCalls -i index/hiv1 --lanes 1 --tiles 1101 -r 100R,4B,4B,100R -B ACAG-TCGA -O 50,100,158,208 --keep-files 25,75,108,133,183
+```
+
+With this command, you can continue the run in cycle 26, 51, 101, 109, 134, 159 or 184 (only these temporary alignment files are available). You might interrupt your run after cycle 75.  
+Then, continue your run with the following options:
+
+```
+> hilive --continue 76 --config ./temp/hilive_config.ini
+```
+
+
+Using a configuration file
+--------------------------
+
+HiLive2 supports config files in `.ini` format. This format is pretty straightforward in general: Just use a single line of the following format to describe one option-value-pair:
+
+```
+option=value
+```
+
+Please note that you have to use the full-length option declaration, so for specifying the number of threads, use `num-threads` rather than `n` as a key:
+
+```
+num-threads=32
+```
+
+For multitoken arguments, use the comma-separated format as described for the command line input:
+
+```
+reads=100R,4B,4B,100R
+barcodes=ACAG-TCGA,ACGG-TGGA
+```
+
+To set a bool switch (or flag), set the value for the option to `true`:
+
+```
+extended-cigar=true
+```
+
+Please note that bool switches (or flags) set in the configuration file to the non-default value cannot be deactivated via the command line.  
+  
+HiLive2 follows a priorization principle for command line input in the following order (from high to low priority):
+
+ * Command line input
+ * Config file input
+ * runInfo parsing
+ * Default value
+
+This means, when setting options in both the configuration file and the command line, the value provided via the command line will be used.  
+It was implemented like this to support a template system where configuration files can be used to set default settings and further command specification can be done via the command line.  
+For example, there could be a configuration file template `HiSeq2500_rapid.ini` to specify the correct number of lanes and tiles for a HiSeq2500 run.  
+  
+The `config.ini` file provided with the example data looks like this:
+```
+bcl-dir=./BaseCalls
+lanes=1
+tiles=1101
+reads=100R,4B,4B,100R
+barcodes=ACAG-TCGA
+out-dir=./out
+out-format=BAM
+out-cycles=50,100,158,208
+out-mode=ANYBEST
+index=index/hiv1
+align-undetermined-barcodes=true
+temp-dir=./temp
+```
+
+To execute HiLive2 with the settings given in the example `config-ini`, just type the following command:
+
+```
+> hilive --config config.ini
+```
+
+Please note that, in the given example, it is not possible to deactivate the `align-undetermined-barcodes` parameter via the command line.  
+To add or replace other options obtained from the configuration file, just type the respective options on the command line:  
+
+```
+> hilive --config config.ini --out-dir ./out_new --extended-cigar
+```
+
+The given example will change the output directory and activate extended CIGAR format in the output files.  
+
+
+Using the `hilive-out` executable
+---------------------------------
+
+Before starting this part of the tutorial, please remove all previously created directories:
+
+```
+> rm -r ./out* && rm -r ./temp
+```
+
+The `hilive-out` executable can be used for two general use cases:
+
+ * Write output for cycles that were not written when running HiLive2
+ * Write output with different output parameters
+
+In general, all parameters that can be set for the `hilive` executable can also be set for `hilive-out`.  
+However, the only required option for `hilive-out` is `--config` which may not directly be intuitive.  
+During each run of HiLive2, a configuration file containing the run settings is created automatically in the specified temporary directory. 
+This is the configuration file that should be used to run `hilive-out`. In doing so, all run settings are automatically also applited to `hilive-out`.  
+It should be noted that paths are stored as specified by the user, so pay attention when using relative paths!  
+  
+To prepare the execution of `hilive-out` on the example data, first run HiLive2 with the given configuration file:
+
+```
+> hilive --config config.ini
+```
+
+In the configuration file, the output cycle 50,100,158 and 208 are specified.  
+Now try to create an output of cycle 75 by using `hilive-out` and specifying the output cycle.  
+Please pay attention that the configuration file in `temp/hilive_config.ini` is used rather than the configuration file used before.  
+However, you will recognize that the execution is not successful:
+
+```
+> hilive-out --config ./temp/hilive_config.ini -O 75
+[...]
+Writing of task Lane 1 Tile 1101 Cycle b.75 failed:  File  does not exist.
+Finished output of cycle 75 (0 finished, 1 failed).
+Finished.
+```
+
+This is because output can only be written for a cycle if the temporary alignment files were stored. This is done only for the specified output cycles by default.    
+Keeping files can be specified manually when using `--keep-all-files`, which stores the files of all cycles, or `--keep-files` to keep the files of specified cycles.  
+Please pay attention that in a real sequencing scenario the `--keep-all-files` option might lead to huge disk space requirements.  
+  
+However, with the given files it is possible to create different output than in the original run.  
+For example, it is possible to change the output mode, maximal softclip ratio and extended CIGAR format for the final output. We also recommend to always change the output directory:
+
+```
+> hilive-out --config ./temp/hilive_config.ini -O 208 --out-mode ALL --max-softclip-ratio 0.1 --extended-cigar --out-dir ./out_new
+```
+
+
+Additional remarks
+------------------
+
+For errors in the tutorial or in the description, please create an issue on https://gitlab.com/lokat/hilive2/issues
