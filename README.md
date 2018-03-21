@@ -1,3 +1,5 @@
+<!-- {#mainpage} -->
+
 HiLive2 - Live Mapping of Illumina reads
 ========================================
 

@@ -1,8 +1,5 @@
-HiLive - Live Mapping of Illumina reads
-=======================================
-
 Changelog
------------
+=========
 
 v2.0
 -----
