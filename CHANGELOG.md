@@ -1,8 +1,5 @@
-HiLive - Live Mapping of Illumina reads
-=======================================
-
 Changelog
------------
+=========
 
 v2.0
 -----
@@ -20,7 +17,7 @@ General functionality:
 
 Parameters:
  * Revised parameter nomenclature
- * Multitoken parameters must now be separated by a "," 
+ * Multitoken parameters must now be comma-separated
  * Changed config file format to .ini
  * Additional parameters to facilitate parameter input (e.g., --max-tile for easier tile declaration)
  * Different alignment modes for automated selection of algorithmic parameters

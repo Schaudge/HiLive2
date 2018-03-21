@@ -1,0 +1,4 @@
+# Ignore locally built doxygen documentation
+documentation/doxygen/doxygen_sqlite3.db
+documentation/doxygen/html/
+documentation/doxygen/latex/
