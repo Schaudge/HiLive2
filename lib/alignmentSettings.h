@@ -184,19 +184,6 @@ private:
 	///////////////////////////////////////
 
 	/**
-	 * Parse the barcode vector to a string vector that can be used for XML output.
-	 * @return Vector with one string for each barcode. Subsequences are delimited with a "-" character.
-	 * @author Tobias Loka
-	 */
-	std::vector<std::string> barcodes_to_string_vector() {
-		std::vector<std::string> bc_strings;
-		for ( CountType i = 0; i < get_barcode_vector().size(); i++ ) {
-			bc_strings.push_back( get_barcode_string(i) );
-		}
-		return bc_strings;
-	}
-
-	/**
 	 * Parse the seq vector to a string vector that can be used for XML output.
 	 * @return Vector with one string for each element in format [0-9]*[BR]
 	 * @author Tobias Loka
@@ -298,14 +285,14 @@ public:
 		putConfigNode ( ptree, "lanes", join( get_lanes() ) );
 		putConfigNode ( ptree, "tiles", join( get_tiles() ) );
 		putConfigNode ( ptree, "reads", join( seqs_to_string_vector() ) );
-		putConfigNode ( ptree, "barcodes", join( barcodes_to_string_vector() ) );
+		putConfigNode ( ptree, "barcodes", join( get_barcode_string_vector() ) );
 		putConfigNode ( ptree, "run-id", get_run_id() );
 		putConfigNode ( ptree, "flowcell-id", get_flowcell_id() );
 		putConfigNode ( ptree, "instrument-id", get_instrument_id() );
 
 		// Report options
 		putConfigNode ( ptree, "out-dir", get_out_dir() );
-		putConfigNode( ptree, "out-format", to_string( get_output_format() ) );
+		putConfigNode ( ptree, "out-format", to_string( get_output_format() ) );
 		putConfigNode ( ptree, "out-cycles", join( get_output_cycles() ) );
 		putConfigNode ( ptree, "out-mode", to_string ( get_mode(), get_best_n() ) );
 		putConfigNode ( ptree, "report-unmapped", get_report_unmapped() );
@@ -475,6 +462,19 @@ public:
 			std::string barcode_string = ss.str();
 			return format_barcode(barcode_string);
 		}
+	}
+
+	/**
+	 * Parse the barcode vector to a string vector that can be used for XML output.
+	 * @return Vector with one string for each barcode. Subsequences are delimited with a "-" character.
+	 * @author Tobias Loka
+	 */
+	std::vector<std::string> get_barcode_string_vector() {
+		std::vector<std::string> bc_strings;
+		for ( CountType i = 0; i < get_barcode_vector().size(); i++ ) {
+			bc_strings.push_back( get_barcode_string(i) );
+		}
+		return bc_strings;
 	}
 
 	/**
@@ -673,11 +673,17 @@ public:
 
 	/**
 	 * Activate keeping the temporary alignment files for all cycles.
+	 * @param value if true, keep all files. If false, keep none.
 	 */
-	void set_keep_all_aln_files() {
-		std::vector<CountType>keep_all_files (get_cycles());
-		std::iota(keep_all_files.begin(), keep_all_files.end(), 1);
-		set_keep_aln_files(keep_all_files);
+	void set_keep_all_aln_files(bool value) {
+		if ( value ) {
+			std::vector<CountType>keep_all_files (get_cycles());
+			std::iota(keep_all_files.begin(), keep_all_files.end(), 1);
+			set_keep_aln_files(keep_all_files);
+		} else {
+			std::vector<CountType>keep_all_files;
+			set_keep_aln_files(keep_all_files);
+		}
 	}
 
 	/**

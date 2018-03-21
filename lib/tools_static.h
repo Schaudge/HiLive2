@@ -66,13 +66,15 @@ template<typename T> std::string join ( std::vector<T> vector, char delim = ',' 
 
 /**
  * Split a std::string to a std::vector<std::string>.
+ * This template is only enabled for arithmetic (numeric) data types and std::string.
  * @param target Reference to the target vector to store the split values.
  * @param s The input string.
  * @param delim_list A list of split delimiters.
  * @author Tobias Loka
  */
 template <
-	typename T
+	typename T,
+	typename = typename std::enable_if<std::is_arithmetic<T>::value || std::is_same<T, std::string>::value, T>::type
 > void split ( std::vector<T> &target, const std::string &s, std::string delim_list = split_chars ) {
 	std::size_t prev = 0, pos;
 	std::string next_value;
@@ -407,7 +409,7 @@ inline std::string to_string ( AlignmentMode mode, CountType bestn = 0 ) {
 	case UNKNOWN:
 		return "UNKNOWN";
 	case BESTN:
-		return "BESTN" + bestn;
+		return "BESTN" + std::to_string(bestn);
 	default:
 		return "ANYBEST";
 	}

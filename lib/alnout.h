@@ -96,7 +96,7 @@ public:
 		lock();
 
 		for ( auto & subvector : records)
-		seqan::writeRecords(bfo, subvector);
+			seqan::writeRecords(bfo, subvector);
 
 		unlock();
 
@@ -157,6 +157,14 @@ public:
 	 * @return reference to the Atomic_bfo at a certain position of the deque.
 	 */
 	Atomic_bfo & operator [](int i) { return bfos[i]; }
+
+	/**
+	 * Get the size of the underlying deque.
+	 * @returm Size of the underlying deque.
+	 */
+	size_t size() {
+		return bfos.size();
+	}
 
 	/**
 	 * Clear the deque of Atomic bfos.

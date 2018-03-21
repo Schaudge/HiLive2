@@ -966,12 +966,12 @@ CountType ReadAlignment::getBarcodeIndex() const {
 	std::string read_bc = getBarcodeString();
 
 	if ( read_bc.length() == 0 )
-		return NO_MATCH;
+		return UNDETERMINED;
 
 	uint16_t fragment_errors = 0;
 	uint16_t fragment_pos = 0;
 	uint16_t fragment_num = 0;
-	uint16_t matching_bc = NO_MATCH;
+	CountType matching_bc = UNDETERMINED;
 
 	// Iterate through all user-defined (multi-)barcodes
 	// That's quite complicated since the read barcodes are consecutive and the user barcodes are divided in vectors. // TODO: change that?
@@ -1001,7 +1001,7 @@ CountType ReadAlignment::getBarcodeIndex() const {
 
 			// if too many errors in a fragment, break the loop for the barcode
 			if ( fragment_errors > globalAlignmentSettings.get_barcode_errors()[fragment_num] ) {
-				matching_bc = NO_MATCH;
+				matching_bc = UNDETERMINED;
 				break;
 			}
 
@@ -1010,7 +1010,7 @@ CountType ReadAlignment::getBarcodeIndex() const {
 		}
 
 		// if one barcode fulfilled the criteria, we can stop.
-		if ( matching_bc != NO_MATCH )
+		if ( matching_bc != UNDETERMINED )
 			break;
 	}
 

@@ -8,32 +8,6 @@ namespace po = boost::program_options;
 
 ArgumentParser::ArgumentParser(int argC, char const ** argV):argc(argC),argv(argV){}
 
-std::string ArgumentParser::select_prioritized_parameter( std::vector<std::string> parameters ) {
-
-	// Check command line for parameters
-	for ( auto & param : parameters ) {
-		if ( cmd_settings.count ( param ) ) {
-			return param;
-		}
-	}
-
-	// Check config file for parameters
-	for ( auto & param : parameters ) {
-		if ( config_file_settings.count ( param ) ) {
-			return param;
-		}
-	}
-
-	// Check runInfo for parameters
-	for ( auto & param : parameters ) {
-		if ( config_file_settings.count ( param ) ) {
-			return param;
-		}
-	}
-
-	return parameters.front();
-}
-
 
 //|||||||||||||||||||||||||||||||||||||||||||||||||||||||
 //-----BuildIndexArgumentParser--------------------------
@@ -267,7 +241,7 @@ void HiLiveArgumentParser::init_help(po::options_description visible_options) {
 bool HiLiveArgumentParser::checkPaths() {
 
 	std::size_t found = globalAlignmentSettings.get_root().find("BaseCalls");
-	if (!(found != std::string::npos && found >= globalAlignmentSettings.get_root().size()-10)) {
+	if (!(found != std::string::npos && found >= globalAlignmentSettings.get_root().size()-9)) {
 		std::cerr << "Warning: BaseCalls directory seems to be invalid: " << globalAlignmentSettings.get_root() << std::endl;
 	}
 
@@ -320,7 +294,7 @@ void HiLiveArgumentParser::report() {
     }
     std::cout << std::endl;
     std::cout << "Min. alignment score:     " << globalAlignmentSettings.get_min_as() << std::endl;
-    std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode()) << std::endl;
+    std::cout << "Mapping mode:             " << to_string(globalAlignmentSettings.get_mode(), globalAlignmentSettings.get_best_n()) << std::endl;
     std::cout << "Anchor length:            " << globalAlignmentSettings.get_anchor_length() << std::endl;
 
 	if ( globalAlignmentSettings.get_start_cycle() > 1 ) {
@@ -533,7 +507,7 @@ bool HiLiveArgumentParser::set_options() {
 
 		set_option<std::string>("lanes", join(all_lanes()), &AlignmentSettings::set_lanes);
 
-		if ( select_prioritized_parameter( {"tiles", "max-tile"} ) == "tiles" )
+		if ( get_priority("tiles") >= get_priority("max_tile") )
 			set_option<std::string>("tiles", join(all_tiles()), &AlignmentSettings::set_tiles);
 		else
 			set_option<CountType>("max-tile", 2316, &AlignmentSettings::set_max_tile);
@@ -617,8 +591,9 @@ bool HiLiveArgumentParser::set_options() {
 
 		set_option<std::string>("temp-dir", "./temp", &AlignmentSettings::set_temp_dir);
 
-		if ( select_prioritized_parameter( {"keep-all-files", "keep-files"} ) == "keep-all-files" ) {
-			globalAlignmentSettings.set_keep_all_aln_files();
+		if ( get_bool_switch_priority("keep-all-files", false) > config_priorities::none &&
+			 get_bool_switch_priority("keep-all-files", false) >= get_priority("keep-files") ) {
+			set_option<bool>("keep-all-files", false, &AlignmentSettings::set_keep_all_aln_files);
 		} else {
 			set_option<std::string>("keep-files", "", &AlignmentSettings::set_keep_aln_files);
 		}

@@ -7,6 +7,13 @@
 
 namespace po = boost::program_options;
 
+enum config_priorities : uint8_t {
+	none = 0,
+	runInfo_settings = 1,
+	config_file_settings = 2,
+	cmd_settings = 3
+};
+
 
 /**
  * Interface for the argument parsers of the different executables.
@@ -228,13 +235,36 @@ protected:
 	}
 
 	/**
-	 * Check the occurence of parameters setting the same value(s) in the alignment settings.
-	 * Parameters set on the command line will have priority over config file settings.
-	 * If parameters are set on the same input level, the parameter on an smaller position of the input vector will be returned.
-	 * @param parameters A vector of parameters to prioritize.
-	 * @return The parameter that should be used to set the respective values in the alignment settings.
+	 * Get the priority of a non-bool-switch program option.
+	 * This means, for different parameters setting the same thing (e.g., short-key parameters), this function can be used to
+	 * determine which of the parameters was set on a config level of higher priority (e.g., command line > config file).
+	 * NOTE: For bool_switch, using this function will always return highest priority due to internal behavior of the boost library.
+	 * Please use get_bool_switch_priority() function to obtain the correct prioritization for bool_switch options.
+	 * @param vm_key The key for the program option in the variables map.
+	 * @return The priority of the option.
 	 */
-	std::string select_prioritized_parameter( std::vector<std::string> parameters );
+	config_priorities get_priority(std::string vm_key){
+		if ( cmd_settings.count(vm_key) ) return config_priorities::cmd_settings;
+		if ( config_file_settings.count(vm_key) ) return config_priorities::config_file_settings;
+		if ( runInfo_settings.count(vm_key) ) return config_priorities::runInfo_settings;
+		return config_priorities::none;
+	}
+
+	/**
+	 * Get the priority of a bool-switch program option.
+	 * This means, for different parameters setting the same thing (e.g., short-key parameters), this function can be used to
+	 * determine which of the parameters was set on a config level of higher priority (e.g., command line > config file).
+	 * NOTE: This function can only be used for bool_switch options (or flags).
+	 * Please use get_priority() function for all other types of options.
+	 * @param vm_key The key for the program option in the variables map.
+	 * @return The priority of the option.
+	 */
+	config_priorities get_bool_switch_priority(std::string vm_key, bool default_value = false) {
+		if ( cmd_settings.count(vm_key) && cmd_settings.at(vm_key).as<bool>() != default_value ) return config_priorities::cmd_settings;
+		if ( config_file_settings.count(vm_key) && config_file_settings.at(vm_key).as<bool>() != default_value) return config_priorities::config_file_settings;
+		if ( runInfo_settings.count(vm_key) && runInfo_settings.at(vm_key).as<bool>() != default_value) return config_priorities::runInfo_settings;
+		return config_priorities::none;
+	}
 
 public:
 
