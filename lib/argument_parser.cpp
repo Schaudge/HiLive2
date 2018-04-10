@@ -507,10 +507,12 @@ bool HiLiveArgumentParser::set_options() {
 
 		set_option<std::string>("lanes", join(all_lanes()), &AlignmentSettings::set_lanes);
 
-		if ( get_priority("tiles") >= get_priority("max_tile") )
+		if ( get_priority("tiles") >= get_priority("max-tile") ) {
 			set_option<std::string>("tiles", join(all_tiles()), &AlignmentSettings::set_tiles);
-		else
+		}
+		else {
 			set_option<CountType>("max-tile", 2316, &AlignmentSettings::set_max_tile);
+		}
 
 		set_option<std::string>("reads", "", &AlignmentSettings::set_read_structure);
 
