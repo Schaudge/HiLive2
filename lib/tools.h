@@ -235,6 +235,10 @@ inline bool isSeedingCycle(CountType cycle) {
 	if ( cycle < globalAlignmentSettings.get_anchor_length() )
 		return false;
 
+	// Don't seed cycles larger than the maximal softclip length
+	if ( cycle > globalAlignmentSettings.get_max_softclip_length())
+		return false;
+
 	// Create seeds when reaching the anchor length for the first time
 	if ( cycle == globalAlignmentSettings.get_anchor_length() )
 		return true;

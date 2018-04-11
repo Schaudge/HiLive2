@@ -147,6 +147,9 @@ private:
 	/** Total number of mates. */
 	Immutable<uint16_t> mates;
 
+	/** Absolute number of maximum softclip length. */
+	Immutable<CountType> max_softclip_length;
+
 
 	////////////////////////////////////////////
 	////////// Demultiplexing options //////////
@@ -301,36 +304,37 @@ public:
 		putConfigNode ( ptree, "max-softclip-ratio", get_max_softclip_ratio() );
 
 		// Alignment options
-		putConfigNode( ptree, "index",  get_index_fname() );
+		putConfigNode ( ptree, "index",  get_index_fname() );
 		// Align mode not needed since the implied parameters are stored.
-		putConfigNode( ptree, "anchor-length",  get_anchor_length() );
-		putConfigNode( ptree, "error-interval",  get_error_rate() );
-		putConfigNode( ptree, "seeding-interval",  get_seeding_interval() );
+		putConfigNode ( ptree, "anchor-length",  get_anchor_length() );
+		putConfigNode ( ptree, "error-interval",  get_error_rate() );
+		putConfigNode ( ptree, "seeding-interval",  get_seeding_interval() );
+		putConfigNode ( ptree, "max-softclip-length", get_max_softclip_length() );
 		putConfigNode ( ptree, "barcode-errors", join( get_barcode_errors() ) );
-		putConfigNode( ptree, "align-undetermined-barcodes",  get_keep_all_barcodes() );
-		putConfigNode( ptree, "min-basecall-quality", get_min_qual() );
-		putConfigNode( ptree, "keep-invalid-sequences",  get_keep_all_sequences() );
+		putConfigNode ( ptree, "align-undetermined-barcodes",  get_keep_all_barcodes() );
+		putConfigNode ( ptree, "min-basecall-quality", get_min_qual() );
+		putConfigNode ( ptree, "keep-invalid-sequences",  get_keep_all_sequences() );
 
 		// Scoring options
-		putConfigNode( ptree, "min-as",  get_min_as() );
-		putConfigNode( ptree, "match-score",  get_match_score() );
-		putConfigNode( ptree, "mismatch-penalty",  get_mismatch_penalty() );
-		putConfigNode( ptree, "insertion-opening-penalty",  get_insertion_opening_penalty() );
-		putConfigNode( ptree, "insertion-extension-penalty",  get_insertion_extension_penalty() );
-		putConfigNode( ptree, "deletion-opening-penalty",  get_deletion_opening_penalty() );
-		putConfigNode( ptree, "deletion-extension-penalty",  get_deletion_extension_penalty() );
-		putConfigNode( ptree, "max-gap-length",  get_max_gap_length() );
-		putConfigNode( ptree, "softclip-opening-penalty",  get_softclip_opening_penalty() );
-		putConfigNode( ptree, "softclip-extension-penalty",  get_softclip_extension_penalty() );
+		putConfigNode ( ptree, "min-as",  get_min_as() );
+		putConfigNode ( ptree, "match-score",  get_match_score() );
+		putConfigNode ( ptree, "mismatch-penalty",  get_mismatch_penalty() );
+		putConfigNode ( ptree, "insertion-opening-penalty",  get_insertion_opening_penalty() );
+		putConfigNode ( ptree, "insertion-extension-penalty",  get_insertion_extension_penalty() );
+		putConfigNode ( ptree, "deletion-opening-penalty",  get_deletion_opening_penalty() );
+		putConfigNode ( ptree, "deletion-extension-penalty",  get_deletion_extension_penalty() );
+		putConfigNode ( ptree, "max-gap-length",  get_max_gap_length() );
+		putConfigNode ( ptree, "softclip-opening-penalty",  get_softclip_opening_penalty() );
+		putConfigNode ( ptree, "softclip-extension-penalty",  get_softclip_extension_penalty() );
 
 		// Technical options
-		putConfigNode( ptree, "temp-dir",  get_temp_dir() );
+		putConfigNode ( ptree, "temp-dir",  get_temp_dir() );
 		putConfigNode ( ptree, "keep-files", join( get_keep_aln_files() ) );
 		// Keep all files not necessary ==> stored as keep-files
-		putConfigNode( ptree, "block-size",  get_block_size() );
-		putConfigNode( ptree, "compression",  get_compression_format() );
-		putConfigNode( ptree, "num-threads",  get_num_threads() );
-		putConfigNode( ptree, "num-out-threads",  get_num_out_threads() );
+		putConfigNode ( ptree, "block-size",  get_block_size() );
+		putConfigNode ( ptree, "compression",  get_compression_format() );
+		putConfigNode ( ptree, "num-threads",  get_num_threads() );
+		putConfigNode ( ptree, "num-out-threads",  get_num_out_threads() );
 
 		return ptree;
 	}
@@ -792,6 +796,22 @@ public:
 	 */
 	uint16_t get_mates() const {
 		return get_immutable(mates);
+	}
+
+	/**
+	 * Get the absolute maximum length of a softclip.
+	 * @return The absolute maximum length of a softclip in bp.
+	 */
+	CountType get_max_softclip_length() const {
+		return get_immutable(max_softclip_length);
+	}
+
+	/**
+	 * Set the absolute maximum length of a softclip.
+	 * @param value The absolute maximum length of a softclip in bp.
+	 */
+	void set_max_softclip_length(CountType value) {
+		set_immutable(max_softclip_length, value);
 	}
 
 	/**

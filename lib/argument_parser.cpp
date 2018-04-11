@@ -173,10 +173,11 @@ po::options_description HiLiveArgumentParser::alignment_options() {
 	po::options_description alignment("ALIGNMENT OPTIONS", default_line_width, default_line_width*.9f);
 	alignment.add_options()
 					("index,i", po::value<std::string>(), "Path to the HiLive index. Please use the executable 'hilive-build' to create a new HiLive index that is delivered with this program. The index consists of several files with the same prefix. Please include the file prefix when specifying the index location.\n")
-					("align-mode,m", po::value<std::string>(), "Alignment mode to balance speed and accuracy [fast|balanced|accurate]. This selected mode automatically sets other parameters. Individually configured parameters are prioritized over settings made by selecting an alignment mode. [Default: balanced]\n")
+					("align-mode,m", po::value<std::string>(), "Alignment mode to balance speed and accuracy [very-fast|fast|balanced|accurate|very-accurate]. This selected mode automatically sets other parameters. Individually configured parameters are prioritized over settings made by selecting an alignment mode. [Default: balanced]\n")
 					("anchor-length", po::value<CountType>(), "Length of the alignment anchor (or initial seed) [Default: set by the selected alignment mode]\n")
 					("error-interval", po::value<CountType>(), "The interval to tolerate more errors during alignment (low=accurate; great=fast). [Default: 'anchor-length'/2]\n")
 					("seeding-interval", po::value<CountType>(), "The interval to create new seeds (low=accurate; great=fast). [Default: 'anchor-length'/2]\n")
+					("max-softclip-length", po::value<CountType>(), "The maximum length of a front softclip when creating new seeds. In contrast to --max-softclip-ratio, this parameter may have effects on runtime and mapping accuracy. [Default: 'readlength/2]")
 					("barcode-errors", po::value<std::string>(), "The number of errors that are tolerated for the barcode segments. A single value can be provided to be applied for all barcode segments. Alternatively, the value can be set for each segment individually. [Default: 1]\n\nExample:\n   --barcode-errors 2 [2 errors for all barcode segments]\n   --barcode-errors 2,1 [2 errors for the first, 1 error for the second segment]\n")
 					("align-undetermined-barcodes", po::bool_switch(), "Align all barcodes. Reads with a barcode that don't match one of the barcodes specified with '--barcodes' will be reported as undetermined. [Default: false]\n")
 					("min-basecall-quality", po::value<CountType>(), "Minimum basecall quality for a nucleotide to be considered as a match [Default: 1 (everything but N-calls)]\n")
@@ -555,6 +556,8 @@ bool HiLiveArgumentParser::set_options() {
 
 		set_option<CountType>("seeding-interval", globalAlignmentSettings.get_anchor_length()/2, &AlignmentSettings::set_seeding_interval);
 
+		set_option<CountType>("max-softclip-length", globalAlignmentSettings.get_seq_by_mate(1).length/2, &AlignmentSettings::set_max_softclip_length);
+
 		set_option<std::string>("barcode-errors", "2", &AlignmentSettings::set_barcode_errors);
 
 		set_option<bool>("align-undetermined-barcodes", false, &AlignmentSettings::set_keep_all_barcodes);
@@ -627,19 +630,19 @@ CountType HiLiveArgumentParser::set_mode() {
 	}
 
 	// relative number of reads matching a reference of given length randomly (in theory, not in biology)
-	float expectation_value = .0025f;
+	float expectation_value = .0001f;
 
 	CountType balanced_anchor_length = ( std::log(float(genome_size) / expectation_value ) / std::log(4) );
 
 	// Only return default value if no mode is set.
-	if ( !cmd_settings.count("alignment-mode") )
+	if ( !cmd_settings.count("align-mode") )
 		return balanced_anchor_length;
 
-	char mode = std::toupper(cmd_settings["alignment-mode"].as<std::string>()[0]);
+	char mode = std::toupper(cmd_settings["align-mode"].as<std::string>()[0]);
 
 	// Accurate
 	if( mode=='A' ) {
-		default_anchor_length = std::floor(0.833f * balanced_anchor_length);
+		default_anchor_length = std::floor(0.875f * balanced_anchor_length);
 
 	// Balanced
 	} else if ( mode == 'B' ) {
@@ -647,14 +650,24 @@ CountType HiLiveArgumentParser::set_mode() {
 
 	// Fast
 	} else if ( mode == 'F' ) {
-		default_anchor_length = std::ceil(1.166f * balanced_anchor_length);
+		default_anchor_length = std::ceil(1.125f * balanced_anchor_length);
+	}
+
+	// Very fast (also allow short form 'vf')
+	else if( mode=='V' && (std::toupper(cmd_settings["align-mode"].as<std::string>()[1]) == 'F' || std::toupper(cmd_settings["align-mode"].as<std::string>()[5]) == 'F' ) ) {
+		default_anchor_length = std::ceil(1.25f * balanced_anchor_length);
+	}
+
+	else if( mode=='V' && (std::toupper(cmd_settings["align-mode"].as<std::string>()[1]) == 'A' || std::toupper(cmd_settings["align-mode"].as<std::string>()[5]) == 'A' ) ) {
+		default_anchor_length = std::floor(0.75f * balanced_anchor_length);
 	}
 
 	else {
-		throw po::invalid_option_value ("--alignment-mode " + cmd_settings["alignment-mode"].as<std::string>());
+		throw po::invalid_option_value ("--align-mode " + cmd_settings["align-mode"].as<std::string>());
 	}
 
 	// Insert default values to variables map if not already set.
+	// TODO: this makes no sense since it will be prioritized over manually set values in the config file
 	if ( !cmd_settings.count("anchor-length") )
 		cmd_settings.insert(std::make_pair("anchor-length", po::variable_value(default_anchor_length, true)));
 
