@@ -107,6 +107,38 @@ protected:
 		return true;
 	}
 
+	/** Get the chosen option without passing it directly to the globalAlignemntSettings. */
+	template<class T> T get_option(std::string vm_key, T default_value) {
+
+		T value = default_value;
+		bool was_set = false;
+
+		// User parameter -> first priority
+		if ( cmd_settings.count(vm_key) ) {
+			value = cmd_settings[vm_key].as<T>();
+			was_set = true;
+		}
+
+		// Settings file -> second priority
+		else if ( config_file_settings.count(vm_key) ) {
+			value = config_file_settings[vm_key].as<T>();
+			was_set = true;
+		}
+
+		// RunInfo file -> third priority
+		else if ( runInfo_settings.count(vm_key) ) {
+			value = runInfo_settings[vm_key].as<T>();
+			was_set = true;
+		}
+
+		// Throw exception if required but unset
+		if ( isRequired(vm_key) && !was_set )
+			throw po::required_option(vm_key);
+
+		return value;
+
+	}
+
 	/**
 	 * Set an option in the globalAlignmentSettings.
 	 * Thereby, the different input sources have the following priority:
@@ -414,12 +446,15 @@ protected:
 	virtual void set_required_parameters() override { required_options = {"bcl-dir", "index", "reads"}; }
 
 	/**
-	 * Add mode defaults to the commandline parameters if not exist.
+	 * Get the default anchor length for the given sample.
 	 * The index name must already be set in the globalAlignmentSettings.
 	 * @return default anchor length for this mode
 	 * @author Tobias Loka
 	 */
-	CountType set_mode();
+	CountType get_default_anchor_length(AlignmentMode align_mode);
+
+	/** Get the default error rate for the given alignment mode. */
+	float get_default_error_rate(AlignmentMode align_mode);
 
 public:
 

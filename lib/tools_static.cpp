@@ -144,3 +144,19 @@ uint32_t num_reads_from_bcl(std::string bcl) {
 
   return num_reads;
 }
+
+AlignmentMode to_alignmentMode ( std::string value ) {
+	if ( std::toupper(value[0]) == 'B' )
+		return BALANCED;
+	if ( std::toupper(value[0]) == 'A' )
+		return ACCURATE;
+	if ( std::toupper(value[0]) == 'F' )
+		return FAST;
+	if ( std::toupper(value[0]) == 'V' ) {
+		if ( std::toupper(value[1]) == 'F' || std::toupper(value[5]) == 'F')
+			return VERYFAST;
+		if ( std::toupper(value[1]) == 'A' || std::toupper(value[5]) == 'A')
+			return VERYACCURATE;
+	}
+	throw std::runtime_error("Invalid alignment mode " + value + ".");
+}

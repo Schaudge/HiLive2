@@ -319,7 +319,7 @@ static const CountType UNDETERMINED = std::numeric_limits<CountType>::max();
 //////////////////////////////////
 
 /** The different alignment modes. */
-enum AlignmentMode:char {
+enum OutputMode:char {
 	ALL='A',
 	ALLBEST='H',
 	ANYBEST='B',
@@ -357,6 +357,15 @@ enum Operations:uint8_t {
 	NO_MATCH = 1,
 	INSERTION = 2,
 	DELETION = 3
+};
+
+/** Alignment modes. */
+enum AlignmentMode:uint8_t{
+	VERYFAST,
+	FAST,
+	BALANCED,
+	ACCURATE,
+	VERYACCURATE
 };
 
 

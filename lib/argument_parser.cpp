@@ -547,9 +547,11 @@ bool HiLiveArgumentParser::set_options() {
 
 		// ALIGNMENT OPTIONS
 
+		AlignmentMode align_mode = to_alignmentMode(get_option<std::string>("align-mode", "balanced"));
+
 		set_option<std::string>("index", "", &AlignmentSettings::set_index_fname);
 
-		CountType default_anchor_length = set_mode();
+		CountType default_anchor_length = get_default_anchor_length(align_mode);
 		set_option<CountType>("anchor-length", default_anchor_length, &AlignmentSettings::set_anchor_length);
 
 		set_option<CountType>("error-interval", globalAlignmentSettings.get_anchor_length()/2, &AlignmentSettings::set_error_rate);
@@ -588,7 +590,8 @@ bool HiLiveArgumentParser::set_options() {
 		set_option<float>("softclip-extension-penalty", float(globalAlignmentSettings.get_mismatch_penalty()) / globalAlignmentSettings.get_anchor_length(), &AlignmentSettings::set_softclip_extension_penalty);
 
 		// 3% error rate by default
-		ScoreType min_as_default = getMaxPossibleScore(globalAlignmentSettings.get_seq_by_mate(1).length) - ( float(globalAlignmentSettings.get_seq_by_mate(1).length / 100.0f) * 3.0f * getMaxSingleErrorPenalty());
+		float default_error_rate = get_default_error_rate(align_mode);
+		ScoreType min_as_default = getMaxPossibleScore(globalAlignmentSettings.get_seq_by_mate(1).length) - ( float(globalAlignmentSettings.get_seq_by_mate(1).length) * default_error_rate * getMaxSingleErrorPenalty() );
 		set_option<ScoreType>("min-as", min_as_default, &AlignmentSettings::set_min_as);
 
 
@@ -618,9 +621,8 @@ bool HiLiveArgumentParser::set_options() {
 	return true;
 }
 
-CountType HiLiveArgumentParser::set_mode() {
+CountType HiLiveArgumentParser::get_default_anchor_length(AlignmentMode align_mode) {
 
-	CountType default_anchor_length = 15;
 	uint64_t genome_size = 0;
 
 	KixRun* tempIdx = new KixRun();
@@ -634,51 +636,36 @@ CountType HiLiveArgumentParser::set_mode() {
 
 	CountType balanced_anchor_length = ( std::log(float(genome_size) / expectation_value ) / std::log(4) );
 
-	// Only return default value if no mode is set.
-	if ( !cmd_settings.count("align-mode") )
+	switch ( align_mode ) {
+	case FAST:
+		return std::floor(1.125f * balanced_anchor_length);
+	case ACCURATE:
+		return std::floor(0.875f * balanced_anchor_length);
+	case VERYFAST:
+		return std::floor(1.25f * balanced_anchor_length);
+	case VERYACCURATE:
+		return std::floor(0.75f * balanced_anchor_length);
+	case BALANCED:
+	default:
 		return balanced_anchor_length;
-
-	char mode = std::toupper(cmd_settings["align-mode"].as<std::string>()[0]);
-
-	// Accurate
-	if( mode=='A' ) {
-		default_anchor_length = std::floor(0.875f * balanced_anchor_length);
-
-	// Balanced
-	} else if ( mode == 'B' ) {
-		default_anchor_length = balanced_anchor_length;
-
-	// Fast
-	} else if ( mode == 'F' ) {
-		default_anchor_length = std::ceil(1.125f * balanced_anchor_length);
 	}
 
-	// Very fast (also allow short form 'vf')
-	else if( mode=='V' && (std::toupper(cmd_settings["align-mode"].as<std::string>()[1]) == 'F' || std::toupper(cmd_settings["align-mode"].as<std::string>()[5]) == 'F' ) ) {
-		default_anchor_length = std::ceil(1.25f * balanced_anchor_length);
-	}
+}
 
-	else if( mode=='V' && (std::toupper(cmd_settings["align-mode"].as<std::string>()[1]) == 'A' || std::toupper(cmd_settings["align-mode"].as<std::string>()[5]) == 'A' ) ) {
-		default_anchor_length = std::floor(0.75f * balanced_anchor_length);
-	}
-
-	else {
-		throw po::invalid_option_value ("--align-mode " + cmd_settings["align-mode"].as<std::string>());
-	}
-
-	// Insert default values to variables map if not already set.
-	// TODO: this makes no sense since it will be prioritized over manually set values in the config file
-	if ( !cmd_settings.count("anchor-length") )
-		cmd_settings.insert(std::make_pair("anchor-length", po::variable_value(default_anchor_length, true)));
-
-	if ( !cmd_settings.count("error-interval") )
-		cmd_settings.insert(std::make_pair("error-interval", po::variable_value(CountType(default_anchor_length/2), true)));
-
-	if ( !cmd_settings.count("seeding-interval") )
-		cmd_settings.insert(std::make_pair("seeding-interval", po::variable_value(CountType(default_anchor_length/2), true)));
-
-
-	return default_anchor_length;
+float HiLiveArgumentParser::get_default_error_rate(AlignmentMode align_mode) {
+	switch ( align_mode ) {
+		case FAST:
+			return 0.02f;
+		case ACCURATE:
+			return 0.03f;
+		case VERYFAST:
+			return 0.015f;
+		case VERYACCURATE:
+			return 0.035f;
+		case BALANCED:
+		default:
+			return 0.025f;
+		}
 }
 
 

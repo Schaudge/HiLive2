@@ -396,7 +396,7 @@ inline std::string to_string ( OutputFormat format ) {
  * @param bestn The bestn value [default: 0]
  * @return String of the alignment mode.
  */
-inline std::string to_string ( AlignmentMode mode, CountType bestn = 0 ) {
+inline std::string to_string ( OutputMode mode, CountType bestn = 0 ) {
 	switch ( mode ) {
 	case ANYBEST:
 		return "ANYBEST";
@@ -414,6 +414,8 @@ inline std::string to_string ( AlignmentMode mode, CountType bestn = 0 ) {
 		return "ANYBEST";
 	}
 }
+
+AlignmentMode to_alignmentMode ( std::string value );
 
 /**
  * Set the value of an immutable variable to a value without throwing an exception.

@@ -60,7 +60,7 @@ private:
 	Immutable<bool> extended_cigar;
 
 	/** Output mode. */
-	Immutable<AlignmentMode> mode;
+	Immutable<OutputMode> mode;
 
 	/** Switch: store all sequences. */
 	Immutable<bool> keep_all_sequences;
@@ -244,7 +244,7 @@ private:
 	 * @param bestn (optional) Defines the N for the best_n mode (0 if not defined).
 	 * @author Tobias Loka
 	 */
-	void set_mode(AlignmentMode value, CountType bestn = 0) {
+	void set_mode(OutputMode value, CountType bestn = 0) {
 		set_immutable(mode, value);
 		set_immutable(best_n, bestn);
 	}
@@ -844,14 +844,14 @@ public:
 	 * @return The output mode as AlignmentMode object.
 	 * @author Tobias Loka
 	 */
-	AlignmentMode get_mode() const{
+	OutputMode get_mode() const{
 		return get_immutable(mode);
 	}
 
 	/**
 	 * Check if a certain output mode is set.
 	 */
-	bool is_mode ( AlignmentMode alignment_mode ) const {
+	bool is_mode ( OutputMode alignment_mode ) const {
 		return ( get_immutable(mode) == alignment_mode ) ;
 	}
 
@@ -863,12 +863,12 @@ public:
 
 		// All hit mode
 		if ( value == "ALL" || value == "A" ) {
-			set_mode(AlignmentMode::ALL);
+			set_mode(OutputMode::ALL);
 		}
 
 		// Unique mode
 		else if ( value == "UNIQUE" || value == "U" ) {
-			set_mode(AlignmentMode::UNIQUE);
+			set_mode(OutputMode::UNIQUE);
 		}
 
 		// Best N scores mode
@@ -880,7 +880,7 @@ public:
 				throw std::runtime_error("Invalid alignment mode: " + value + ".");
 			}
 			try{
-				set_mode(AlignmentMode::BESTN, CountType(std::atol(bestn.c_str())));
+				set_mode(OutputMode::BESTN, CountType(std::atol(bestn.c_str())));
 			} catch( std::bad_cast & ex ){
 				std::cerr << "Error while casting length " << bestn << " to type uint16_t." << std::endl;
 				throw ex;
@@ -889,12 +889,12 @@ public:
 
 		// All best mode
 		else if ( value == "ALLBEST" || value == "H" ) {
-			set_mode(AlignmentMode::ALLBEST);
+			set_mode(OutputMode::ALLBEST);
 		}
 
 		// All hit mode
 		else if ( value == "ANYBEST" || value == "B" ) {
-			set_mode(AlignmentMode::ANYBEST);
+			set_mode(OutputMode::ANYBEST);
 		}
 
 		// Unknown mode
