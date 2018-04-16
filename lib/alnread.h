@@ -238,19 +238,17 @@ private:
 	 * Extend a single seed. Creates new seeds for all possible extensions that occur in the reference genome (Match, InDel, SNP)
 	 * @param base The next nucleotide
 	 * @param s The seed to be extended
-	 * @param allowedErrors Number of permitted errors for this seed
-	 * @param index The FM index
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
 	void extendSeed(char base, USeed s, SeedVec & newSeeds);
 
 	/**
-	 * Extend a seed by alignment matches (Match or SNP)
-	 * @param base_repr Binary representation of the current nucleotide
+	 * Extend a seed by alignment matches (Match or Mismatch)
+	 * @param read_base Binary representation of the current nucleotide
+	 * @param index_base Base of the related index match
+	 * @param it Iterator pointing at the current index position after applying the respective (mis-)match
 	 * @param origin The seed to be extended
-	 * @param allowedErrors Number of permitted errors for this seed
-	 * @param index The FM index
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
@@ -258,10 +256,7 @@ private:
 
 	/**
 	 * Extend a seed by an insertion
-	 * @param base_repr Binary representation of the current nucleotide
 	 * @param origin The seed to be extended
-	 * @param allowedErrors Number of permitted errors for this seed
-	 * @param index The FM index
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
@@ -269,10 +264,10 @@ private:
 
 	/**
 	 * Extend a seed by deletions
-	 * @param base_repr Binary representation of the current nucleotide
+	 * @param read_base Binary representation of the current nucleotide
+	 * @param index_base Binary representation of the related nucleotide in the index
+	 * @param it Iterator pointing at the current index position after applying the respective deletion
 	 * @param origin The seed to be extended
-	 * @param allowedErrors Number of permitted errors for this seed
-	 * @param index The FM index
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
@@ -282,8 +277,6 @@ private:
 	 * Add deletions to the alignment up to the permitted number of errors
 	 * @param base_repr Binary representation of the current nucleotide
 	 * @param origin The seed of the previous iteration
-	 * @param allowedErrors Number of permitted errors for this seed
-	 * @param index The FM index
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
