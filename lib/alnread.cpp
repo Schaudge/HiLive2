@@ -744,6 +744,10 @@ void ReadAlignment::getMatchSeeds(CountType read_base, CountType index_base, FMT
 
 void ReadAlignment::getInsertionSeeds(USeed origin, SeedVec & newSeeds) {
 
+	// No Indels in the last cycle
+	if ( cycle == total_cycles )
+		return;
+
 	// Stop if no gaps are permitted
 	if ( globalAlignmentSettings.get_max_gap_length() == 0 )
 		return;
@@ -786,6 +790,10 @@ void ReadAlignment::getInsertionSeeds(USeed origin, SeedVec & newSeeds) {
 
 void ReadAlignment::getDeletionSeeds(CountType read_base, CountType index_base, FMTopDownIterator& it, USeed origin, SeedVec & newSeeds) {
 
+	// No Indels in the last cycle
+	if ( cycle == total_cycles )
+		return;
+
 	// Stop if no gaps are permitted
 	if ( globalAlignmentSettings.get_max_gap_length() == 0 )
 		return;
@@ -801,7 +809,7 @@ void ReadAlignment::getDeletionSeeds(CountType read_base, CountType index_base, 
 	// Can only be opening (extension is performed in recursive_goDown() function)
 	ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_opening_penalty() - globalAlignmentSettings.get_deletion_extension_penalty();
 
-	// Don't start iteration with a match base (no deletion region required there!) or when having already all allowed errors.
+	// Don't start iteration when having already all allowed errors.
 	if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
 			return;
 
@@ -896,6 +904,8 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec 
 				s->cigar_data.back().length += 1; // extend deletion region
 				s->add_mdz_nucleotide(revtwobit_repr(b));
 				recursive_goDown(base_repr, s, newSeeds);
+
+				handled_range += (it.vDesc.range.i2 - it.vDesc.range.i1);
 
 			}
 		}
