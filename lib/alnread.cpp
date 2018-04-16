@@ -646,126 +646,128 @@ void ReadAlignment::appendNucleotideToSequenceStoreVector(char bc, bool appendTo
 
 void ReadAlignment::extendSeed(char base, USeed origin, SeedVec & newSeeds){
 
+	uint64_t origin_range = origin->vDesc.range.i2 - origin->vDesc.range.i1;
+	uint64_t handled_range = 0;
+
 	// The new base / nucleotide
 	CountType tbr = twobit_repr(base);
 
-	// Extend alignment match (can be match or NO_MATCH)
-	getMatchSeeds(tbr, origin, newSeeds);
+	// Handle match nucleotide
+	{
+		// Handle matching nucleotide first (this should be the default case)
+		FMTopDownIterator it(idx->idx, origin->vDesc);
+		if ( seqan::goDown(it, seqan::DnaString(base)) ) {
+			getMatchSeeds( tbr, tbr, it, origin, newSeeds );
+			handled_range += (it.vDesc.range.i2 - it.vDesc.range.i1);
+		}
 
-	// Extend insertion (only if not in the last cycle)
-	if ( cycle != total_cycles )
-		getInsertionSeeds(tbr, origin, newSeeds);
+	}
 
-	// Extend deletion (may occur in the last cycle since it must always be closed by a match when created)
-	getDeletionSeeds(tbr, origin, newSeeds);
+	if ( handled_range >= origin_range )
+		return;
 
-}
+	// Handle insertion
+	getInsertionSeeds( origin, newSeeds );
 
-void ReadAlignment::getMatchSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
+	// Handle no_match nucleotides
+	for ( CountType index_base = 0; index_base < 4; index_base++ ) {
 
-	// iterate through possible bases
-	for (int b=0; b<4; b++) {
+		// Stop if all index entries were handled
+		if ( handled_range >= origin_range )
+			break;
 
-		FMTopDownIterator it(idx->idx, origin->vDesc); 	// Create index iterator
+		// Match nucleotide was already handled
+		if ( index_base == tbr )
+			continue;
 
-		// Only handle when the path exist in the genome
-		if (goDown(it,seqan::DnaString(revtwobit_repr(b)))) {
+		FMTopDownIterator it(idx->idx, origin->vDesc);
 
-			// handle a MATCH
-			if ( b == base_repr ) {
+		if ( seqan::goDown(it, seqan::DnaString(index_base)) ) {
 
-				// copy data from origin seed
-				USeed s (new Seed);
-				s->vDesc = it.vDesc;
-				s->cigar_data = origin->cigar_data;
-				s->mdz_nucleotides = origin->mdz_nucleotides;
-				s->max_as = origin->max_as;
-				s->mdz_length = origin->mdz_length;
+			// Handle no_match
+			getMatchSeeds( tbr, index_base, it, origin, newSeeds );
 
-				// Insert MATCH region if necessary
-				if ( s->cigar_data.back().operation != MATCH )
-					s->cigar_data.emplace_back(0, MATCH); // TODO: add offset of previous match regions (if not deprecated)
+			// Handle deletion
+			getDeletionSeeds( tbr, index_base, it, origin, newSeeds );
 
-				s->cigar_data.back().length += 1; // Increase match region length
+			// Increase range of handled index entries
+			handled_range += it.vDesc.range.i2 - it.vDesc.range.i1;
 
-				newSeeds.emplace_back(s); // Push the new seed to the vector.
-			}
-
-			// handle a NO_MATCH
-			else {
-
-				// Compute new max_as
-				ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_mismatch_penalty() - globalAlignmentSettings.get_match_score();
-
-				// If max_as is no longer valid
-				if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
-					continue;
-
-				// DON'T FINISH DELETION AND INSERTION REGIONS BY NO_MATCH!!!
-				if ( origin->cigar_data.back().operation == DELETION )
-					continue;
-
-				if ( origin->cigar_data.back().operation == INSERTION )
-					continue;
-
-				// copy data from origin seed
-				USeed s (new Seed);
-				s->vDesc = it.vDesc;
-				s->cigar_data = origin->cigar_data;
-				s->mdz_nucleotides = origin->mdz_nucleotides;
-				s->max_as = new_max_as;
-				s->mdz_length = origin->mdz_length;
-
-				// Insert NO_MATCH region if necessary
-				if ( s->cigar_data.back().operation != NO_MATCH )
-					s->cigar_data.emplace_back(0, NO_MATCH);
-
-				s->cigar_data.back().length += 1; // Increase match region length
-
-				// Add nucleotide for MDZ tag
-				s->add_mdz_nucleotide(revtwobit_repr(b));
-
-
-				newSeeds.emplace_back(s); // Push the new seed to the vector.
-			}
 		}
 	}
+
 }
 
-void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
+void ReadAlignment::getMatchSeeds(CountType read_base, CountType index_base, FMTopDownIterator& it, USeed origin, SeedVec & newSeeds) {
+
+	ScoreType new_max_as = origin->max_as;
+
+	if ( read_base != index_base ) { // NO_MATCH
+		new_max_as -= ( globalAlignmentSettings.get_mismatch_penalty() + globalAlignmentSettings.get_match_score() );
+
+		// DON'T FINISH DELETION AND INSERTION REGIONS BY NO_MATCH!!!
+		if ( origin->cigar_data.back().operation == DELETION )
+			return;
+
+		if ( origin->cigar_data.back().operation == INSERTION )
+			return;
+	}
+
+	// If max_as is no longer valid, continue
+	if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
+		return;
+
+	// copy data from origin seed
+	USeed s (new Seed);
+	s->vDesc = it.vDesc;
+	s->cigar_data = origin->cigar_data;
+	s->mdz_nucleotides = origin->mdz_nucleotides;
+	s->max_as = new_max_as;
+	s->mdz_length = origin->mdz_length;
+
+	// Insert NO_MATCH region if necessary
+	if ( read_base != index_base && s->cigar_data.back().operation != NO_MATCH )
+		s->cigar_data.emplace_back(0, NO_MATCH);
+	else if ( read_base == index_base && s->cigar_data.back().operation != MATCH )
+		s->cigar_data.emplace_back(0, MATCH);
+
+	s->cigar_data.back().length += 1; // Increase region length
+
+	// Add nucleotide for MDZ tag
+	if ( read_base != index_base )
+		s->add_mdz_nucleotide(revtwobit_repr(index_base));
+
+
+	newSeeds.emplace_back(s); // Push the new seed to the vector.
+
+}
+
+void ReadAlignment::getInsertionSeeds(USeed origin, SeedVec & newSeeds) {
+
+	// Stop if no gaps are permitted
+	if ( globalAlignmentSettings.get_max_gap_length() == 0 )
+		return;
 
 	// Don't handle insertions after deletions.
 	if ( origin->cigar_data.back().operation == DELETION )
 		return;
 
 	// Don't handle if insertion region is getting too long
-	if ( origin->cigar_data.back().operation == INSERTION && origin->cigar_data.back().length > globalAlignmentSettings.get_max_gap_length())
+	if ( origin->cigar_data.back().operation == INSERTION && origin->cigar_data.back().length >= globalAlignmentSettings.get_max_gap_length())
 		return;
 
-	// If all occurences of the seed match the current base, insertion is not required.
-	FMTopDownIterator it(idx->idx, origin->vDesc);
-	uint64_t range = origin->vDesc.range.i2 - origin->vDesc.range.i1;
-	if ( seqan::goDown(it, seqan::DnaString(revtwobit_repr(base_repr))) ) {
-		if ( it.vDesc.range.i2 - it.vDesc.range.i1 == range )
-			return;
-	}
 
-	// handle all non-deletion regions
-	if ( origin->cigar_data.back().operation != DELETION ) {
-
-		// Compute new maximal alignment score when having an insertion
-		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_extension_penalty() - globalAlignmentSettings.get_match_score();
-		if ( origin->cigar_data.back().operation != INSERTION)
-			new_max_as -= globalAlignmentSettings.get_insertion_opening_penalty();
+	// Compute new maximal alignment score when having an insertion
+	ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_insertion_extension_penalty() - globalAlignmentSettings.get_match_score();
+	if ( origin->cigar_data.back().operation != INSERTION)
+		new_max_as -= globalAlignmentSettings.get_insertion_opening_penalty();
 
 		// Extend insertion region as long as number of errors is allowed.
 		if ( new_max_as >= getMinCycleScore(cycle, total_cycles) ) {
 
-			// Don't go down the tree since an insertion means to stay at the same index position!
-
 			// copy data from origin seed
 			USeed s (new Seed);
-			s->vDesc = origin->vDesc;
+			s->vDesc = origin->vDesc; // Use origin since an insertion means to stay at the same index position
 			s->cigar_data = origin->cigar_data;
 			s->mdz_length = origin->mdz_length;
 			s->mdz_nucleotides = origin->mdz_nucleotides;
@@ -779,50 +781,52 @@ void ReadAlignment::getInsertionSeeds(CountType base_repr, USeed origin, SeedVec
 
 			newSeeds.emplace_back(s); // Push the new seed to the vector.
 		}
-	}
+
 }
 
-void ReadAlignment::getDeletionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds) {
+void ReadAlignment::getDeletionSeeds(CountType read_base, CountType index_base, FMTopDownIterator& it, USeed origin, SeedVec & newSeeds) {
+
+	// Stop if no gaps are permitted
+	if ( globalAlignmentSettings.get_max_gap_length() == 0 )
+		return;
+
+	// Don't handle nucleotide matches
+	if ( read_base == index_base )
+		return;
 
 	// Don't handle insertion regions
 	if ( origin->cigar_data.back().operation == INSERTION )
 		return;
 
-	// iterate through possible bases
-	for (int b=0; b<4; b++) {
+	// Can only be opening (extension is performed in recursive_goDown() function)
+	ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_opening_penalty() - globalAlignmentSettings.get_deletion_extension_penalty();
 
-		// Can only be opening (extension is performed in recursive_goDown() function)
-		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_opening_penalty() - globalAlignmentSettings.get_deletion_extension_penalty();
+	// Don't start iteration with a match base (no deletion region required there!) or when having already all allowed errors.
+	if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
+			return;
 
-		// Don't start iteration with a match base (no deletion region required there!) or when having already all allowed errors.
-		if ( b == base_repr || new_max_as < getMinCycleScore(cycle, total_cycles) )
-			continue;
+	// copy data from origin seed
+	USeed s (new Seed);
+	s->vDesc = it.vDesc;
+	s->cigar_data = origin->cigar_data;
+	s->mdz_length = origin->mdz_length;
+	s->mdz_nucleotides = origin->mdz_nucleotides;
+	s->max_as = new_max_as; // Increase number of errors
 
-		// Create index iterator
-		FMTopDownIterator it(idx->idx, origin->vDesc);
+	s->cigar_data.emplace_back(1, DELETION); // init deletion region
 
-		// Only consider paths existing in the index
-		if ( goDown(it, seqan::DnaString(revtwobit_repr(b)))) {
+	// Add MDZ nucleotide
+	s->add_mdz_nucleotide(revtwobit_repr(index_base));
 
-			// copy data from origin seed
-			USeed s (new Seed);
-			s->vDesc = it.vDesc;
-			s->cigar_data = origin->cigar_data;
-			s->mdz_length = origin->mdz_length;
-			s->mdz_nucleotides = origin->mdz_nucleotides;
-			s->max_as = new_max_as; // Increase number of errors
+	recursive_goDown(read_base, s, newSeeds);
 
-			s->cigar_data.emplace_back(1, DELETION); // init deletion region
-
-			// Add MDZ nucleotide
-			s->add_mdz_nucleotide(revtwobit_repr(b));
-
-			recursive_goDown(base_repr, s, newSeeds);
-		}
-	}
 }
 
 void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec & newSeeds) {
+
+	// Count ranges to avoid unnecessary index calls
+	uint64_t origin_range = origin->vDesc.range.i2 - origin->vDesc.range.i1;
+	uint64_t handled_range = 0;
 
 	if ( origin->max_as < globalAlignmentSettings.get_min_as() ) // too many errors -> no seeds
 		return;
@@ -831,8 +835,47 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec 
 	if ( origin->cigar_data.back().operation != DELETION )
 		return;
 
-	// iterate through possible bases
+	// Start with match base
+	{
+		// Create index iterator
+		FMTopDownIterator it(idx->idx, origin->vDesc);
+
+		// Only consider paths existing in the index
+		if ( goDown(it, seqan::DnaString(revtwobit_repr( base_repr )))) {
+
+			// copy data from origin seed
+			USeed s (new Seed);
+			s->vDesc = it.vDesc;
+			s->cigar_data = origin->cigar_data;
+			s->mdz_length = origin->mdz_length;
+			s->mdz_nucleotides = origin->mdz_nucleotides;
+			s->max_as = origin->max_as ;
+
+			s->cigar_data.emplace_back(1, MATCH); // init MATCH region
+			newSeeds.emplace_back(s);
+
+			handled_range += it.vDesc.range.i2 - it.vDesc.range.i1;
+
+		}
+
+	}
+
+	if ( origin->cigar_data.back().length < globalAlignmentSettings.get_max_gap_length() ){
+
+		ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_extension_penalty();
+
+		// stop if maximum number of errors reached
+		if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
+			return;
+
+		// iterate through possible bases
 		for (int b=0; b<4; b++) {
+
+			if ( b == base_repr )
+				continue;
+
+			if ( handled_range >= origin_range )
+				break;
 
 			// Create index iterator
 			FMTopDownIterator it(idx->idx, origin->vDesc);
@@ -840,46 +883,23 @@ void ReadAlignment::recursive_goDown(CountType base_repr, USeed origin, SeedVec 
 			// Only consider paths existing in the index
 			if ( goDown(it, seqan::DnaString(revtwobit_repr(b)))) {
 
-				// Finish deletion region when a match occurs
-				if ( b == base_repr ) {
 
-					// copy data from origin seed
-					USeed s (new Seed);
-					s->vDesc = it.vDesc;
-					s->cigar_data = origin->cigar_data;
-					s->mdz_length = origin->mdz_length;
-					s->mdz_nucleotides = origin->mdz_nucleotides;
-					s->max_as = origin->max_as ;
 
-					s->cigar_data.emplace_back(1, MATCH); // init MATCH region
-					newSeeds.emplace_back(s);
+				// copy data from origin seed
+				USeed s (new Seed);
+				s->vDesc = it.vDesc;
+				s->cigar_data = origin->cigar_data;
+				s->mdz_length = origin->mdz_length;
+				s->mdz_nucleotides = origin->mdz_nucleotides;
+				s->max_as = new_max_as; // Increase number of errors
 
-				}
+				s->cigar_data.back().length += 1; // extend deletion region
+				s->add_mdz_nucleotide(revtwobit_repr(b));
+				recursive_goDown(base_repr, s, newSeeds);
 
-				// Continue deletion region otherwise (only as long as it is shorter than maximal InDel length)
-				else if ( origin->cigar_data.back().length < globalAlignmentSettings.get_max_gap_length() ){
-
-					ScoreType new_max_as = origin->max_as - globalAlignmentSettings.get_deletion_extension_penalty();
-
-					// stop if maximum number of errors reached
-					if ( new_max_as < getMinCycleScore(cycle, total_cycles) )
-						continue;
-
-					// copy data from origin seed
-					USeed s (new Seed);
-					s->vDesc = it.vDesc;
-					s->cigar_data = origin->cigar_data;
-					s->mdz_length = origin->mdz_length;
-					s->mdz_nucleotides = origin->mdz_nucleotides;
-					s->max_as = new_max_as; // Increase number of errors
-
-					s->cigar_data.back().length += 1; // extend deletion region
-					s->add_mdz_nucleotide(revtwobit_repr(b));
-					recursive_goDown(base_repr, s, newSeeds);
-
-				}
 			}
 		}
+	}
 }
 
 void ReadAlignment::createSeeds(SeedVec & newSeeds) {

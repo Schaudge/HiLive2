@@ -254,7 +254,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getMatchSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds);
+	void getMatchSeeds(CountType read_base, CountType index_base, FMTopDownIterator & it, USeed origin, SeedVec & newSeeds);
 
 	/**
 	 * Extend a seed by an insertion
@@ -265,7 +265,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getInsertionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds);
+	void getInsertionSeeds(USeed origin, SeedVec & newSeeds);
 
 	/**
 	 * Extend a seed by deletions
@@ -276,7 +276,7 @@ private:
 	 * @param newSeeds Reference to the list of seeds (all resulting seeds are added to this list)
 	 * @author Tobias Loka
 	 */
-	void getDeletionSeeds(CountType base_repr, USeed origin, SeedVec & newSeeds);
+	void getDeletionSeeds(CountType read_base, CountType index_base, FMTopDownIterator & it, USeed origin, SeedVec & newSeeds);
 
 	/**
 	 * Add deletions to the alignment up to the permitted number of errors
