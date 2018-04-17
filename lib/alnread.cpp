@@ -965,29 +965,33 @@ void ReadAlignment::extend_alignment(char bc) {
     	createSeeds(newSeeds);
     }
 
-	// sort the newSeeds vector
-    std::sort(newSeeds.begin(), newSeeds.end(), PComp<USeed>);
+    // Move the new seeds to the seeds vector
+    seeds = std::move(newSeeds);
 
-	// put only the "best" of similar seeds into the vector
-	seeds.clear();
+    // Nothing to sort or erase
+    if ( seeds.size() <= 1 )
+    	return;
 
-	if(newSeeds.size() == 0)
-		return;
+    // Sort the seeds by their vDesc positions (secondary: score)
+    std::sort(seeds.begin(), seeds.end(), PComp<USeed>);
 
-	auto svit = newSeeds.begin();
-	USeed lastUniqueSeed = (*svit);
-	seeds.reserve(newSeeds.size());
+    // From here, erase seeds that have the same vDesc positions but a lower or similar score than a previous one
+    bool first_seed = true;
+    auto last_vDesc = seeds.front()->vDesc;
 
-	++svit;
-	while( svit != newSeeds.end() ) {
+    seeds.erase( std::remove_if( std::begin(seeds), std::end(seeds), [&](USeed seed) mutable {
 
-		if ( lastUniqueSeed->vDesc != (*svit)->vDesc ) {
-			seeds.emplace_back(lastUniqueSeed);
-			lastUniqueSeed = (*svit);
-		}
-		++svit;
-	}
-	seeds.emplace_back(lastUniqueSeed); // pushback the last unique seed that was not pushed in the while loop.
+    		// Don't erase the first seed
+    		if ( first_seed ) {
+    			first_seed = false;
+    			return false;
+    		}
+
+    		// Erase all "duplicates", which means the same vDesc position but a lower or similar score than the previous one.
+    		bool is_duplicate = seed->vDesc == last_vDesc;
+    		last_vDesc = seed->vDesc;
+    		return is_duplicate;
+    	} ), std::end(seeds) );
 
 	return;
 }
