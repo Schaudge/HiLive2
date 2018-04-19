@@ -285,7 +285,7 @@ void HiLiveArgumentParser::report() {
     for ( uint16_t ln : globalAlignmentSettings.get_lanes() )
         std::cout << ln << " ";
     std::cout << std::endl;
-    std::cout << "K-mer index:              " << globalAlignmentSettings.get_index_fname() << std::endl;
+    std::cout << "Index path:               " << globalAlignmentSettings.get_index_fname() << std::endl;
     std::cout << "Read lengths:             ";
     std::string barcode_suffix;
     for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
@@ -705,7 +705,7 @@ void HiLiveOutArgumentParser::report() {
 	for ( uint16_t ln : globalAlignmentSettings.get_lanes() )
 		std::cout << ln << " ";
 	std::cout << std::endl;
-	std::cout << "K-mer index:              " << globalAlignmentSettings.get_index_fname() << std::endl;
+	std::cout << "Index path:               " << globalAlignmentSettings.get_index_fname() << std::endl;
 	std::cout << "Total Read lengths:       ";
 	std::string barcode_suffix;
 	for ( uint16_t read = 0; read != globalAlignmentSettings.get_seqs().size(); read ++) {
