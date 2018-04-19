@@ -154,23 +154,9 @@ ItemStatus Agenda::get_status(Task t) {
 
 // check if all items of the agenda were processed, if possible
 bool Agenda::finished() {
-	// check for each tile if either all cycles are finished OR there is a failed status item
-	for (uint16_t cl_id = 0; cl_id < items.size(); ++cl_id) {
-		for (uint16_t ln_id = 0; ln_id < items[cl_id].size(); ++ln_id) {
-			for (uint16_t tl_id = 0; tl_id < items[cl_id][ln_id].size(); ++tl_id) {
-				ItemStatus s = items[cl_id][ln_id][tl_id];
-				if ( s == FAILED ) {
-					// the rest of the tile is "allowed" to be unprocessed --> skip
-					continue;
-				}
-				else if (s != FINISHED) {
-					// otherwise any other status means that the agenda is not finished
-					return false;
-				}
-			}
-		}
-	}
-	return true;
+
+	return finished( items.size() );
+
 }
 
 // check if all items of the agenda were processed, if possible
@@ -180,14 +166,13 @@ bool Agenda::finished( CountType cycle ) {
 		return false;
 	}
 
-	// check for each tile if either all cycles are finished OR there is a failed status item
-	for (uint16_t cl_id = 0; cl_id < cycle; ++cl_id) {
-		for (uint16_t ln_id = 0; ln_id < items[cl_id].size(); ++ln_id) {
-			for (uint16_t tl_id = 0; tl_id < items[cl_id][ln_id].size(); ++tl_id) {
+	for (uint16_t ln_id = 0; ln_id < lanes.size(); ++ln_id) {
+		for (uint16_t tl_id = 0; tl_id < tiles.size(); ++tl_id) {
+			for (uint16_t cl_id = 0; cl_id < cycle; ++cl_id) {
 				ItemStatus s = items[cl_id][ln_id][tl_id];
 				if ( s == FAILED ) {
 					// the rest of the tile is "allowed" to be unprocessed --> skip
-					continue;
+					break;
 				}
 				else if (s != FINISHED) {
 					// otherwise any other status means that the agenda is not finished
@@ -227,7 +212,7 @@ uint32_t Agenda::tasks_finished() {
 		for (uint16_t ln_id = 0; ln_id < items[cl_id].size(); ++ln_id) {
 			for (uint16_t tl_id = 0; tl_id < items[cl_id][ln_id].size(); ++tl_id) {
 				if (items[cl_id][ln_id][tl_id] == FINISHED) {
-					num_finished++;
+					++num_finished;
 				}
 			}
 		}
