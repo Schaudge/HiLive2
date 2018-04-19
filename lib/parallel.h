@@ -145,6 +145,7 @@ public:
 	  items.clear();
 
 	  for ( CountType cycle_id = 0; cycle_id < rlen; ++cycle_id ) {
+
 		  ItemStatus status = cycle_id < start_cycle - 1 ? FINISHED : WAITING;
 		  std::vector<ItemStatus> cycle_status (tiles.size(), status);
 		  std::vector<std::vector<ItemStatus> > lane_status;

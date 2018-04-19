@@ -45,61 +45,30 @@ std::vector<uint16_t> one_tile(uint16_t t) {
 // check for BCL files and update item status
 void Agenda::update_status () {
 
-	// iterate over cycles
-	for (uint16_t cycle_id = 0; cycle_id < items.size(); ++cycle_id) {
+	// iterate over lanes
+	for (uint16_t ln_id = 0; ln_id < lanes.size(); ++ln_id) {
 
 		// iterate over all lanes
-		for (uint16_t ln_id = 0; ln_id < items[cycle_id].size(); ++ln_id) {
+		for (uint16_t tl_id = 0; tl_id < tiles.size(); ++tl_id) {
 
 			// get the first tile that is not in the FINISHED status
 			uint16_t first_unfinished = 0;
-			while ( (first_unfinished < items[cycle_id][ln_id].size()) && (items[cycle_id][ln_id][first_unfinished] == FINISHED)) {
+			while ( (first_unfinished < items.size()) && (items[first_unfinished][ln_id][tl_id] == FINISHED)) {
 				first_unfinished++;
 			}
 
 			// if there is one, check if there is a BCL file available
-			if ((first_unfinished != items[cycle_id][ln_id].size()) && (items[cycle_id][ln_id][first_unfinished] == WAITING)) {
-				std::string this_fname = get_bcl_fname(lanes[ln_id], tiles[first_unfinished], cycle_id + 1);
+			if ((first_unfinished != items.size()) && (items[first_unfinished][ln_id][tl_id] == WAITING)) {
+				std::string this_fname = get_bcl_fname(lanes[ln_id], tiles[tl_id], first_unfinished + 1);
 				// only change the status if the file exists
 				if ( file_exists(this_fname) ) {
 					// TODO: probably find a way to check if the machine currently writes to that file
-					items[cycle_id][ln_id][first_unfinished] = BCL_AVAILABLE;
+					items[first_unfinished][ln_id][tl_id] = BCL_AVAILABLE;
 				}
 			}
 		}
 	}
 }
-
-//// generate a new task from the agenda
-//Task Agenda::get_task(){
-//	// iterate over lanes
-//	for (uint16_t ln_id = 0; ln_id < items.size(); ++ln_id) {
-//
-//		// iterate over all tiles
-//		for (uint16_t tl_id = 0; tl_id < items[ln_id].size(); ++tl_id) {
-//
-//			// check if there is a cycle with an unprocessed BCL file
-//			uint16_t unprocessed = 0;
-//			while ( (unprocessed < items[ln_id][tl_id].size()) && (items[ln_id][tl_id][unprocessed] != BCL_AVAILABLE)) {
-//				unprocessed++;
-//			}
-//
-//			// generate a new task if there is an unprocessed BCL file
-//			if ( unprocessed != items[ln_id][tl_id].size() ) {
-//				uint16_t cycle = unprocessed + 1;
-//				uint16_t read_no = 0;
-//				while ( cycle > globalAlignmentSettings.get_seq_by_id(read_no).length) {
-//					cycle -= globalAlignmentSettings.get_seq_by_id(read_no).length;
-//					read_no += 1;
-//				}
-//				Task t (lanes[ln_id], tiles[tl_id], globalAlignmentSettings.get_seq_by_id(read_no), cycle);
-//				return t;
-//			}
-//		}
-//	}
-//	// return indicator that no new task could be created
-//	return NO_TASK;
-//}
 
 // generate a new task from the agenda
 Task Agenda::get_task(){
