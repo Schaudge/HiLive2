@@ -979,7 +979,7 @@ void ReadAlignment::extend_alignment(char bc) {
     bool first_seed = true;
     auto last_vDesc = seeds.front()->vDesc;
 
-    seeds.erase( std::remove_if( std::begin(seeds), std::end(seeds), [&](USeed seed) mutable {
+    seeds.erase( std::remove_if( std::begin(seeds), std::end(seeds), [&](const USeed seed) mutable {
 
     		// Don't erase the first seed
     		if ( first_seed ) {
