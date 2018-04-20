@@ -126,10 +126,10 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
             // Push the task in the correct Task Queue (Finished or Failed)
             if (success) {
 
-            	// Make previous cycle available for output. If current cycle is the last one, make current cycle available.
+            	// Make previous cycle available for output. If current cycle is the last one of the segment, make current cycle available.
             	CountType seqCycle = getSeqCycle(t.cycle, t.seqEl.id);
             	CountType output_cycle = seqCycle - 1;
-            	bool is_last_cycle = seqCycle == globalAlignmentSettings.get_cycles();
+            	bool is_last_cycle = t.cycle == t.seqEl.length ? true : false;
 
             	if ( globalAlignmentSettings.is_output_cycle( output_cycle ) || is_last_cycle ) {
             		for ( auto& alnout : alnouts ) {
