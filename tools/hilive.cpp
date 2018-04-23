@@ -126,19 +126,24 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
             // Push the task in the correct Task Queue (Finished or Failed)
             if (success) {
 
-            	// Make previous cycle available for output. If current cycle is the last one of the segment, make current cycle available.
+            	// Make previous cycle available for output.
+            	// If current cycle is the last one of the segment and this is an output cycle
+            	// or it is the very last cycle, make current cycle available.
+            	std::vector<CountType> output_cycles;
             	CountType seqCycle = getSeqCycle(t.cycle, t.seqEl.id);
-            	CountType output_cycle = seqCycle - 1;
-            	bool is_last_cycle = t.cycle == t.seqEl.length ? true : false;
 
-            	if ( globalAlignmentSettings.is_output_cycle( output_cycle ) || is_last_cycle ) {
+            	// Make previous cycle available if it is an output cycle
+            	if ( globalAlignmentSettings.is_output_cycle( seqCycle - 1 ) )
+            		output_cycles.push_back(seqCycle-1);
+
+            	// Make current cycle available if it is the very last cycle or the last segment cycle and an output cycle.
+            	if ( t.cycle == globalAlignmentSettings.get_cycles() || ( globalAlignmentSettings.is_output_cycle( seqCycle ) && t.cycle == t.seqEl.length ) )
+            		output_cycles.push_back(seqCycle);
+
+            	// Actually make the output cycles available.
+            	for ( auto cycle : output_cycles ) {
             		for ( auto& alnout : alnouts ) {
-            			if ( output_cycle == alnout.get_cycle() ) {
-            				alnout.set_task_available( Task(t.lane, t.tile, output_cycle));
-            			}
-            			if ( is_last_cycle && alnout.get_cycle() == globalAlignmentSettings.get_cycles() ) {
-            				alnout.set_task_available( Task(t.lane, t.tile, globalAlignmentSettings.get_cycles()));
-            			}
+            			alnout.set_task_available( Task(t.lane, t.tile, cycle));
             		}
             	}
 
