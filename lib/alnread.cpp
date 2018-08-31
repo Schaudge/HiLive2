@@ -1027,7 +1027,7 @@ CountType ReadAlignment::getBarcodeIndex() const {
 				fragment_pos = 0;
 				fragment_num += 1;
 				fragment_errors = 0;
-				assert( fragment_num < (globalAlignmentSettings.get_barcodeVector()[barcodeIndex]).size() );
+				assert( fragment_num < (globalAlignmentSettings.get_barcode_vector()[barcodeIndex]).size() );
 			}
 
 			// compare nucleotides and increase the number of fragment errors if not equal
