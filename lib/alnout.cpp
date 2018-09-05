@@ -24,7 +24,7 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 		}
 	}
 
-};
+}
 
 
 AlnOut::~AlnOut() {

@@ -946,10 +946,11 @@ void ReadAlignment::extend_alignment(char bc) {
     appendNucleotideToSequenceStoreVector(bc);
 
     // do not update the alignments when reading the first kmer_span-1 cycles
-    if ( cycle < globalAlignmentSettings.get_anchor_length() )
-        return;
+    if ( cycle < globalAlignmentSettings.get_anchor_length() ) {
+    	return;
+    }
 
-	SeedVec newSeeds;
+    SeedVec newSeeds;
 
 	// Reserve space for the worst case scenario: 4*M + 4*D + 1*I for each existing seed plus 1 new seed
 	newSeeds.reserve(9*seeds.size() + 1);
