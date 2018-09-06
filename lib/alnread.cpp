@@ -941,7 +941,9 @@ void ReadAlignment::createSeeds(SeedVec & newSeeds) {
 void ReadAlignment::extend_alignment(char bc) {
 
     // cycle is not allowed to be > total_cycles
-    assert( total_cycles >= cycle );
+	if ( total_cycles < cycle ) {
+		throw std::runtime_error("Cannot extend alignment: Cycle number is greater than the specified total number of cycles.");
+	}
 
     appendNucleotideToSequenceStoreVector(bc);
 
@@ -1028,7 +1030,11 @@ CountType ReadAlignment::getBarcodeIndex() const {
 				fragment_pos = 0;
 				fragment_num += 1;
 				fragment_errors = 0;
-				assert( fragment_num < (globalAlignmentSettings.get_barcode_vector()[barcodeIndex]).size() );
+
+				if ( fragment_num >= (globalAlignmentSettings.get_barcode_vector()[barcodeIndex]).size() ) {
+					throw std::runtime_error("Unexpected error: Tried to access more barcode segments than specified.");
+				}
+
 			}
 
 			// compare nucleotides and increase the number of fragment errors if not equal
