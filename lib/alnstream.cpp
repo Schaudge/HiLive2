@@ -507,10 +507,23 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
 
   input.open(in_fname);
 
-  assert(input.get_cycle() == cycle-1);
-  assert(input.get_lane() == lane);
-  assert(input.get_tile() == tile);
-  assert(input.get_rlen() == rlen);
+	// Check for expected input file content
+	if ( input.get_cycle() != cycle - 1 ) {
+		throw std::runtime_error("Unexpected cycle number in input file when extending alignments.");
+	}
+
+	if ( input.get_lane() != lane ) {
+		throw std::runtime_error("Unexpected lane number in input file when extending alignments.");
+	}
+
+	if ( input.get_tile() != tile ) {
+		throw std::runtime_error("Unexpected tile number in input file when extending alignments.");
+	}
+
+	if ( input.get_rlen() != rlen ) {
+		throw std::runtime_error("Unexpected read length in input file when extending alignments.");
+	}
+
 
   uint32_t num_reads = input.get_num_reads();
 
@@ -606,9 +619,19 @@ void StreamedAlignment::extend_barcode(uint16_t bc_cycle, uint16_t read_cycle, u
 
 	  iAlnStream input ( globalAlignmentSettings.get_block_size(), globalAlignmentSettings.get_compression_format() );
 	  input.open(in_fname);
-	  assert(input.get_cycle() == read_cycle);
-	  assert(input.get_lane() == lane);
-	  assert(input.get_tile() == tile);
+
+		// Check for expected input file content
+		if ( input.get_cycle() != read_cycle ) {
+			throw std::runtime_error("Unexpected cycle number in input file when extending barcodes.");
+		}
+
+		if ( input.get_lane() != lane ) {
+			throw std::runtime_error("Unexpected lane number in input file when extending barcodes.");
+		}
+
+		if ( input.get_tile() != tile ) {
+			throw std::runtime_error("Unexpected tile number in input file when extending barcodes.");
+		}
 
 	  uint32_t num_reads = input.get_num_reads();
 

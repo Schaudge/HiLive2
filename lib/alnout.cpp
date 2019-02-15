@@ -24,7 +24,7 @@ AlnOut::AlnOut(std::vector<CountType> lns, std::vector<CountType> tls, CountType
 		}
 	}
 
-};
+}
 
 
 AlnOut::~AlnOut() {
@@ -122,9 +122,18 @@ bool AlnOut::sort_tile( CountType ln, CountType tl, CountType mate, CountType cy
 
 	input.open(in_fname);
 
-	assert(input.get_cycle() == cycle);
-	assert(input.get_lane() == ln);
-	assert(input.get_tile() == tl);
+	// Check for expected input file content
+	if ( input.get_cycle() != cycle ) {
+		throw std::runtime_error("Unexpected cycle number in input file when sorting alignments.");
+	}
+
+	if ( input.get_lane() != ln ) {
+		throw std::runtime_error("Unexpected lane number in input file when sorting alignments.");
+	}
+
+	if ( input.get_tile() != tl ) {
+		throw std::runtime_error("Unexpected tile number in input file when sorting alignments.");
+	}
 
 	uint32_t num_reads = input.get_num_reads();
 
@@ -290,10 +299,10 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 			continue;
 
 		// compute barcode sequence as it should be written to BC tag
-		std::string barcode = globalAlignmentSettings.format_barcode(mateAlignments[0]->getBarcodeString());
+		std::string barcode = globalAlignmentSettings.format_barcode(mateAlignments[mateAlignments.size()-1]->getBarcodeString());
 
 		// Barcode index for the read
-		CountType barcodeIndex = mateAlignments[0]->getBarcodeIndex();
+		CountType barcodeIndex = mateAlignments[mateAlignments.size()-1]->getBarcodeIndex();
 
 		// If read has undetermined barcode and keep_all_barcodes is not set, skip this read
 		if ( barcodeIndex == UNDETERMINED && !globalAlignmentSettings.get_keep_all_barcodes() )

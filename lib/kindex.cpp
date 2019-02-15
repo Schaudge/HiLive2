@@ -53,7 +53,10 @@ int KixBuild::add_fasta(const std::string &fname, bool convert_spaces, bool trim
 
   // open input fasta file
   std::ifstream infile (fname.c_str());
-  assert(infile.is_open());
+
+  if ( !infile.is_open() ) {
+	  throw std::ifstream::failure("Could not open fasta file " + fname + ".");
+  }
 
   std::string line;	// current line of fasta file
   std::string seq_name;	// name of the current sequence
