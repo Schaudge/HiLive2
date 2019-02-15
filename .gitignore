@@ -2,3 +2,6 @@
 documentation/doxygen/doxygen_sqlite3.db
 documentation/doxygen/html/
 documentation/doxygen/latex/
+
+# Ignore .DS_Store that is known to clutter repositories on MacOS
+.DS_Store
