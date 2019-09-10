@@ -132,12 +132,12 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
             	std::vector<CountType> output_cycles;
             	CountType seqCycle = getSeqCycle(t.cycle, t.seqEl.id);
 
-            	// Make previous cycle available if it is an output cycle
-            	if ( globalAlignmentSettings.is_output_cycle( seqCycle - 1 ) )
+            	// Make previous cycle available if it is an output cycle and > 1 (to prevent double output of the last cycle of a segment)
+            	if ( t.cycle > 1 && globalAlignmentSettings.is_output_cycle( seqCycle - 1 ) )
             		output_cycles.push_back(seqCycle-1);
 
             	// Make current cycle available if it is the very last cycle or the last segment cycle and an output cycle.
-            	if ( t.cycle == globalAlignmentSettings.get_cycles() || ( globalAlignmentSettings.is_output_cycle( seqCycle ) && t.cycle == t.seqEl.length ) )
+            	if ( seqCycle == globalAlignmentSettings.get_cycles() || ( globalAlignmentSettings.is_output_cycle( seqCycle ) && t.cycle == t.seqEl.length ) )
             		output_cycles.push_back(seqCycle);
 
             	// Actually make the output cycles available.
@@ -156,16 +156,10 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
 
         }
 
-        // Thread is idle --> Also use it for output if the maximum number of output threads is exceeded.
         else {
-
-    		atomic_increment_guard<CountType> block( writing_threads );
-        	writeNextTaskToBam( alnouts );
-
+            // send this thread to sleep for a second if (and only if) no task was available
+            std::this_thread::sleep_for (std::chrono::milliseconds(1000));
         }
-
-        // send this thread to sleep for a second
-        std::this_thread::sleep_for (std::chrono::milliseconds(100));
 
     }  
 }

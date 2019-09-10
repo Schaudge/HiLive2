@@ -553,7 +553,10 @@ void AlnOut::__write_tile_to_bam__ ( Task t ) {
 
 	}
 	for (auto e:alignmentFiles)
+	{
+		e->close();
 		delete e;
+	}
 
 	return;
 }

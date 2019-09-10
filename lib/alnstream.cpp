@@ -553,7 +553,7 @@ uint64_t StreamedAlignment::extend_alignment(uint16_t cycle, uint16_t read_no, u
     uint32_t num_reads_filter = filters.size();
     
     if (num_reads != num_reads_filter){
-      std::string msg = std::string("Number of reads in filter file (") + std::to_string(num_reads_filter) + ") does not match the number of reads in the BCL file (" + std::to_string(num_reads) + ").";
+      std::string msg = std::string("Number of reads in filter file (") + std::to_string(num_reads_filter) + ") does not match the number of reads in BCL file " + in_fname + " (" + std::to_string(num_reads) + ").";
       throw std::length_error(msg.c_str());
     }
   }

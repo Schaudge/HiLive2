@@ -926,7 +926,7 @@ void ReadAlignment::createSeeds(SeedVec & newSeeds) {
 	std::string anchor_seq = getSequenceString().substr( sequenceLen - globalAlignmentSettings.get_anchor_length(), globalAlignmentSettings.get_anchor_length());
 
 	FMTopDownIterator it(idx->idx);
-	if ( seqan::goDown(it, seqan::DnaString(anchor_seq)) ) {
+	if ( seqan::goDown(it, seqan::Dna5String(anchor_seq)) ) {
 		USeed seed ( new Seed() );
 		seed->max_as = max_as;
 		if ( cycle != globalAlignmentSettings.get_anchor_length() )
