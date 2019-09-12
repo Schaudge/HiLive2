@@ -72,8 +72,8 @@ void worker (TaskQueue & tasks, TaskQueue & finished, TaskQueue & failed, std::d
     	{ // scope for block guard
     		atomic_increment_guard<CountType> block( writing_threads );
 
-    		// Start an output task if output threads and tasks available.
-    		if ( block.get_incremented_value() <= globalAlignmentSettings.get_num_out_threads() ) {
+    		// Start an output task if output threads and tasks available. Allow at least 1 output thread.
+    		if ( block.get_incremented_value() <= globalAlignmentSettings.get_num_out_threads() || block.get_incremented_value() == 1 ) {
     			Task written_task = writeNextTaskToBam( alnouts );
     			if ( written_task != NO_TASK ) {
     				continue;
