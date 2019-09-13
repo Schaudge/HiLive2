@@ -44,8 +44,8 @@ HiLive2 can currently only be installed from source.
 
 The following dependencies are required:
 
- * cmake (>= 2.8)
- * boost (system, filesystem, program\_options)
+ * cmake (>= 3.10)
+ * boost (system, filesystem, program\_options, iostreams)
  * zlib
  * lz4
  * [SeqAn](http://packages.seqan.de/) (version 2.3.2)
@@ -60,14 +60,11 @@ We recommend to have separated `source` and `build` directories:
 mkdir HiLive2 && cd HiLive2
 git clone https://gitlab.com/LokaT/HiLive2 source
 mkdir build && cd build
-cmake ../source
+cmake ../source -DSEQAN_PATH="PATH/TO/UNPACKED/SEQAN/"
 make
 ```
 
-If using a local version of lz4 you will need to adjust path in CMakeLists.txt 
-(line 32).  
-Please also adjust the paths to the SeqAn library in CMakeLists.txt (lines 41 
-and 42).
+If using local versions of boost or lz4, please specify the path with the `cmake` command using `-DLZ4_PATH="/PATH/TO/LZ4"` and `-DBOOST_PATH="/PATH/TO/BOOST"`, respectively.  
 
 
 Usage
